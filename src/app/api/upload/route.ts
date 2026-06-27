@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, handleApiError, ApiError } from "@/lib/api-helpers";
 
-export const config = { api: { bodyParser: false } };
-
 // ── Cloudinary upload (production / when credentials set) ────────────────────
 async function uploadToCloudinary(buffer: Buffer, filename: string, mimeType: string) {
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;

@@ -778,7 +778,7 @@ export default function ProjectDetailPage() {
               <FileText className="w-6 h-6 text-gray-400" />
               <div className="flex-1">
                 <p className="font-medium text-sm text-gray-900">{doc.name}</p>
-                <p className="text-xs text-gray-500">{doc.category} · {doc.uploadedBy?.name}</p>
+                <p className="text-xs text-gray-500">{doc.type} · {doc.uploadedBy?.name}</p>
               </div>
               <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline">Download</a>
             </div>

@@ -73,7 +73,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const dbUser = await User.findOne({ email: token.email });
         if (dbUser) {
           token.id = dbUser._id.toString();
-          token.role = dbUser.role;
+          token.role = dbUser.role || "manager";
         } else {
           // New OAuth user not yet in DB — assign default role
           token.role = "manager";

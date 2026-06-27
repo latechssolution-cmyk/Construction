@@ -1,4 +1,4 @@
-﻿import mongoose, { Schema, Document, Model, Types } from "mongoose";
+import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface IProjectEquipment extends Document {
   projectId: Types.ObjectId;
@@ -17,6 +17,7 @@ const projectEquipmentSchema = new Schema<IProjectEquipment>(
     notes: { type: String },
   },
   {
+    timestamps: true,
     toJSON: {
       virtuals: true,
       versionKey: false,

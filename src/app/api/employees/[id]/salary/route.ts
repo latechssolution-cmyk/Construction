@@ -12,7 +12,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     await connectDB();
     const employee = await Employee.findById(id, { name: 1, salary: 1, salaryType: 1 });
     if (!employee) throw new ApiError(404, "Employee not found");
-    const entries = await LedgerEntry.find({ category: "salary", description: { $regex: id, $options: "i" } }).sort({ date: -1 });
+    const entries = await LedgerEntry.find({
+      category: "salary",
+      $or: [{ employeeId: id }, { description: { $regex: id, $options: "i" } }],
+    }).sort({ date: -1 });
     return ok({ employee, salaryHistory: entries });
   } catch (e) {
     return handleApiError(e);
@@ -34,6 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       type: "expense",
       amount,
       category: "salary",
+      employeeId: id,
       description: `Salary payment - ${employee.name} [${id}] - ${data.month || ""}`,
       bankAccountId: data.bankAccountId || null,
       createdById: session.user.id,

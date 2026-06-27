@@ -4,6 +4,8 @@ import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import LedgerEntry from "@/models/LedgerEntry";
 
+import BankAccount from "@/models/BankAccount";
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAuth();
@@ -28,6 +30,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const data = await req.json();
     await connectDB();
+    const existing = await LedgerEntry.findById(id);
+    if (!existing) throw new ApiError(404, "Ledger entry not found");
+
     const update: any = {};
     if (data.date !== undefined) update.date = new Date(data.date);
     if (data.type !== undefined) update.type = data.type;
@@ -40,8 +45,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.projectId !== undefined) update.projectId = data.projectId;
     if (data.bankAccountId !== undefined) update.bankAccountId = data.bankAccountId;
     if (data.vendorId !== undefined) update.vendorId = data.vendorId;
+
+    // Reconcile bank balance if amount or account changed
+    if (existing.bankAccountId) {
+      const oldDelta = existing.type === "income" ? -existing.amount : existing.amount;
+      await BankAccount.findByIdAndUpdate(existing.bankAccountId, { $inc: { balance: oldDelta } });
+    }
+
     const entry = await LedgerEntry.findByIdAndUpdate(id, update, { new: true });
     if (!entry) throw new ApiError(404, "Ledger entry not found");
+
+    if (entry.bankAccountId) {
+      const newDelta = entry.type === "income" ? entry.amount : -entry.amount;
+      await BankAccount.findByIdAndUpdate(entry.bankAccountId, { $inc: { balance: newDelta } });
+    }
+
     await auditLog(session.user.id, "UPDATE", "LedgerEntry", id, "Updated ledger entry");
     return ok(entry);
   } catch (e) {
@@ -55,6 +73,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     requireRole(session, "admin");
     const { id } = await params;
     await connectDB();
+    const existing = await LedgerEntry.findById(id);
+    if (existing && existing.bankAccountId) {
+      const delta = existing.type === "income" ? -existing.amount : existing.amount;
+      await BankAccount.findByIdAndUpdate(existing.bankAccountId, { $inc: { balance: delta } });
+    }
     await LedgerEntry.findByIdAndDelete(id);
     await auditLog(session.user.id, "DELETE", "LedgerEntry", id, "Deleted ledger entry");
     return ok({ success: true });

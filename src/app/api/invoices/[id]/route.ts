@@ -39,19 +39,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.status === "paid" && existing.status !== "paid") update.paidAt = new Date();
     const invoice = await Invoice.findByIdAndUpdate(id, update, { new: true });
     if (data.status === "paid" && existing.status !== "paid") {
+      let bankAccountId = data.bankAccountId || null;
+      if (!bankAccountId) {
+        const defaultAccount = await BankAccount.findOne({ isActive: true });
+        if (defaultAccount) bankAccountId = defaultAccount._id.toString();
+      }
       await LedgerEntry.create({
         date: new Date(),
         type: "income",
         amount: existing.grandTotal,
         category: "invoice_payment",
         description: `Payment received for ${existing.invoiceNumber}`,
-        bankAccountId: data.bankAccountId || null,
+        bankAccountId: bankAccountId,
         createdById: session.user.id,
         referenceNumber: existing.invoiceNumber,
         partyType: "client",
       });
-      if (data.bankAccountId) {
-        await BankAccount.findByIdAndUpdate(data.bankAccountId, {
+      if (bankAccountId) {
+        await BankAccount.findByIdAndUpdate(bankAccountId, {
           $inc: { balance: existing.grandTotal },
         });
       }

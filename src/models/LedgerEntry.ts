@@ -1,4 +1,4 @@
-﻿import mongoose, { Schema, Document, Model, Types } from "mongoose";
+import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface ILedgerEntry extends Document {
   date: Date;
@@ -7,6 +7,7 @@ export interface ILedgerEntry extends Document {
   projectId?: Types.ObjectId;
   bankAccountId?: Types.ObjectId;
   vendorId?: Types.ObjectId;
+  employeeId?: Types.ObjectId;
   amount: number;
   description?: string;
   paymentMode: "cash" | "bank_transfer" | "cheque";
@@ -27,6 +28,7 @@ const ledgerEntrySchema = new Schema<ILedgerEntry>(
     projectId: { type: Schema.Types.ObjectId, ref: "Project" },
     bankAccountId: { type: Schema.Types.ObjectId, ref: "BankAccount" },
     vendorId: { type: Schema.Types.ObjectId, ref: "Vendor" },
+    employeeId: { type: Schema.Types.ObjectId, ref: "Employee" },
     amount: { type: Number, required: true },
     description: { type: String },
     paymentMode: {
@@ -78,6 +80,13 @@ ledgerEntrySchema.virtual("vendor", {
   justOne: true,
 });
 
+ledgerEntrySchema.virtual("employee", {
+  ref: "Employee",
+  localField: "employeeId",
+  foreignField: "_id",
+  justOne: true,
+});
+
 ledgerEntrySchema.virtual("createdBy", {
   ref: "User",
   localField: "createdById",
@@ -89,6 +98,7 @@ ledgerEntrySchema.index({ date: -1 });
 ledgerEntrySchema.index({ type: 1 });
 ledgerEntrySchema.index({ projectId: 1 });
 ledgerEntrySchema.index({ bankAccountId: 1 });
+ledgerEntrySchema.index({ employeeId: 1 });
 ledgerEntrySchema.index({ createdAt: -1 });
 
 const LedgerEntry: Model<ILedgerEntry> =

@@ -74,8 +74,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (dbUser) {
           token.id = dbUser._id.toString();
           token.role = dbUser.role;
+        } else {
+          // New OAuth user not yet in DB — assign default role
+          token.role = "manager";
         }
       }
+      // Ensure role always has a fallback
+      if (!token.role) token.role = "manager";
       return token;
     },
     async session({ session, token }) {

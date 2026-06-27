@@ -23,8 +23,8 @@ type Role = "admin" | "ceo" | "manager" | "accountant";
 const schema = z.object({
   name: z.string().min(2, "Name too short"),
   location: z.string().optional(),
-  type: z.string().default("OTHER"),
-  status: z.string().default("PLANNING"),
+  type: z.string().default("residential"),
+  status: z.string().default("planning"),
   budget: z.coerce.number().min(0),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
@@ -52,7 +52,7 @@ export function ProjectsClient({ projects, clients, managers, role }: ProjectsCl
 
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { status: "PLANNING", type: "RESIDENTIAL", budget: 0 },
+    defaultValues: { status: "planning", type: "residential", budget: 0 },
   });
 
   const filtered = projects.filter((p) => {
@@ -82,7 +82,7 @@ export function ProjectsClient({ projects, clients, managers, role }: ProjectsCl
     }
   };
 
-  const statuses = ["ALL", "PLANNING", "IN_PROGRESS", "ON_HOLD", "COMPLETED", "CANCELLED"];
+  const statuses = ["ALL", "planning", "in_progress", "on_hold", "completed"];
 
   return (
     <div className="space-y-6">
@@ -113,11 +113,11 @@ export function ProjectsClient({ projects, clients, managers, role }: ProjectsCl
                   </div>
                   <div className="space-y-1">
                     <Label>Type</Label>
-                    <Select defaultValue="RESIDENTIAL" onValueChange={(v) => setValue("type", v)}>
+                    <Select defaultValue="residential" onValueChange={(v) => setValue("type", v)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {["RESIDENTIAL", "COMMERCIAL", "INDUSTRIAL", "INFRASTRUCTURE", "RENOVATION", "OTHER"].map(t => (
-                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                        {["residential", "commercial", "industrial", "renovation"].map(t => (
+                          <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -128,11 +128,11 @@ export function ProjectsClient({ projects, clients, managers, role }: ProjectsCl
                   </div>
                   <div className="space-y-1">
                     <Label>Status</Label>
-                    <Select defaultValue="PLANNING" onValueChange={(v) => setValue("status", v)}>
+                    <Select defaultValue="planning" onValueChange={(v) => setValue("status", v)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {["PLANNING", "IN_PROGRESS", "ON_HOLD", "COMPLETED", "CANCELLED"].map(s => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        {["planning", "in_progress", "on_hold", "completed"].map(s => (
+                          <SelectItem key={s} value={s}>{s.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -210,11 +210,11 @@ export function ProjectsClient({ projects, clients, managers, role }: ProjectsCl
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((project) => {
-            const totalIncome = project.ledgerEntries
-              .filter((e: any) => e.type === "INCOME")
+            const totalIncome = (project.ledgerEntries ?? [])
+              .filter((e: any) => e.type === "income")
               .reduce((s: number, e: any) => s + Number(e.amount), 0);
-            const totalExpense = project.ledgerEntries
-              .filter((e: any) => e.type === "EXPENSE")
+            const totalExpense = (project.ledgerEntries ?? [])
+              .filter((e: any) => e.type === "expense")
               .reduce((s: number, e: any) => s + Number(e.amount), 0);
             const progress = getProjectProgress(project.tasks ?? []);
 
@@ -263,7 +263,7 @@ export function ProjectsClient({ projects, clients, managers, role }: ProjectsCl
 
                   <div className="flex items-center justify-between pt-1">
                     <p className="text-xs text-muted-foreground">
-                      Manager: {project.manager?.name ?? "Unassigned"}
+                      Manager: {project.assignedManager?.name ?? "Unassigned"}
                     </p>
                     <Link href={`/projects/${project.id}`}>
                       <Button variant="ghost" size="sm" className="h-7 text-xs">

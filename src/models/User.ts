@@ -1,4 +1,4 @@
-﻿import mongoose, { Schema, Document, Model } from "mongoose";
+import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IUser extends Document {
   name: string;
@@ -41,7 +41,6 @@ const userSchema = new Schema<IUser>(
   }
 );
 
-userSchema.index({ email: 1 });
 userSchema.index({ role: 1, isActive: 1 });
 
 const User: Model<IUser> =

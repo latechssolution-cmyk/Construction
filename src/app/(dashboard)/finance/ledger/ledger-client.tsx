@@ -27,7 +27,7 @@ export function LedgerClient({ entries, projects, accounts, totalIncome, totalEx
   const { toast } = useToast();
   const router = useRouter();
   const { register, handleSubmit, reset, setValue, watch } = useForm<any>({
-    defaultValues: { date: new Date().toISOString().split("T")[0], type: "EXPENSE" },
+    defaultValues: { date: new Date().toISOString().split("T")[0], type: "expense" },
   });
 
   const filtered = entries.filter((e: any) => {
@@ -79,11 +79,11 @@ export function LedgerClient({ entries, projects, accounts, totalIncome, totalEx
                   </div>
                   <div className="space-y-1">
                     <Label>Type *</Label>
-                    <Select defaultValue="EXPENSE" onValueChange={(v) => setValue("type", v)}>
+                    <Select defaultValue="expense" onValueChange={(v) => setValue("type", v)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="INCOME">Income</SelectItem>
-                        <SelectItem value="EXPENSE">Expense</SelectItem>
+                        <SelectItem value="income">Income</SelectItem>
+                        <SelectItem value="expense">Expense</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -111,7 +111,7 @@ export function LedgerClient({ entries, projects, accounts, totalIncome, totalEx
                   </div>
                   <div className="space-y-1">
                     <Label>Account</Label>
-                    <Select onValueChange={(v) => setValue("accountId", v)}>
+                    <Select onValueChange={(v) => setValue("bankAccountId", v)}>
                       <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
                       <SelectContent>
                         {accounts.map((a: any) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
@@ -189,8 +189,8 @@ export function LedgerClient({ entries, projects, accounts, totalIncome, totalEx
           <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All Types</SelectItem>
-            <SelectItem value="INCOME">Income</SelectItem>
-            <SelectItem value="EXPENSE">Expense</SelectItem>
+            <SelectItem value="income">Income</SelectItem>
+            <SelectItem value="expense">Expense</SelectItem>
           </SelectContent>
         </Select>
         <Select defaultValue="ALL" onValueChange={setFilterProject}>
@@ -226,16 +226,16 @@ export function LedgerClient({ entries, projects, accounts, totalIncome, totalEx
                     <tr key={entry.id} className="border-b hover:bg-muted/20">
                       <td className="px-4 py-3 whitespace-nowrap">{formatDate(entry.date)}</td>
                       <td className="px-4 py-3">
-                        <Badge variant="secondary" className={entry.type === "INCOME" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}>
+                        <Badge variant="secondary" className={entry.type === "income" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}>
                           {entry.type}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 capitalize">{entry.category}</td>
                       <td className="px-4 py-3 max-w-xs truncate">{entry.description || "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{entry.project?.name || "—"}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{entry.account?.name || "—"}</td>
-                      <td className={`px-4 py-3 text-right font-semibold ${entry.type === "INCOME" ? "text-green-700" : "text-red-600"}`}>
-                        {entry.type === "INCOME" ? "+" : "-"}{formatCurrency(Number(entry.amount))}
+                      <td className="px-4 py-3 text-muted-foreground">{entry.bankAccount?.name || "—"}</td>
+                      <td className={`px-4 py-3 text-right font-semibold ${entry.type === "income" ? "text-green-700" : "text-red-600"}`}>
+                        {entry.type === "income" ? "+" : "-"}{formatCurrency(Number(entry.amount))}
                       </td>
                     </tr>
                   ))

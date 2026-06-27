@@ -47,10 +47,10 @@ export function BillingClient({ bills, projects, clients, role }: any) {
     if (!formData.clientId) { toast({ title: "Select a client", variant: "destructive" }); return; }
     setLoading(true);
     try {
-      const res = await fetch("/api/bills", {
+      const res = await fetch("/api/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, lineItems, status: "DRAFT" }),
+        body: JSON.stringify({ ...formData, taxPercent: formData.taxRate, items: lineItems, status: "draft" }),
       });
       if (!res.ok) throw new Error();
       toast({ title: "Invoice created" });
@@ -178,7 +178,7 @@ export function BillingClient({ bills, projects, clients, role }: any) {
               ) : (
                 bills.map((bill: any) => (
                   <tr key={bill.id} className="border-b hover:bg-muted/20">
-                    <td className="px-4 py-3 font-mono font-medium">{bill.billNumber}</td>
+                    <td className="px-4 py-3 font-mono font-medium">{bill.invoiceNumber}</td>
                     <td className="px-4 py-3">{bill.client?.name || "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{bill.project?.name || "—"}</td>
                     <td className="px-4 py-3">{formatDate(bill.issueDate)}</td>
@@ -213,7 +213,7 @@ export function BillingClient({ bills, projects, clients, role }: any) {
               </div>
               <div className="text-right">
                 <h2 className="text-xl font-bold text-gray-700">INVOICE</h2>
-                <p className="font-mono text-lg">{viewBill.billNumber}</p>
+                <p className="font-mono text-lg">{viewBill.invoiceNumber}</p>
                 <p className="text-sm">Date: {formatDate(viewBill.issueDate)}</p>
                 {viewBill.dueDate && <p className="text-sm">Due: {formatDate(viewBill.dueDate)}</p>}
               </div>
@@ -235,7 +235,7 @@ export function BillingClient({ bills, projects, clients, role }: any) {
                 </tr>
               </thead>
               <tbody>
-                {viewBill.lineItems?.map((item: any) => (
+                {viewBill.items?.map((item: any) => (
                   <tr key={item.id} className="border-b border-gray-200">
                     <td className="py-2">{item.description}</td>
                     <td className="text-right py-2">{item.quantity}</td>
@@ -248,7 +248,7 @@ export function BillingClient({ bills, projects, clients, role }: any) {
             </table>
             <div className="text-right space-y-1">
               <div className="flex justify-end gap-8"><span>Subtotal:</span><span>{formatCurrency(Number(viewBill.subtotal))}</span></div>
-              {Number(viewBill.taxAmount) > 0 && <div className="flex justify-end gap-8"><span>Tax ({viewBill.taxRate}%):</span><span>{formatCurrency(Number(viewBill.taxAmount))}</span></div>}
+              {Number(viewBill.taxAmount) > 0 && <div className="flex justify-end gap-8"><span>Tax ({viewBill.taxPercent}%):</span><span>{formatCurrency(Number(viewBill.taxAmount))}</span></div>}
               <div className="flex justify-end gap-8 font-bold text-lg border-t border-gray-300 pt-1"><span>Grand Total:</span><span>{formatCurrency(Number(viewBill.grandTotal))}</span></div>
             </div>
             {viewBill.paymentTerms && <p className="mt-4 text-sm text-gray-600">Payment Terms: {viewBill.paymentTerms}</p>}

@@ -4,6 +4,7 @@ import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Invoice from "@/models/Invoice";
 import LedgerEntry from "@/models/LedgerEntry";
+import BankAccount from "@/models/BankAccount";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -49,6 +50,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         referenceNumber: existing.invoiceNumber,
         partyType: "client",
       });
+      if (data.bankAccountId) {
+        await BankAccount.findByIdAndUpdate(data.bankAccountId, {
+          $inc: { balance: existing.grandTotal },
+        });
+      }
     }
     await auditLog(session.user.id, "UPDATE", "Invoice", id, `Updated invoice ${invoice!.invoiceNumber} → ${invoice!.status}`);
     return ok(invoice);

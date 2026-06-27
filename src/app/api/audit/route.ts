@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const entity = searchParams.get("entity") || "";
     const entityId = searchParams.get("entityId") || "";
-    const take = parseInt(searchParams.get("take") || "1");
+    const take = parseInt(searchParams.get("take") || "50");
     await connectDB();
     const filter: any = {};
     if (entity) filter.module = entity;

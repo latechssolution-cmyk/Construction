@@ -15,7 +15,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.name !== undefined) milestone.name = data.name;
     if (data.dueDate !== undefined) milestone.dueDate = data.dueDate ? new Date(data.dueDate) : null;
     if (data.completed !== undefined) {
-      milestone.completedAt = data.completed ? (milestone.completedAt ? null : new Date()) : milestone.completedAt;
+      milestone.completedAt = data.completed ? (milestone.completedAt ?? new Date()) : null;
     }
     await milestone.save();
     return ok(milestone);

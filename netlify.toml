@@ -6,6 +6,7 @@
   NODE_VERSION = "22"
   NPM_FLAGS = "--legacy-peer-deps"
   SECRETS_SCAN_OMIT_PATHS = ".env.example"
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_APP_NAME"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

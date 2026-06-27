@@ -33,7 +33,9 @@ export default auth((req) => {
   if (isPublic) return NextResponse.next();
 
   if (!req.auth?.user) {
-    const loginUrl = new URL("/login", req.url);
+    const loginUrl = req.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.search = "";
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
   }

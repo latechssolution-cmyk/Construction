@@ -1,0 +1,51 @@
+﻿import mongoose, { Schema, Document, Model } from "mongoose";
+
+export interface IUser extends Document {
+  name: string;
+  email: string;
+  emailVerified?: Date | null;
+  image?: string;
+  passwordHash?: string;
+  role: "admin" | "ceo" | "manager" | "accountant";
+  isActive: boolean;
+  lastLoginAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const userSchema = new Schema<IUser>(
+  {
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    emailVerified: { type: Date },
+    image: { type: String },
+    passwordHash: { type: String },
+    role: {
+      type: String,
+      enum: ["admin", "ceo", "manager", "accountant"],
+      default: "manager",
+    },
+    isActive: { type: Boolean, default: true },
+    lastLoginAt: { type: Date },
+  },
+  {
+    timestamps: true,
+    toJSON: {
+      virtuals: true,
+      versionKey: false,
+      transform(_, ret) {
+        ret.id = ret._id?.toString();
+        delete (ret as any)._id;
+      },
+    },
+  }
+);
+
+userSchema.index({ email: 1 });
+userSchema.index({ role: 1, isActive: 1 });
+
+const User: Model<IUser> =
+  mongoose.models.User || mongoose.model<IUser>("User", userSchema);
+
+export default User;
+

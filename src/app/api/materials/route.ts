@@ -1,0 +1,84 @@
+import { NextRequest } from "next/server";
+import { requireAuth, requireRole, handleApiError, ok, created } from "@/lib/api-helpers";
+import { auditLog } from "@/lib/audit";
+import { notifyAdminsAndManagers } from "@/lib/notifications";
+import { connectDB } from "@/lib/mongoose";
+import Material from "@/models/Material";
+import MaterialUsage from "@/models/MaterialUsage";
+import LedgerEntry from "@/models/LedgerEntry";
+
+export async function GET(req: NextRequest) {
+  try {
+    await requireAuth();
+    const { searchParams } = new URL(req.url);
+    const projectId = searchParams.get("projectId");
+    const filter: any = {};
+    if (projectId) filter.projectId = projectId;
+    await connectDB();
+    const materials = await Material.find(filter)
+      .populate("project", "id name")
+      .populate("vendor", "id name")
+      .sort({ itemName: 1 });
+    const ids = materials.map((m) => m._id);
+    const usageLogs = await MaterialUsage.find({ materialId: { $in: ids } }).sort({ date: -1 });
+    const usageMap: Record<string, any[]> = {};
+    usageLogs.forEach((u) => {
+      const key = u.materialId.toString();
+      if (!usageMap[key]) usageMap[key] = [];
+      if (usageMap[key].length < 5) usageMap[key].push(u.toJSON());
+    });
+    const result = materials.map((m) => ({ ...m.toJSON(), usageLogs: usageMap[m.id] || [] }));
+    return ok(result);
+  } catch (e) {
+    return handleApiError(e);
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await requireAuth();
+    requireRole(session, "admin", "ceo", "manager");
+    const data = await req.json();
+    if (!data.itemName || !data.projectId) throw new Error("Item name and project are required");
+    await connectDB();
+    const qty = parseFloat(data.quantity || "0");
+    const price = parseFloat(data.unitPrice || "0");
+    const totalPrice = qty * price;
+    const minStock = parseFloat(data.minStockLevel || "5");
+    const receivedDate = data.receivedDate ? new Date(data.receivedDate) : new Date();
+    const material = await Material.create({
+      itemName: data.itemName,
+      category: data.category || "general",
+      unit: data.unit || "pcs",
+      quantity: qty,
+      stockQuantity: qty,
+      minStockLevel: minStock,
+      unitPrice: price,
+      totalPrice,
+      receivedDate,
+      projectId: data.projectId,
+      vendorId: data.vendorId || null,
+      notes: data.notes || null,
+    });
+    if (totalPrice > 0) {
+      await LedgerEntry.create({
+        date: receivedDate,
+        type: "expense",
+        amount: totalPrice,
+        category: "material_purchase",
+        description: `${data.itemName} × ${qty} ${material.unit}`,
+        projectId: data.projectId,
+        vendorId: data.vendorId || null,
+        bankAccountId: data.bankAccountId || null,
+        createdById: session.user.id,
+      });
+    }
+    if (qty <= minStock) {
+      await notifyAdminsAndManagers("Low Stock Alert", `${material.itemName} stock is low (${qty} ${material.unit} remaining)`, "warning");
+    }
+    await auditLog(session.user.id, "CREATE", "Material", material.id, `Added material: ${material.itemName}`);
+    return created(material);
+  } catch (e) {
+    return handleApiError(e);
+  }
+}

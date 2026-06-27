@@ -1,0 +1,66 @@
+﻿import mongoose, { Schema, Document, Model, Types } from "mongoose";
+
+export interface IContract extends Document {
+  contractNumber: string;
+  title: string;
+  clientId: Types.ObjectId;
+  scope?: string;
+  contractValue: number;
+  startDate?: Date | null;
+  endDate?: Date | null;
+  status: "active" | "on_hold" | "completed" | "cancelled" | "terminated";
+  paymentTerms?: string;
+  documentPath?: string;
+  notes?: string;
+  createdById?: Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const contractSchema = new Schema<IContract>(
+  {
+    contractNumber: { type: String, required: true, unique: true },
+    title: { type: String, required: true },
+    clientId: { type: Schema.Types.ObjectId, ref: "Client", required: true },
+    scope: { type: String },
+    contractValue: { type: Number, default: 0 },
+    startDate: { type: Date },
+    endDate: { type: Date },
+    status: {
+      type: String,
+      enum: ["active", "on_hold", "completed", "cancelled", "terminated"],
+      default: "active",
+    },
+    paymentTerms: { type: String },
+    documentPath: { type: String },
+    notes: { type: String },
+    createdById: { type: Schema.Types.ObjectId, ref: "User" },
+  },
+  {
+    timestamps: true,
+    toJSON: {
+      virtuals: true,
+      versionKey: false,
+      transform(_, ret) {
+        ret.id = ret._id?.toString();
+        delete (ret as any)._id;
+      },
+    },
+  }
+);
+
+contractSchema.virtual("client", {
+  ref: "Client",
+  localField: "clientId",
+  foreignField: "_id",
+  justOne: true,
+});
+
+contractSchema.index({ clientId: 1 });
+contractSchema.index({ status: 1 });
+
+const Contract: Model<IContract> =
+  mongoose.models.Contract || mongoose.model<IContract>("Contract", contractSchema);
+
+export default Contract;
+

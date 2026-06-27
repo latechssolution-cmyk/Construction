@@ -1,0 +1,118 @@
+﻿import mongoose, { Schema, Document, Model, Types } from "mongoose";
+
+export interface IInvoiceItem {
+  _id?: Types.ObjectId;
+  id?: string;
+  description: string;
+  quantity: number;
+  unit?: string;
+  unitPrice: number;
+  total: number;
+}
+
+export interface IInvoice extends Document {
+  invoiceNumber: string;
+  projectId?: Types.ObjectId;
+  clientId?: Types.ObjectId;
+  issueDate: Date;
+  dueDate?: Date | null;
+  paidAt?: Date | null;
+  status: "draft" | "sent" | "issued" | "paid" | "partially_paid" | "overdue" | "cancelled";
+  subtotal: number;
+  taxPercent: number;
+  taxAmount: number;
+  grandTotal: number;
+  notes?: string;
+  paymentTerms?: string;
+  createdById?: Types.ObjectId;
+  items: IInvoiceItem[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const invoiceItemSchema = new Schema<IInvoiceItem>(
+  {
+    description: { type: String, required: true },
+    quantity: { type: Number, required: true },
+    unit: { type: String },
+    unitPrice: { type: Number, required: true },
+    total: { type: Number, required: true },
+  },
+  {
+    toJSON: {
+      virtuals: true,
+      versionKey: false,
+      transform(_, ret) {
+        ret.id = ret._id?.toString();
+        delete (ret as any)._id;
+      },
+    },
+  }
+);
+
+const invoiceSchema = new Schema<IInvoice>(
+  {
+    invoiceNumber: { type: String, required: true, unique: true },
+    projectId: { type: Schema.Types.ObjectId, ref: "Project" },
+    clientId: { type: Schema.Types.ObjectId, ref: "Client" },
+    issueDate: { type: Date, default: Date.now },
+    dueDate: { type: Date },
+    paidAt: { type: Date },
+    status: {
+      type: String,
+      enum: ["draft", "sent", "issued", "paid", "partially_paid", "overdue", "cancelled"],
+      default: "draft",
+    },
+    subtotal: { type: Number, default: 0 },
+    taxPercent: { type: Number, default: 0 },
+    taxAmount: { type: Number, default: 0 },
+    grandTotal: { type: Number, default: 0 },
+    notes: { type: String },
+    paymentTerms: { type: String },
+    createdById: { type: Schema.Types.ObjectId, ref: "User" },
+    items: [invoiceItemSchema],
+  },
+  {
+    timestamps: true,
+    toJSON: {
+      virtuals: true,
+      versionKey: false,
+      transform(_, ret) {
+        ret.id = ret._id?.toString();
+        delete (ret as any)._id;
+      },
+    },
+  }
+);
+
+invoiceSchema.virtual("project", {
+  ref: "Project",
+  localField: "projectId",
+  foreignField: "_id",
+  justOne: true,
+});
+
+invoiceSchema.virtual("client", {
+  ref: "Client",
+  localField: "clientId",
+  foreignField: "_id",
+  justOne: true,
+});
+
+invoiceSchema.virtual("createdBy", {
+  ref: "User",
+  localField: "createdById",
+  foreignField: "_id",
+  justOne: true,
+});
+
+invoiceSchema.index({ status: 1 });
+invoiceSchema.index({ clientId: 1 });
+invoiceSchema.index({ projectId: 1 });
+invoiceSchema.index({ dueDate: 1 });
+
+const Invoice: Model<IInvoice> =
+  mongoose.models.Invoice || mongoose.model<IInvoice>("Invoice", invoiceSchema);
+
+export default Invoice;
+

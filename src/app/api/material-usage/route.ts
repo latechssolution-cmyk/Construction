@@ -1,0 +1,71 @@
+import { NextRequest } from "next/server";
+import { requireAuth, requireRole, handleApiError, ok, created, ApiError } from "@/lib/api-helpers";
+import { notifyAdminsAndManagers } from "@/lib/notifications";
+import { connectDB } from "@/lib/mongoose";
+import Material from "@/models/Material";
+import MaterialUsage from "@/models/MaterialUsage";
+import mongoose from "mongoose";
+
+export async function GET(req: NextRequest) {
+  try {
+    await requireAuth();
+    const { searchParams } = new URL(req.url);
+    const materialId = searchParams.get("materialId");
+    await connectDB();
+    const logs = await MaterialUsage.find(materialId ? { materialId } : {})
+      .populate("material", "itemName unit")
+      .populate("usedBy", "name")
+      .sort({ date: -1 });
+    return ok(logs);
+  } catch (e) {
+    return handleApiError(e);
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await requireAuth();
+    requireRole(session, "admin", "ceo", "manager");
+    const data = await req.json();
+    if (!data.materialId || !data.quantityUsed) throw new Error("materialId and quantityUsed are required");
+    await connectDB();
+    const material = await Material.findById(data.materialId);
+    if (!material) throw new ApiError(404, "Material not found");
+    const qty = parseFloat(data.quantityUsed);
+    if (qty > material.stockQuantity) {
+      throw new ApiError(400, `Insufficient stock. Available: ${material.stockQuantity} ${material.unit}`);
+    }
+    const dbSession = await mongoose.startSession();
+    let usage: any;
+    try {
+      await dbSession.withTransaction(async () => {
+        [usage] = await MaterialUsage.create([{
+          materialId: data.materialId,
+          quantityUsed: qty,
+          date: data.date ? new Date(data.date) : new Date(),
+          purpose: data.purpose || null,
+          notes: data.notes || null,
+          usedById: session.user.id,
+        }], { session: dbSession });
+        await Material.findByIdAndUpdate(
+          data.materialId,
+          { $inc: { stockQuantity: -qty } },
+          { session: dbSession }
+        );
+      });
+    } finally {
+      await dbSession.endSession();
+    }
+    const updated = await Material.findById(data.materialId);
+    if (updated && updated.stockQuantity <= updated.minStockLevel) {
+      await notifyAdminsAndManagers(
+        "Low Stock Alert",
+        `${material.itemName} stock is at ${updated.stockQuantity} ${material.unit} (min: ${material.minStockLevel})`,
+        "warning"
+      );
+    }
+    return created(usage);
+  } catch (e) {
+    return handleApiError(e);
+  }
+}

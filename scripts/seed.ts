@@ -26,6 +26,10 @@ async function seed() {
     { name: "CEO User", email: "ceo@construction.com", password: "Ceo@12345", role: "ceo" },
     { name: "Manager User", email: "manager@construction.com", password: "Manager@123", role: "manager" },
     { name: "Accountant User", email: "accountant@construction.com", password: "Account@123", role: "accountant" },
+    { name: "Super Admin", email: "admin@constructionlatech.com", password: "Admin@1234", role: "admin" },
+    { name: "CEO User", email: "ceo@constructionlatech.com", password: "Ceo@1234", role: "ceo" },
+    { name: "Manager User", email: "manager@constructionlatech.com", password: "Manager@1234", role: "manager" },
+    { name: "Accountant User", email: "accountant@constructionlatech.com", password: "Account@1234", role: "accountant" },
   ];
 
   for (const admin of admins) {

@@ -4,9 +4,10 @@ import { NextResponse } from "next/server";
 // Lightweight auth config for Edge middleware — no Mongoose/adapter imports.
 // JWT is verified using only the AUTH_SECRET without touching the database.
 const { auth } = NextAuth({
+  trustHost: true,
   session: { strategy: "jwt" },
   providers: [],
-  secret: process.env.AUTH_SECRET,
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "construction-erp-secret-key-2026",
   callbacks: {
     async jwt({ token, user }) {
       if (user) {

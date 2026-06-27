@@ -1,9 +1,7 @@
 import NextAuth from "next-auth";
-import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import clientPromise from "@/lib/mongodb";
 import { connectDB } from "@/lib/mongoose";
 import { rateLimit } from "@/lib/rate-limit";
 import User from "@/models/User";
@@ -96,16 +94,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.role = token.role as string;
       }
       return session;
-    },
-  },
-  events: {
-    async createUser({ user }) {
-      // First user becomes admin; subsequent Google OAuth users get manager role
-      await connectDB();
-      const count = await User.countDocuments();
-      if (count === 1) {
-        await User.findByIdAndUpdate(user.id, { role: "admin" });
-      }
     },
   },
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "construction-erp-secret-key-2026",

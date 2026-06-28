@@ -22,8 +22,11 @@ const providers: any[] = [
         throw new Error("Too many login attempts. Please try again in 15 minutes.");
       }
 
+      const email = (credentials.email as string).toLowerCase().trim();
+      const password = (credentials.password as string).trim();
+
       await connectDB();
-      const user = await User.findOne({ email: (credentials.email as string).toLowerCase() });
+      const user = await User.findOne({ email });
 
       if (!user || !user.passwordHash) {
         throw new Error("Invalid email or password");
@@ -32,7 +35,7 @@ const providers: any[] = [
         throw new Error("Account is deactivated. Contact your administrator.");
       }
 
-      const valid = await bcrypt.compare(credentials.password as string, user.passwordHash);
+      const valid = await bcrypt.compare(password, user.passwordHash);
       if (!valid) throw new Error("Invalid email or password");
 
       // Update last login

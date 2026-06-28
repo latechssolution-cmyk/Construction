@@ -18,16 +18,21 @@ export async function GET(req: NextRequest) {
     const materials = await Material.find(filter)
       .populate("project", "id name")
       .populate("vendor", "id name")
-      .sort({ itemName: 1 });
-    const ids = materials.map((m) => m._id);
-    const usageLogs = await MaterialUsage.find({ materialId: { $in: ids } }).sort({ date: -1 });
+      .sort({ itemName: 1 })
+      .lean({ virtuals: true });
+    const ids = (materials as any[]).map((m: any) => m._id);
+    // Cap usage log fetch — at most 5 per material, hard limit avoids over-fetching on large data
+    const usageLogs = await MaterialUsage.find({ materialId: { $in: ids } })
+      .sort({ date: -1 })
+      .limit(Math.max(ids.length * 5, 50))
+      .lean();
     const usageMap: Record<string, any[]> = {};
-    usageLogs.forEach((u) => {
+    (usageLogs as any[]).forEach((u: any) => {
       const key = u.materialId.toString();
       if (!usageMap[key]) usageMap[key] = [];
-      if (usageMap[key].length < 5) usageMap[key].push(u.toJSON());
+      if (usageMap[key].length < 5) usageMap[key].push(u);
     });
-    const result = materials.map((m) => ({ ...m.toJSON(), usageLogs: usageMap[m.id] || [] }));
+    const result = (materials as any[]).map((m: any) => ({ ...m, usageLogs: usageMap[m.id] || [] }));
     return ok(result);
   } catch (e) {
     return handleApiError(e);
@@ -74,9 +79,9 @@ export async function POST(req: NextRequest) {
       });
     }
     if (qty <= minStock) {
-      await notifyAdminsAndManagers("Low Stock Alert", `${material.itemName} stock is low (${qty} ${material.unit} remaining)`, "warning");
+      void notifyAdminsAndManagers("Low Stock Alert", `${material.itemName} stock is low (${qty} ${material.unit} remaining)`, "warning");
     }
-    await auditLog(session.user.id, "CREATE", "Material", material.id, `Added material: ${material.itemName}`);
+    void auditLog(session.user.id, "CREATE", "Material", material.id, `Added material: ${material.itemName}`);
     return created(material);
   } catch (e) {
     return handleApiError(e);

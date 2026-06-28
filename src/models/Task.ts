@@ -70,10 +70,9 @@ taskSchema.virtual("phase", {
   justOne: true,
 });
 
-taskSchema.index({ projectId: 1 });
-taskSchema.index({ status: 1 });
-taskSchema.index({ assignedToId: 1 });
-taskSchema.index({ dueDate: 1 });
+taskSchema.index({ projectId: 1, status: 1, dueDate: 1 });
+taskSchema.index({ assignedToId: 1, status: 1 });
+taskSchema.index({ dueDate: 1, status: 1 });
 
 const Task: Model<ITask> =
   mongoose.models.Task || mongoose.model<ITask>("Task", taskSchema);

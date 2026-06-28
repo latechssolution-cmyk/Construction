@@ -16,74 +16,97 @@ export async function GET() {
     await connectDB();
 
     const now = new Date();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+
     const [
       totalProjects, activeProjects, totalClients, totalEmployees, totalVendors,
-      incomeAgg, expenseAgg, statusBreakdown, recentActivity,
+      totalsAgg, statusBreakdown, recentActivity, trendAgg,
+      overdueTasks, overdueInvoices,
     ] = await Promise.all([
       Project.countDocuments(),
       Project.countDocuments({ status: "in_progress" }),
       Client.countDocuments({ isActive: true }),
       Employee.countDocuments({ isActive: true }),
       Vendor.countDocuments({ isActive: true }),
-      LedgerEntry.aggregate([{ $match: { type: "income" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
-      LedgerEntry.aggregate([{ $match: { type: "expense" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      // Single aggregation for all-time income + expense totals
+      LedgerEntry.aggregate([
+        { $group: { _id: "$type", total: { $sum: "$amount" } } },
+      ]),
       Project.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
-      AuditLog.find({}).populate("user", "name").sort({ createdAt: -1 }).limit(10),
+      AuditLog.find({}, { action: 1, module: 1, recordId: 1, details: 1, createdAt: 1 })
+        .populate("user", "name").sort({ createdAt: -1 }).limit(10).lean({ virtuals: true }),
+      // Single aggregation for 6-month revenue trend (replaces 12 separate queries)
+      LedgerEntry.aggregate([
+        { $match: { date: { $gte: sixMonthsAgo } } },
+        {
+          $group: {
+            _id: { year: { $year: "$date" }, month: { $month: "$date" }, type: "$type" },
+            total: { $sum: "$amount" },
+          },
+        },
+      ]),
+      Task.countDocuments({ status: { $ne: "completed" }, dueDate: { $lt: now } }),
+      Invoice.countDocuments({ status: { $in: ["sent", "overdue"] }, dueDate: { $lt: now } }),
     ]);
 
-    const revenueTrend = await Promise.all(
-      Array.from({ length: 6 }, (_, i) => {
-        const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
-        const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-        return Promise.all([
-          LedgerEntry.aggregate([{ $match: { type: "income", date: { $gte: d, $lt: next } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
-          LedgerEntry.aggregate([{ $match: { type: "expense", date: { $gte: d, $lt: next } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
-        ]).then(([inc, exp]) => ({
-          month: d.toLocaleString("default", { month: "short" }),
-          income: inc[0]?.total || 0,
-          expense: exp[0]?.total || 0,
-        }));
-      })
-    );
+    // Reconstruct totals
+    const totalIncome = totalsAgg.find((r: any) => r._id === "income")?.total || 0;
+    const totalExpense = totalsAgg.find((r: any) => r._id === "expense")?.total || 0;
 
-    const portfolioProjects = await Project.find({}).sort({ createdAt: -1 }).limit(20);
-    const projectIds = portfolioProjects.map((p) => p._id);
-    const [taskGroups, ledgerGroups] = await Promise.all([
-      Task.aggregate([{ $match: { projectId: { $in: projectIds } } }, { $group: { _id: "$projectId", statuses: { $push: "$status" } } }]),
-      LedgerEntry.aggregate([{ $match: { projectId: { $in: projectIds } } }, { $group: { _id: { projectId: "$projectId", type: "$type" }, total: { $sum: "$amount" } } }]),
-    ]);
-    const taskMap = Object.fromEntries(taskGroups.map((r: any) => [r._id.toString(), r.statuses]));
-    const expMap: Record<string, number> = {};
-    ledgerGroups.forEach((r: any) => {
-      if (r._id.type === "expense") expMap[r._id.projectId.toString()] = r.total;
+    // Reconstruct 6-month trend from single aggregation result
+    const trendMap: Record<string, { income: number; expense: number }> = {};
+    for (const r of trendAgg as any[]) {
+      const key = `${r._id.year}-${r._id.month}`;
+      if (!trendMap[key]) trendMap[key] = { income: 0, expense: 0 };
+      trendMap[key][r._id.type as "income" | "expense"] = r.total;
+    }
+    const revenueTrend = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
+      return {
+        month: d.toLocaleString("default", { month: "short" }),
+        income: trendMap[key]?.income || 0,
+        expense: trendMap[key]?.expense || 0,
+      };
     });
 
-    const portfolio = portfolioProjects.map((p) => {
-      const statuses: string[] = taskMap[p.id] || [];
+    // Portfolio: fetch top 20 projects with only needed fields, then aggregate in parallel
+    const portfolioProjects = await Project.find(
+      {},
+      { name: 1, status: 1, budget: 1, completionPercent: 1 }
+    ).sort({ createdAt: -1 }).limit(20).lean();
+    const projectIds = portfolioProjects.map((p: any) => p._id);
+
+    const [taskGroups, ledgerGroups] = await Promise.all([
+      Task.aggregate([
+        { $match: { projectId: { $in: projectIds } } },
+        { $group: { _id: "$projectId", statuses: { $push: "$status" } } },
+      ]),
+      LedgerEntry.aggregate([
+        { $match: { projectId: { $in: projectIds }, type: "expense" } },
+        { $group: { _id: "$projectId", total: { $sum: "$amount" } } },
+      ]),
+    ]);
+
+    const taskMap = Object.fromEntries(taskGroups.map((r: any) => [r._id.toString(), r.statuses]));
+    const expMap = Object.fromEntries(ledgerGroups.map((r: any) => [r._id.toString(), r.total]));
+
+    const portfolio = (portfolioProjects as any[]).map((p: any) => {
+      const statuses: string[] = taskMap[p._id.toString()] || [];
       const total = statuses.length;
       const done = statuses.filter((s) => s === "completed").length;
-      const pct = total > 0 ? Math.round(done / total * 100) : 0;
-      const spent = expMap[p.id] || 0;
-      const budgetPct = p.budget ? Math.round(spent / p.budget * 100) : 0;
+      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      const spent = expMap[p._id.toString()] || 0;
+      const budgetPct = p.budget ? Math.round((spent / p.budget) * 100) : 0;
       const rag = budgetPct > 100 ? "red" : budgetPct > 80 ? "amber" : "green";
-      return { id: p.id, name: p.name, status: p.status, budget: p.budget, spent, pct, budgetPct, rag, tasksDone: done, tasksTotal: total };
+      return { id: p._id.toString(), name: p.name, status: p.status, budget: p.budget, spent, pct, budgetPct, rag, tasksDone: done, tasksTotal: total };
     });
-
-    const [overdueTasks, overdueInvoices] = await Promise.all([
-      Task.countDocuments({ status: { $ne: "completed" }, dueDate: { $lt: now } }),
-      Invoice.countDocuments({ status: { $in: ["sent","overdue"] }, dueDate: { $lt: now } }),
-    ]);
 
     return ok({
       totalProjects, activeProjects, totalClients, totalEmployees, totalVendors,
-      totalIncome: incomeAgg[0]?.total || 0,
-      totalExpense: expenseAgg[0]?.total || 0,
-      overdueTasks,
-      overdueInvoices,
-      statusBreakdown: statusBreakdown.map((s: any) => ({ status: s._id, count: s.count })),
-      revenueTrend,
-      recentActivity,
-      portfolio,
+      totalIncome, totalExpense, overdueTasks, overdueInvoices,
+      statusBreakdown: (statusBreakdown as any[]).map((s: any) => ({ status: s._id, count: s.count })),
+      revenueTrend, recentActivity, portfolio,
     });
   } catch (e) {
     return handleApiError(e);

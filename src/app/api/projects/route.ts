@@ -23,9 +23,10 @@ export async function GET(req: NextRequest) {
     const projects = await Project.find(filter)
       .populate("client", "id name")
       .populate("assignedManager", "id name")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean({ virtuals: true });
 
-    const ids = projects.map((p) => p._id);
+    const ids = (projects as any[]).map((p: any) => p._id);
     const [taskGroups, milestoneGroups, matCounts, docCounts] = await Promise.all([
       Task.aggregate([{ $match: { projectId: { $in: ids } } }, { $group: { _id: "$projectId", statuses: { $push: "$status" } } }]),
       Milestone.aggregate([{ $match: { projectId: { $in: ids } } }, { $group: { _id: "$projectId", completedAts: { $push: "$completedAt" } } }]),
@@ -37,8 +38,8 @@ export async function GET(req: NextRequest) {
     const matMap = Object.fromEntries(matCounts.map((r: any) => [r._id.toString(), r.count]));
     const docMap = Object.fromEntries(docCounts.map((r: any) => [r._id.toString(), r.count]));
 
-    const result = projects.map((p) => ({
-      ...p.toJSON(),
+    const result = (projects as any[]).map((p: any) => ({
+      ...p,
       tasks: taskMap[p.id] || [],
       milestones: mileMap[p.id] || [],
       _count: { materials: matMap[p.id] || 0, documents: docMap[p.id] || 0 },
@@ -70,8 +71,8 @@ export async function POST(req: NextRequest) {
       createdById: session.user.id,
     });
     await project.populate("client", "name");
-    await auditLog(session.user.id, "CREATE", "Project", project.id, `Created project: ${project.name}`);
-    await notifyAdminsAndManagers("New Project Created", `Project "${project.name}" has been created`, "info");
+    void auditLog(session.user.id, "CREATE", "Project", project.id, `Created project: ${project.name}`);
+    void notifyAdminsAndManagers("New Project Created", `Project "${project.name}" has been created`, "info");
     return created(project);
   } catch (e) {
     return handleApiError(e);

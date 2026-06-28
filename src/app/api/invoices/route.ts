@@ -21,21 +21,18 @@ export async function GET(req: NextRequest) {
     if (clientId) filter.clientId = clientId;
     if (projectId) filter.projectId = projectId;
     await connectDB();
+    // Mark overdue without blocking the read response (fire-and-forget)
+    void Invoice.updateMany(
+      { status: "sent", dueDate: { $lt: new Date() } },
+      { $set: { status: "overdue" } }
+    );
     const invoices = await Invoice.find(filter)
       .populate("client", "id name")
       .populate("project", "id name")
       .populate("createdBy", "name")
-      .sort({ createdAt: -1 });
-    const now = new Date();
-    const overdueIds = invoices
-      .filter((inv) => inv.status === "sent" && inv.dueDate && new Date(inv.dueDate) < now)
-      .map((inv) => inv._id);
-    if (overdueIds.length > 0) {
-      await Invoice.updateMany({ _id: { $in: overdueIds } }, { status: "overdue" });
-      invoices.forEach((inv) => {
-        if (overdueIds.some((id) => id.toString() === inv.id)) inv.status = "overdue";
-      });
-    }
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean({ virtuals: true });
     return ok(invoices);
   } catch (e) {
     return handleApiError(e);

@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
@@ -27,6 +28,16 @@ const nextConfig: NextConfig = {
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), browsing-topics=()" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
         ],
+      },
+      // Cache dashboard API responses for 30 seconds (private — user-specific)
+      {
+        source: "/api/dashboard/:path*",
+        headers: [{ key: "Cache-Control", value: "private, max-age=30, stale-while-revalidate=60" }],
+      },
+      // Light cache for list endpoints — 10 s avoids duplicate requests on tab focus
+      {
+        source: "/api/(projects|clients|employees|vendors|materials|invoices)",
+        headers: [{ key: "Cache-Control", value: "private, max-age=10, stale-while-revalidate=30" }],
       },
     ];
   },

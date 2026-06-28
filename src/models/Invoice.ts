@@ -106,10 +106,10 @@ invoiceSchema.virtual("createdBy", {
   justOne: true,
 });
 
-invoiceSchema.index({ status: 1 });
-invoiceSchema.index({ clientId: 1 });
+invoiceSchema.index({ status: 1, dueDate: 1 });
+invoiceSchema.index({ clientId: 1, status: 1 });
 invoiceSchema.index({ projectId: 1 });
-invoiceSchema.index({ dueDate: 1 });
+invoiceSchema.index({ createdAt: -1 });
 
 const Invoice: Model<IInvoice> =
   mongoose.models.Invoice || mongoose.model<IInvoice>("Invoice", invoiceSchema);

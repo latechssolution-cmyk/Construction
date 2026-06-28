@@ -10,21 +10,22 @@ export async function GET() {
   try {
     await requireAuth();
     await connectDB();
-    const employees = await Employee.find({}).sort({ name: 1 });
-    const ids = employees.map((e) => e._id);
+    const employees = await Employee.find({}).sort({ name: 1 }).lean({ virtuals: true });
+    const ids = (employees as any[]).map((e: any) => e._id);
     const [assignments, attCounts] = await Promise.all([
-      ProjectEmployee.find({ employeeId: { $in: ids } }).populate("project", "id name status"),
+      ProjectEmployee.find({ employeeId: { $in: ids } }, { employeeId: 1, projectId: 1, role: 1, joinedAt: 1 })
+        .populate("project", "id name status").lean({ virtuals: true }),
       Attendance.aggregate([{ $match: { employeeId: { $in: ids } } }, { $group: { _id: "$employeeId", count: { $sum: 1 } } }]),
     ]);
     const assignMap: Record<string, any[]> = {};
-    assignments.forEach((a) => {
+    (assignments as any[]).forEach((a: any) => {
       const key = a.employeeId.toString();
       if (!assignMap[key]) assignMap[key] = [];
-      assignMap[key].push(a.toJSON());
+      assignMap[key].push(a);
     });
     const attMap = Object.fromEntries(attCounts.map((r: any) => [r._id.toString(), r.count]));
-    const result = employees.map((e) => ({
-      ...e.toJSON(),
+    const result = (employees as any[]).map((e: any) => ({
+      ...e,
       projectAssignments: assignMap[e.id] || [],
       _count: { attendanceRecords: attMap[e.id] || 0 },
     }));
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
       emergencyContact: data.emergencyContact || null,
       notes: data.notes || null,
     });
-    await auditLog(session.user.id, "CREATE", "Employee", employee.id, `Hired: ${employee.name}`);
+    void auditLog(session.user.id, "CREATE", "Employee", employee.id, `Hired: ${employee.name}`);
     return created(employee);
   } catch (e) {
     return handleApiError(e);

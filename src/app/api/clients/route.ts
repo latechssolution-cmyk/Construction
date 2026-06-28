@@ -10,19 +10,18 @@ export async function GET() {
   try {
     await requireAuth();
     await connectDB();
-    const clients = await Client.find({}).sort({ name: 1 });
-    const ids = clients.map((c) => c._id);
+    const clients = await Client.find({}).sort({ name: 1 }).lean({ virtuals: true });
+    const ids = (clients as any[]).map((c: any) => c._id);
     const [projectCounts, invoiceCounts] = await Promise.all([
       Project.aggregate([{ $match: { clientId: { $in: ids } } }, { $group: { _id: "$clientId", count: { $sum: 1 } } }]),
       Invoice.aggregate([{ $match: { clientId: { $in: ids } } }, { $group: { _id: "$clientId", count: { $sum: 1 } } }]),
     ]);
     const pcMap = Object.fromEntries(projectCounts.map((r: any) => [r._id.toString(), r.count]));
     const icMap = Object.fromEntries(invoiceCounts.map((r: any) => [r._id.toString(), r.count]));
-    const result = clients.map((c) => {
-      const obj = c.toJSON() as any;
-      obj._count = { projects: pcMap[c.id] || 0, invoices: icMap[c.id] || 0 };
-      return obj;
-    });
+    const result = (clients as any[]).map((c: any) => ({
+      ...c,
+      _count: { projects: pcMap[c.id] || 0, invoices: icMap[c.id] || 0 },
+    }));
     return ok(result);
   } catch (e) {
     return handleApiError(e);
@@ -46,7 +45,7 @@ export async function POST(req: NextRequest) {
       taxId: data.taxId || null,
       notes: data.notes || null,
     });
-    await auditLog(session.user.id, "CREATE", "Client", client.id, `Added client: ${client.name}`);
+    void auditLog(session.user.id, "CREATE", "Client", client.id, `Added client: ${client.name}`);
     return created(client);
   } catch (e) {
     return handleApiError(e);

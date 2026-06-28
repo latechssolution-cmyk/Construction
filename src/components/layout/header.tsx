@@ -41,7 +41,7 @@ export function Header({ user, onMenuClick }: HeaderProps) {
 
   const [showNotifs, setShowNotifs] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const { data: notifData } = useSWR("/api/notifications", fetcher, { refreshInterval: 60000 });
+  const { data: notifData } = useSWR("/api/notifications", fetcher, { refreshInterval: 300000, dedupingInterval: 60000, revalidateOnFocus: false });
   const allNotifs: any[] = (notifData?.notifications || []).filter((n: any) => !dismissed.has(n.id));
   const count = allNotifs.length;
 

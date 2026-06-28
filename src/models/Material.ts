@@ -67,7 +67,7 @@ materialSchema.virtual("usageLogs", {
   foreignField: "materialId",
 });
 
-materialSchema.index({ projectId: 1 });
+materialSchema.index({ projectId: 1, stockQuantity: 1 });
 materialSchema.index({ itemName: 1 });
 
 const Material: Model<IMaterial> =

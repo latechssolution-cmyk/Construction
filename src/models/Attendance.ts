@@ -43,9 +43,8 @@ attendanceSchema.virtual("employee", {
   justOne: true,
 });
 
-attendanceSchema.index({ employeeId: 1 });
-attendanceSchema.index({ date: -1 });
-attendanceSchema.index({ projectId: 1 });
+attendanceSchema.index({ employeeId: 1, date: -1 });
+attendanceSchema.index({ projectId: 1, date: -1 });
 
 const Attendance: Model<IAttendance> =
   mongoose.models.Attendance || mongoose.model<IAttendance>("Attendance", attendanceSchema);

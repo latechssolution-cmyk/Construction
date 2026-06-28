@@ -26,12 +26,12 @@ export async function notifyAdminsAndManagers(
     const targets = await User.find(
       { isActive: true, role: { $in: ["admin", "manager"] } },
       { _id: 1 }
-    );
-    await Promise.all(
-      targets.map((u) =>
-        Notification.create({ userId: u._id, title, message, type })
-      )
-    );
+    ).lean();
+    if (targets.length > 0) {
+      await Notification.insertMany(
+        targets.map((u) => ({ userId: u._id, title, message, type }))
+      );
+    }
   } catch {
     console.error("[Notification] Failed to notify admins/managers");
   }

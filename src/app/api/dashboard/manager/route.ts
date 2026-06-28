@@ -10,38 +10,48 @@ export async function GET() {
     const session = await requireAuth();
     const isManager = session.user.role === "manager";
     await connectDB();
+
     const projectFilter = isManager ? { assignedManagerId: session.user.id } : {};
-    const projects = await Project.find(projectFilter).sort({ createdAt: -1 });
-    const projectIds = projects.map((p) => p._id);
+    const projects = await Project.find(
+      projectFilter,
+      { name: 1, status: 1, completionPercent: 1, budget: 1 }
+    ).sort({ createdAt: -1 }).lean();
+    const projectIds = projects.map((p: any) => p._id);
     const now = new Date();
 
-    const [taskGroups, milestoneGroups, dueSoonTasks, upcomingMilestones, allMaterials] = await Promise.all([
-      Task.aggregate([{ $match: { projectId: { $in: projectIds } } }, { $group: { _id: "$projectId", statuses: { $push: "$status" } } }]),
-      Milestone.aggregate([{ $match: { projectId: { $in: projectIds } } }, { $group: { _id: "$projectId", completedAts: { $push: "$completedAt" } } }]),
-      Task.find({
-        projectId: { $in: projectIds },
-        status: { $ne: "completed" },
-        dueDate: { $lte: new Date(Date.now() + 7 * 86400000), $gte: now },
-      }).populate("project", "name").sort({ dueDate: 1 }).limit(10),
-      Milestone.find({
-        projectId: { $in: projectIds },
-        completedAt: null,
-        dueDate: { $lte: new Date(Date.now() + 30 * 86400000), $gte: now },
-      }).populate("project", "name").sort({ dueDate: 1 }).limit(10),
-      Material.find({ projectId: { $in: projectIds } }).populate("project", "name"),
+    const [taskGroups, milestoneGroups, dueSoonTasks, upcomingMilestones, lowStockItems] = await Promise.all([
+      Task.aggregate([
+        { $match: { projectId: { $in: projectIds } } },
+        { $group: { _id: "$projectId", statuses: { $push: "$status" } } },
+      ]),
+      Milestone.aggregate([
+        { $match: { projectId: { $in: projectIds } } },
+        { $group: { _id: "$projectId", completedAts: { $push: "$completedAt" } } },
+      ]),
+      Task.find(
+        { projectId: { $in: projectIds }, status: { $ne: "completed" }, dueDate: { $lte: new Date(Date.now() + 7 * 86400000), $gte: now } },
+        { title: 1, dueDate: 1, projectId: 1, priority: 1 }
+      ).populate("project", "name").sort({ dueDate: 1 }).limit(10).lean({ virtuals: true }),
+      Milestone.find(
+        { projectId: { $in: projectIds }, completedAt: null, dueDate: { $lte: new Date(Date.now() + 30 * 86400000), $gte: now } },
+        { title: 1, dueDate: 1, projectId: 1 }
+      ).populate("project", "name").sort({ dueDate: 1 }).limit(10).lean({ virtuals: true }),
+      // Filter low-stock in MongoDB — $expr compares two fields in same document
+      Material.find(
+        { projectId: { $in: projectIds }, $expr: { $lte: ["$stockQuantity", "$minStockLevel"] } },
+        { itemName: 1, stockQuantity: 1, minStockLevel: 1, unit: 1, projectId: 1 }
+      ).populate("project", "name").limit(10).lean({ virtuals: true }),
     ]);
 
     const taskMap = Object.fromEntries(taskGroups.map((r: any) => [r._id.toString(), r.statuses]));
-    const mileMap = Object.fromEntries(milestoneGroups.map((r: any) => [r._id.toString(), r.completedAts]));
-    const lowStock = allMaterials.filter((m) => m.stockQuantity <= m.minStockLevel);
 
-    const projectProgress = projects.map((p) => {
-      const statuses: string[] = taskMap[p.id] || [];
+    const projectProgress = (projects as any[]).map((p: any) => {
+      const statuses: string[] = taskMap[p._id.toString()] || [];
       const total = statuses.length;
-      const done = statuses.filter((s) => s === "completed").length;
+      const done = statuses.filter((s: string) => s === "completed").length;
       const taskProgress = total > 0 ? Math.round((done / total) * 100) : 0;
       return {
-        id: p.id,
+        id: p._id.toString(),
         name: p.name,
         status: p.status,
         completionPercent: Math.round(p.completionPercent || 0),
@@ -53,10 +63,10 @@ export async function GET() {
 
     return ok({
       myProjectsCount: projects.length,
-      activeProjectsCount: projects.filter((p) => p.status === "in_progress").length,
+      activeProjectsCount: (projects as any[]).filter((p: any) => p.status === "in_progress").length,
       dueSoonTasks,
       upcomingMilestones,
-      lowStockItems: lowStock.slice(0, 10),
+      lowStockItems,
       projectProgress,
     });
   } catch (e) {

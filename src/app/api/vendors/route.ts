@@ -10,19 +10,18 @@ export async function GET() {
   try {
     await requireAuth();
     await connectDB();
-    const vendors = await Vendor.find({}).sort({ createdAt: -1 });
-    const ids = vendors.map((v) => v._id);
+    const vendors = await Vendor.find({}).sort({ createdAt: -1 }).lean({ virtuals: true });
+    const ids = (vendors as any[]).map((v: any) => v._id);
     const [matCounts, ledCounts] = await Promise.all([
       Material.aggregate([{ $match: { vendorId: { $in: ids } } }, { $group: { _id: "$vendorId", count: { $sum: 1 } } }]),
       LedgerEntry.aggregate([{ $match: { vendorId: { $in: ids } } }, { $group: { _id: "$vendorId", count: { $sum: 1 } } }]),
     ]);
     const mcMap = Object.fromEntries(matCounts.map((r: any) => [r._id.toString(), r.count]));
     const lcMap = Object.fromEntries(ledCounts.map((r: any) => [r._id.toString(), r.count]));
-    const result = vendors.map((v) => {
-      const obj = v.toJSON() as any;
-      obj._count = { materials: mcMap[v.id] || 0, ledgerEntries: lcMap[v.id] || 0 };
-      return obj;
-    });
+    const result = (vendors as any[]).map((v: any) => ({
+      ...v,
+      _count: { materials: mcMap[v.id] || 0, ledgerEntries: lcMap[v.id] || 0 },
+    }));
     return ok(result);
   } catch (e) {
     return handleApiError(e);
@@ -47,7 +46,7 @@ export async function POST(req: NextRequest) {
       bankAccount: data.bankAccount || null,
       notes: data.notes || null,
     });
-    await auditLog(session.user.id, "CREATE", "Vendor", vendor.id, `Created vendor: ${vendor.name}`);
+    void auditLog(session.user.id, "CREATE", "Vendor", vendor.id, `Created vendor: ${vendor.name}`);
     return created(vendor);
   } catch (e) {
     return handleApiError(e);

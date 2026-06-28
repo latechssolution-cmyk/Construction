@@ -37,9 +37,8 @@ auditLogSchema.virtual("user", {
   justOne: true,
 });
 
-auditLogSchema.index({ userId: 1 });
-auditLogSchema.index({ module: 1 });
-auditLogSchema.index({ createdAt: -1 });
+auditLogSchema.index({ module: 1, createdAt: -1 });
+auditLogSchema.index({ userId: 1, createdAt: -1 });
 
 const AuditLog: Model<IAuditLog> =
   mongoose.models.AuditLog || mongoose.model<IAuditLog>("AuditLog", auditLogSchema);

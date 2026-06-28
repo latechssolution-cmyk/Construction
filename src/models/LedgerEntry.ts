@@ -94,11 +94,10 @@ ledgerEntrySchema.virtual("createdBy", {
   justOne: true,
 });
 
+ledgerEntrySchema.index({ type: 1, date: -1 });
+ledgerEntrySchema.index({ projectId: 1, type: 1 });
+ledgerEntrySchema.index({ bankAccountId: 1, date: -1 });
 ledgerEntrySchema.index({ date: -1 });
-ledgerEntrySchema.index({ type: 1 });
-ledgerEntrySchema.index({ projectId: 1 });
-ledgerEntrySchema.index({ bankAccountId: 1 });
-ledgerEntrySchema.index({ employeeId: 1 });
 ledgerEntrySchema.index({ createdAt: -1 });
 
 const LedgerEntry: Model<ILedgerEntry> =

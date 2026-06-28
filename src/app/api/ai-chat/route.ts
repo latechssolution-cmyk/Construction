@@ -38,11 +38,12 @@ Current approximate Pakistan market rates (2026):
 - Labor: PKR 800-1,500/day per worker
 - Mason: PKR 2,000-3,000/day`;
 
-// Fallback model chain — each model has its own separate free-tier quota
+// Active model chain with full quota support
 const MODEL_FALLBACKS = [
-  "gemini-2.0-flash-lite",
-  "gemini-1.5-flash",
-  "gemini-2.0-flash",
+  "gemini-2.5-flash",
+  "gemini-flash-lite-latest",
+  "gemini-2.5-flash-lite",
+  "gemini-3.5-flash",
 ];
 
 async function sleep(ms: number) {

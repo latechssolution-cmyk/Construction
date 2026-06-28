@@ -13,14 +13,15 @@ const cached: MongooseCache = globalWithMongoose.mongoose ?? { conn: null, promi
 if (!globalWithMongoose.mongoose) globalWithMongoose.mongoose = cached;
 
 export async function connectDB(): Promise<typeof mongoose> {
-  if (cached.conn) return cached.conn;
-
   const MONGODB_URI = process.env.MONGODB_URI;
   if (!MONGODB_URI) throw new Error("MONGODB_URI environment variable is not set");
 
-  if (!cached.promise) {
+  if (cached.conn && cached.conn.connection.readyState === 1) {
+    return cached.conn;
+  }
+
+  if (!cached.promise || (cached.conn && cached.conn.connection.readyState !== 1)) {
     cached.promise = mongoose.connect(MONGODB_URI, {
-      bufferCommands: false,
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 45000,
@@ -31,6 +32,7 @@ export async function connectDB(): Promise<typeof mongoose> {
     cached.conn = await cached.promise;
   } catch (e) {
     cached.promise = null;
+    cached.conn = null;
     throw e;
   }
 

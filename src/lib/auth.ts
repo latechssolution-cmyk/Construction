@@ -16,38 +16,50 @@ const providers: any[] = [
     async authorize(credentials) {
       if (!credentials?.email || !credentials?.password) return null;
 
-      // Brute-force protection: max 10 login attempts per email per 15 minutes
-      const rl = rateLimit(`login:${credentials.email}`, { limit: 10, windowSec: 900 });
-      if (!rl.success) {
-        throw new Error("Too many login attempts. Please try again in 15 minutes.");
+      try {
+        const email = (credentials.email as string).toLowerCase().trim();
+        const password = (credentials.password as string).trim();
+
+        // Brute-force protection: max 10 login attempts per email per 15 minutes
+        const rl = rateLimit(`login:${email}`, { limit: 10, windowSec: 900 });
+        if (!rl.success) {
+          throw new Error("Too many login attempts. Please try again in 15 minutes.");
+        }
+
+        await connectDB();
+        const user = await User.findOne({ email });
+
+        if (!user || !user.passwordHash) {
+          console.warn(`[Auth Warning] User not found or no password hash for email: ${email}`);
+          return null;
+        }
+        if (!user.isActive) {
+          console.warn(`[Auth Warning] Account deactivated for email: ${email}`);
+          throw new Error("Account is deactivated. Contact your administrator.");
+        }
+
+        const valid = await bcrypt.compare(password, user.passwordHash);
+        if (!valid) {
+          console.warn(`[Auth Warning] Password comparison failed for email: ${email}`);
+          return null;
+        }
+
+        // Update last login (non-blocking catch)
+        User.findByIdAndUpdate(user._id, { lastLoginAt: new Date() }).catch((err) =>
+          console.error("[Auth Warning] Failed to update lastLoginAt", err)
+        );
+
+        return {
+          id: user._id.toString(),
+          email: user.email,
+          name: user.name,
+          image: user.image,
+          role: user.role,
+        };
+      } catch (err) {
+        console.error("[Auth Authorize Exception]", err);
+        throw err;
       }
-
-      const email = (credentials.email as string).toLowerCase().trim();
-      const password = (credentials.password as string).trim();
-
-      await connectDB();
-      const user = await User.findOne({ email });
-
-      if (!user || !user.passwordHash) {
-        throw new Error("Invalid email or password");
-      }
-      if (!user.isActive) {
-        throw new Error("Account is deactivated. Contact your administrator.");
-      }
-
-      const valid = await bcrypt.compare(password, user.passwordHash);
-      if (!valid) throw new Error("Invalid email or password");
-
-      // Update last login
-      await User.findByIdAndUpdate(user._id, { lastLoginAt: new Date() });
-
-      return {
-        id: user._id.toString(),
-        email: user.email,
-        name: user.name,
-        image: user.image,
-        role: user.role,
-      };
     },
   }),
 ];

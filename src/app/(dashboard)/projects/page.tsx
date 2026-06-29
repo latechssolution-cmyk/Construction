@@ -3,6 +3,7 @@ import useSWR from "swr";
 import { useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { useToast } from "@/hooks/use-toast";
 import { HardHat } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -23,12 +24,14 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
-  const canManage = ["admin","manager"].includes(session?.user?.role || "");
+  const canManage = ["admin","ceo","manager"].includes(session?.user?.role || "");
 
   async function updateStatus(id: string, status: string, ev: React.MouseEvent) {
     ev.preventDefault(); ev.stopPropagation();
-    await fetch(`/api/projects/${id}`, { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ status }) });
+    const res = await fetch(`/api/projects/${id}`, { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ status }) });
+    if (!res.ok) { const e = await res.json().catch(()=>({})); toast({ title: "Error", description: e.error || "Failed to update status", variant: "destructive" }); return; }
     mutate();
   }
 
@@ -42,11 +45,12 @@ export default function ProjectsPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await fetch("/api/projects", {
+      const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
+      if (!res.ok) { const e = await res.json().catch(()=>({})); toast({ title: "Error", description: e.error || "Failed to create project", variant: "destructive" }); return; }
       mutate();
       setShowForm(false);
       setForm({});

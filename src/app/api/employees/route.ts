@@ -10,7 +10,7 @@ export async function GET() {
   try {
     await requireAuth();
     await connectDB();
-    const employees = await Employee.find({}).sort({ name: 1 }).lean({ virtuals: true });
+    const employees = await Employee.find({}).sort({ name: 1 }).limit(500).lean({ virtuals: true });
     const ids = (employees as any[]).map((e: any) => e._id);
     const [assignments, attCounts] = await Promise.all([
       ProjectEmployee.find({ employeeId: { $in: ids } }, { employeeId: 1, projectId: 1, role: 1, joinedAt: 1 })

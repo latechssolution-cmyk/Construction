@@ -48,7 +48,7 @@ export function LedgerClient({ entries, projects, accounts, totalIncome, totalEx
       if (!res.ok) throw new Error();
       toast({ title: "Entry added successfully" });
       setOpen(false);
-      reset({ date: new Date().toISOString().split("T")[0], type: "EXPENSE" });
+      reset({ date: new Date().toISOString().split("T")[0], type: "expense" });
       router.refresh();
     } catch {
       toast({ title: "Error", description: "Failed to add entry", variant: "destructive" });
@@ -120,7 +120,7 @@ export function LedgerClient({ entries, projects, accounts, totalIncome, totalEx
                   </div>
                   <div className="col-span-2 space-y-1">
                     <Label>Reference (Cheque #, TXN ID)</Label>
-                    <Input placeholder="Optional reference" {...register("reference")} />
+                    <Input placeholder="Optional reference" {...register("referenceNumber")} />
                   </div>
                   <div className="col-span-2 space-y-1">
                     <Label>Description</Label>

@@ -33,7 +33,7 @@ export default function MaterialsPage() {
   const [search, setSearch] = useState("");
   const [lowStockOnly, setLowStockOnly] = useState(false);
 
-  const canManage = ["admin", "manager"].includes(session?.user?.role || "");
+  const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
   const canView = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
 
   if (session && !canView) {

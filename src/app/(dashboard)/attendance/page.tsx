@@ -40,7 +40,7 @@ export default function AttendancePage() {
     );
   }
 
-  const canManage = ["admin", "manager"].includes(session?.user?.role || "");
+  const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
   const list: any[] = Array.isArray(records) ? records : [];
   const empList: any[] = Array.isArray(employees) ? employees : [];
 

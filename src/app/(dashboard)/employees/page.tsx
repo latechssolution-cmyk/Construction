@@ -22,7 +22,7 @@ export default function EmployeesPage() {
   const [salaryForm, setSalaryForm] = useState<any>({});
   const [salaryLoading, setSalaryLoading] = useState(false);
 
-  const canManage = ["admin", "manager"].includes(session?.user?.role || "");
+  const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
   const filtered = (Array.isArray(employees) ? employees : []).filter((e: any) =>
     e.name?.toLowerCase().includes(search.toLowerCase()) || e.role?.toLowerCase().includes(search.toLowerCase()) || e.department?.toLowerCase().includes(search.toLowerCase())
   );

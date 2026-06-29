@@ -20,7 +20,7 @@ export default function ContractsPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const canManage = ["admin","manager"].includes(session?.user?.role || "");
+  const canManage = ["admin","ceo","manager"].includes(session?.user?.role || "");
   const filtered = (Array.isArray(contracts) ? contracts : []).filter((c: any) =>
     c.title?.toLowerCase().includes(search.toLowerCase()) || c.contractNumber?.toLowerCase().includes(search.toLowerCase())
   );

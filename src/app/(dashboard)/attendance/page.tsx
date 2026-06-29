@@ -95,13 +95,14 @@ export default function AttendancePage() {
   }
 
   async function updateRecord(id: string, patch: any) {
-    // optimistic-ish: fire then revalidate
-    await fetch(`/api/attendance/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+    const res = await fetch(`/api/attendance/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); setError(e.error || "Failed to update record"); }
     mutate();
   }
 
   async function deleteRecord(id: string) {
-    await fetch(`/api/attendance/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/attendance/${id}`, { method: "DELETE" });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); setError(e.error || "Failed to delete record"); }
     setConfirmDelete(null);
     mutate();
   }

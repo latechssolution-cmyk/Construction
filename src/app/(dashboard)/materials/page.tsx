@@ -170,7 +170,8 @@ export default function MaterialsPage() {
   async function handleDelete() {
     setModalLoading(true);
     try {
-      await fetch(`/api/materials/${selected.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/materials/${selected.id}`, { method: "DELETE" });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); setModalError(e.error || "Failed to delete material"); return; }
       mutate(); closeModal();
     } finally { setModalLoading(false); }
   }

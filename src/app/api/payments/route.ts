@@ -22,7 +22,8 @@ export async function GET(req: NextRequest) {
       .populate("bankAccount", "id name")
       .populate("vendor", "id name")
       .populate("createdBy", "id name")
-      .sort({ date: -1 });
+      .sort({ date: -1 })
+      .limit(500);
     return ok(entries);
   } catch (e) {
     return handleApiError(e);
@@ -35,8 +36,9 @@ export async function POST(req: NextRequest) {
     requireRole(session, "admin", "ceo", "accountant");
     const data = await req.json();
     if (!data.type || !data.amount || !data.date) throw new Error("type, amount, and date are required");
-    await connectDB();
     const amount = parseFloat(data.amount);
+    if (isNaN(amount) || amount <= 0) throw new Error("amount must be a positive number");
+    await connectDB();
     const entry = await LedgerEntry.create({
       date: new Date(data.date),
       type: data.type,

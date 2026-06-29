@@ -63,12 +63,11 @@ export async function GET() {
       };
     });
 
-    const ledgerAll = await LedgerEntry.find({}, { amount: 1, type: 1, category: 1 }).limit(200);
-    const categoryMap: Record<string, number> = {};
-    for (const e of ledgerAll.filter((e) => e.type === "expense")) {
-      categoryMap[e.category] = (categoryMap[e.category] ?? 0) + e.amount;
-    }
-    const expenseByCategory = Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
+    const categoryAgg = await LedgerEntry.aggregate([
+      { $match: { type: "expense" } },
+      { $group: { _id: "$category", value: { $sum: "$amount" } } },
+    ]);
+    const expenseByCategory = categoryAgg.map((r: any) => ({ name: r._id, value: r.value }));
 
     return NextResponse.json({
       stats: {

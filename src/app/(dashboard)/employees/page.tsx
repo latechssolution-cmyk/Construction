@@ -40,7 +40,8 @@ export default function EmployeesPage() {
   }
 
   async function deactivate(id: string) {
-    await fetch(`/api/employees/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isActive: false }) });
+    const res = await fetch(`/api/employees/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isActive: false }) });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); toast({ title: "Error", description: e.error || "Failed to deactivate employee", variant: "destructive" }); return; }
     mutate();
   }
 

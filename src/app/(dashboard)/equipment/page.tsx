@@ -42,12 +42,14 @@ export default function EquipmentPage() {
   }
 
   async function handleAssign(id: string) {
-    await fetch(`/api/equipment/${id}/assign`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({projectId:assignProjectId})});
+    const res = await fetch(`/api/equipment/${id}/assign`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({projectId:assignProjectId})});
+    if(!res.ok){const e=await res.json().catch(()=>({}));toast({title:"Error",description:e.error||"Failed to assign equipment",variant:"destructive"});return;}
     mutate(); setAssigning(null); setAssignProjectId("");
   }
 
   async function handleReturn(id: string) {
-    await fetch(`/api/equipment/${id}/assign`,{method:"DELETE"});
+    const res = await fetch(`/api/equipment/${id}/assign`,{method:"DELETE"});
+    if(!res.ok){const e=await res.json().catch(()=>({}));toast({title:"Error",description:e.error||"Failed to return equipment",variant:"destructive"});return;}
     mutate();
   }
 

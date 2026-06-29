@@ -16,7 +16,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 type Role = "admin" | "ceo" | "manager" | "accountant";
 
-const CATEGORIES = ["material", "labor", "equipment", "utility", "overhead", "client-payment", "vendor-payment", "advance", "other"];
+const CATEGORIES = ["material_purchase", "salary", "maintenance", "invoice_payment", "client_payment", "vendor_payment", "utility", "overhead", "advance", "other"];
 
 export function LedgerClient({ entries, projects, accounts, totalIncome, totalExpense, role }: any) {
   const [open, setOpen] = useState(false);

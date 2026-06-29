@@ -25,6 +25,12 @@ export default function ContractsPage() {
     c.title?.toLowerCase().includes(search.toLowerCase()) || c.contractNumber?.toLowerCase().includes(search.toLowerCase())
   );
 
+  async function updateStatus(id: string, status: string) {
+    const res = await fetch(`/api/contracts/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+    if (!res.ok) { const e = await res.json(); toast({ title: "Error", description: e.error || "Failed", variant: "destructive" }); return; }
+    mutate();
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setLoading(true);
     try {
@@ -88,7 +94,18 @@ export default function ContractsPage() {
             </div>
             {c.scope && <p className="text-sm text-gray-600 mt-2 line-clamp-2">{c.scope}</p>}
             {c.paymentTerms && <p className="text-xs text-gray-500 mt-1">{c.paymentTerms}</p>}
-            <p className="text-xs text-gray-400 mt-2">{(c.projects||[]).length} linked projects</p>
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-xs text-gray-400">{(c.projects||[]).length} linked projects</p>
+              {canManage && !["terminated","cancelled"].includes(c.status) && (
+                <select
+                  value={c.status}
+                  onChange={e=>updateStatus(c.id, e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                >
+                  {["draft","active","on_hold","completed","cancelled","terminated"].map(s=><option key={s} value={s}>{s.replace("_"," ")}</option>)}
+                </select>
+              )}
+            </div>
           </div>
         ))}
       </div>

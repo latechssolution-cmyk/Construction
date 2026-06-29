@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { CardGridSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { Truck, MapPin } from "lucide-react";
+import { Truck, MapPin, X } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 const STATUS_COLORS: Record<string,string> = { available:"bg-green-100 text-green-800", in_use:"bg-blue-100 text-blue-800", maintenance:"bg-yellow-100 text-yellow-800", decommissioned:"bg-red-100 text-red-800" };
@@ -16,12 +16,16 @@ export default function EquipmentPage() {
   const { toast } = useToast();
   const { data: equipment, mutate, isLoading } = useSWR("/api/equipment", fetcher);
   const { data: projects } = useSWR("/api/projects", fetcher);
+  const { data: bankAccounts } = useSWR("/api/bank-accounts", fetcher);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState<string|null>(null);
   const [assignProjectId, setAssignProjectId] = useState("");
+  const [maintModal, setMaintModal] = useState<any>(null);
+  const [maintForm, setMaintForm] = useState<any>({});
+  const [maintLoading, setMaintLoading] = useState(false);
 
   const canManage = ["admin","manager"].includes(session?.user?.role||"");
   const filtered = (Array.isArray(equipment)?equipment:[]).filter((e:any)=>
@@ -45,6 +49,28 @@ export default function EquipmentPage() {
   async function handleReturn(id: string) {
     await fetch(`/api/equipment/${id}/assign`,{method:"DELETE"});
     mutate();
+  }
+
+  function openMaintModal(eq: any) {
+    const today = new Date().toISOString().slice(0, 10);
+    setMaintForm({ cost: "", description: "", date: today, condition: eq.condition || "good", bankAccountId: "", projectId: "" });
+    setMaintModal(eq);
+  }
+
+  async function handleLogMaintenance(ev: React.FormEvent) {
+    ev.preventDefault();
+    setMaintLoading(true);
+    try {
+      const res = await fetch(`/api/equipment/${maintModal.id}/maintenance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(maintForm),
+      });
+      if (!res.ok) { const e = await res.json(); toast({ title: "Error", description: e.error || "Failed to log maintenance", variant: "destructive" }); return; }
+      toast({ title: "Maintenance logged", description: `Recorded for ${maintModal.name}` });
+      setMaintModal(null);
+      mutate();
+    } finally { setMaintLoading(false); }
   }
 
   return (
@@ -106,10 +132,11 @@ export default function EquipmentPage() {
               {eq.purchasePrice && <p className="text-xs text-gray-500">Value: PKR {eq.purchasePrice.toLocaleString()}</p>}
               {activeAssignment && <span className="flex items-center gap-1 text-xs text-blue-600"><MapPin className="w-3 h-3" />{activeAssignment.project?.name}</span>}
               {canManage && (
-                <div className="flex gap-2 pt-2 border-t border-gray-100">
+                <div className="flex gap-2 pt-2 border-t border-gray-100 flex-wrap">
+                  <button onClick={()=>openMaintModal(eq)} className="text-xs text-yellow-700 hover:underline font-medium">Log Maintenance</button>
                   {!activeAssignment ? (
                     assigning===eq.id ? (
-                      <div className="flex gap-2 w-full">
+                      <div className="flex gap-2 w-full mt-1">
                         <select value={assignProjectId} onChange={e=>setAssignProjectId(e.target.value)} className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs">
                           <option value="">Select project</option>
                           {(Array.isArray(projects)?projects:[]).filter((p:any)=>["planning","in_progress","on_hold"].includes(p.status)).map((p:any)=><option key={p.id} value={p.id}>{p.name} ({p.status.replace("_"," ")})</option>)}
@@ -129,6 +156,67 @@ export default function EquipmentPage() {
           );
         })}
       </div>
+      )}
+      {/* Log Maintenance Modal */}
+      {maintModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+              <div>
+                <h2 className="font-semibold text-gray-900">Log Maintenance</h2>
+                <p className="text-xs text-gray-500 mt-0.5">{maintModal.name}</p>
+              </div>
+              <button onClick={()=>setMaintModal(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleLogMaintenance} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Date *</label>
+                  <input required type="date" value={maintForm.date} onChange={e=>setMaintForm({...maintForm,date:e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Cost (PKR)</label>
+                  <input type="number" min="0" value={maintForm.cost} onChange={e=>setMaintForm({...maintForm,cost:e.target.value})} placeholder="0" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Description</label>
+                <textarea value={maintForm.description} onChange={e=>setMaintForm({...maintForm,description:e.target.value})} rows={2} placeholder="What was serviced or repaired?" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Condition After</label>
+                  <select value={maintForm.condition} onChange={e=>setMaintForm({...maintForm,condition:e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+                    <option value="excellent">Excellent</option>
+                    <option value="good">Good</option>
+                    <option value="fair">Fair</option>
+                    <option value="poor">Poor</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Linked Project</label>
+                  <select value={maintForm.projectId} onChange={e=>setMaintForm({...maintForm,projectId:e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+                    <option value="">None</option>
+                    {(Array.isArray(projects)?projects:[]).map((p:any)=><option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Pay From Bank Account</label>
+                <select value={maintForm.bankAccountId} onChange={e=>setMaintForm({...maintForm,bankAccountId:e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+                  <option value="">Not specified</option>
+                  {(Array.isArray(bankAccounts)?bankAccounts:[]).map((b:any)=><option key={b.id} value={b.id}>{b.name} — PKR {(b.balance||0).toLocaleString()}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button type="submit" disabled={maintLoading} className="flex-1 py-2 bg-yellow-600 text-white rounded-lg text-sm font-medium hover:bg-yellow-700 disabled:opacity-50 transition-colors">
+                  {maintLoading ? "Saving…" : "Log Maintenance"}
+                </button>
+                <button type="button" onClick={()=>setMaintModal(null)} className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

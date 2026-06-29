@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, ApiError } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, ApiError, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Project from "@/models/Project";
@@ -79,8 +79,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.description !== undefined) update.description = data.description;
     if (data.startDate !== undefined) update.startDate = data.startDate ? new Date(data.startDate) : null;
     if (data.endDate !== undefined) update.endDate = data.endDate ? new Date(data.endDate) : null;
-    if (data.clientId !== undefined) update.clientId = data.clientId;
-    if (data.assignedManagerId !== undefined) update.assignedManagerId = data.assignedManagerId;
+    if (data.clientId !== undefined) update.clientId = toId(data.clientId);
+    if (data.assignedManagerId !== undefined) update.assignedManagerId = toId(data.assignedManagerId) || session.user.id;
     if (data.type !== undefined) update.type = data.type;
     const project = await Project.findByIdAndUpdate(id, update, { new: true });
     await auditLog(session.user.id, "UPDATE", "Project", id, `Updated project: ${project!.name}`);

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Task from "@/models/Task";
@@ -46,9 +46,9 @@ export async function POST(req: NextRequest) {
       description: data.description || null,
       status: data.status || "todo",
       priority: data.priority || "medium",
-      projectId: data.projectId,
-      phaseId: data.phaseId || null,
-      assignedToId: data.assignedToId || null,
+      projectId: toId(data.projectId),
+      phaseId: toId(data.phaseId),
+      assignedToId: toId(data.assignedToId),
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
       estimatedHours: data.estimatedHours ? parseFloat(data.estimatedHours) : null,
       notes: data.notes || null,

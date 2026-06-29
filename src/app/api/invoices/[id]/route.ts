@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, ApiError } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, ApiError, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Invoice from "@/models/Invoice";
@@ -39,7 +39,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.status === "paid" && existing.status !== "paid") update.paidAt = new Date();
     const invoice = await Invoice.findByIdAndUpdate(id, update, { new: true });
     if (data.status === "paid" && existing.status !== "paid") {
-      let bankAccountId = data.bankAccountId || null;
+      let bankAccountId = toId(data.bankAccountId);
       if (!bankAccountId) {
         const defaultAccount = await BankAccount.findOne({ isActive: true });
         if (defaultAccount) bankAccountId = defaultAccount._id.toString();

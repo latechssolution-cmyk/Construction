@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created, ApiError } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, ApiError, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Doc from "@/models/Document";
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       fileType: data.fileType || null,
       fileSize: data.fileSize ? parseInt(data.fileSize) : null,
       description: data.description || null,
-      projectId: data.projectId || null,
+      projectId: toId(data.projectId),
       uploadedById: session.user.id,
       tags: data.tags || [],
     });

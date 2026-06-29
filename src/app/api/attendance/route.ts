@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/mongoose";
 import Attendance from "@/models/Attendance";
 
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       existing.status = status;
       existing.hoursWorked = hoursWorked;
       existing.notes = notes;
-      if (data.projectId !== undefined) existing.projectId = data.projectId || null;
+      if (data.projectId !== undefined) existing.projectId = toId(data.projectId);
       await existing.save();
       await existing.populate("employee", "id name");
       return ok(existing);
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       status,
       hoursWorked,
       notes,
-      projectId: data.projectId || null,
+      projectId: toId(data.projectId),
     });
     await record.populate("employee", "id name");
     return created(record);

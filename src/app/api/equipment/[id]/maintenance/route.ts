@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/mongoose";
 import Equipment from "@/models/Equipment";
 import EquipmentMaintenance from "@/models/EquipmentMaintenance";
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await connectDB();
     const record = await EquipmentMaintenance.create({
       equipmentId: id,
-      projectId: data.projectId || null,
+      projectId: toId(data.projectId),
       cost,
       description: data.description || null,
       date: data.date ? new Date(data.date) : new Date(),
@@ -35,15 +35,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (data.condition) {
       await Equipment.findByIdAndUpdate(id, { condition: data.condition, status: "maintenance" });
     }
-    if (cost > 0 && data.bankAccountId) {
+    const maintBankId = toId(data.bankAccountId);
+    if (cost > 0 && maintBankId) {
       await LedgerEntry.create({
         date: record.date,
         type: "expense",
         amount: cost,
         category: "maintenance",
         description: data.description || "Equipment maintenance",
-        projectId: data.projectId || null,
-        bankAccountId: data.bankAccountId,
+        projectId: toId(data.projectId),
+        bankAccountId: maintBankId,
         createdById: session.user.id,
       });
     }

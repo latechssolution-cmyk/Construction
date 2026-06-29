@@ -64,3 +64,13 @@ export function ok(data: unknown, status = 200): NextResponse {
 export function created(data: unknown): NextResponse {
   return NextResponse.json(data, { status: 201 });
 }
+
+// Safely convert a form value to a MongoDB ObjectId string or null.
+// Handles empty string, "null", "undefined", and other invalid values.
+export function toId(val: unknown): string | null {
+  if (!val) return null;
+  const s = String(val).trim();
+  if (!s || s === "null" || s === "undefined" || s === "0") return null;
+  if (!/^[a-f\d]{24}$/i.test(s)) return null;
+  return s;
+}

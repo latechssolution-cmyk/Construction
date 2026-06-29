@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { notifyAdminsAndManagers } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
@@ -57,9 +57,9 @@ export async function POST(req: NextRequest) {
       category: data.category,
       description: data.description || null,
       referenceNumber: data.referenceNumber || null,
-      projectId: data.projectId || null,
-      bankAccountId: data.bankAccountId || null,
-      vendorId: data.vendorId || null,
+      projectId: toId(data.projectId),
+      bankAccountId: toId(data.bankAccountId),
+      vendorId: toId(data.vendorId),
       partyName: data.partyName || null,
       partyType: data.partyType || "other",
       receiptPath: data.receiptPath || null,

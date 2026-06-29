@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import LedgerEntry from "@/models/LedgerEntry";
@@ -44,17 +44,18 @@ export async function POST(req: NextRequest) {
       category: data.category || (data.type === "income" ? "client_payment" : "vendor_payment"),
       description: data.description || null,
       referenceNumber: data.referenceNumber || null,
-      projectId: data.projectId || null,
-      bankAccountId: data.bankAccountId || null,
-      vendorId: data.vendorId || null,
+      projectId: toId(data.projectId),
+      bankAccountId: toId(data.bankAccountId),
+      vendorId: toId(data.vendorId),
       partyName: data.partyName || null,
       partyType: data.partyType || "other",
       receiptPath: data.receiptPath || null,
       createdById: session.user.id,
     });
-    if (data.bankAccountId) {
+    const bankAccId = toId(data.bankAccountId);
+    if (bankAccId) {
       const delta = data.type === "income" ? amount : -amount;
-      await BankAccount.findByIdAndUpdate(data.bankAccountId, { $inc: { balance: delta } });
+      await BankAccount.findByIdAndUpdate(bankAccId, { $inc: { balance: delta } });
     }
     await auditLog(session.user.id, "CREATE", "Payment", entry.id, `${data.type} payment PKR ${amount}`);
     return created(entry);

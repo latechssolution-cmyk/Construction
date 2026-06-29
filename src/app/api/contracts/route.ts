@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Contract from "@/models/Contract";
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       startDate: data.startDate ? new Date(data.startDate) : null,
       endDate: data.endDate ? new Date(data.endDate) : null,
       status: data.status || "active",
-      clientId: data.clientId,
+      clientId: toId(data.clientId),
       paymentTerms: data.paymentTerms || null,
       documentPath: data.documentPath || null,
       notes: data.notes || null,

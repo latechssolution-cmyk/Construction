@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, ApiError } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, ApiError, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Task from "@/models/Task";
@@ -41,8 +41,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.description !== undefined) update.description = data.description;
     if (data.status !== undefined) update.status = data.status;
     if (data.priority !== undefined) update.priority = data.priority;
-    if (data.assignedToId !== undefined) update.assignedToId = data.assignedToId;
-    if (data.phaseId !== undefined) update.phaseId = data.phaseId;
+    if (data.assignedToId !== undefined) update.assignedToId = toId(data.assignedToId);
+    if (data.phaseId !== undefined) update.phaseId = toId(data.phaseId);
     if (data.dueDate !== undefined) update.dueDate = data.dueDate ? new Date(data.dueDate) : null;
     if (data.estimatedHours !== undefined) update.estimatedHours = parseFloat(data.estimatedHours);
     if (data.notes !== undefined) update.notes = data.notes;

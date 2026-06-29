@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { notifyAdminsAndManagers } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
@@ -61,8 +61,8 @@ export async function POST(req: NextRequest) {
       unitPrice: price,
       totalPrice,
       receivedDate,
-      projectId: data.projectId,
-      vendorId: data.vendorId || null,
+      projectId: toId(data.projectId),
+      vendorId: toId(data.vendorId),
       notes: data.notes || null,
     });
     if (totalPrice > 0) {
@@ -72,9 +72,9 @@ export async function POST(req: NextRequest) {
         amount: totalPrice,
         category: "material_purchase",
         description: `${data.itemName} × ${qty} ${material.unit}`,
-        projectId: data.projectId,
-        vendorId: data.vendorId || null,
-        bankAccountId: data.bankAccountId || null,
+        projectId: toId(data.projectId),
+        vendorId: toId(data.vendorId),
+        bankAccountId: toId(data.bankAccountId),
         createdById: session.user.id,
       });
     }

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Invoice from "@/models/Invoice";
@@ -59,8 +59,8 @@ export async function POST(req: NextRequest) {
     const grandTotal = subtotal + taxAmount;
     const invoice = await Invoice.create({
       invoiceNumber: data.invoiceNumber || generateInvoiceNumber(),
-      clientId: data.clientId,
-      projectId: data.projectId || null,
+      clientId: toId(data.clientId),
+      projectId: toId(data.projectId),
       issueDate: data.issueDate ? new Date(data.issueDate) : new Date(),
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
       status: data.status || "draft",

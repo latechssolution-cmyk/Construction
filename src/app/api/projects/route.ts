@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { notifyAdminsAndManagers } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
@@ -66,8 +66,8 @@ export async function POST(req: NextRequest) {
       description: data.description || null,
       startDate: data.startDate ? new Date(data.startDate) : null,
       endDate: data.endDate ? new Date(data.endDate) : null,
-      clientId: data.clientId || null,
-      assignedManagerId: data.assignedManagerId || session.user.id,
+      clientId: toId(data.clientId),
+      assignedManagerId: toId(data.assignedManagerId) || session.user.id,
       createdById: session.user.id,
     });
     await project.populate("client", "name");

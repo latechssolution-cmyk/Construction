@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
-import { requireAuth, handleApiError, ok } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/mongoose";
 import AuditLog from "@/models/AuditLog";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    requireRole(session, "admin", "ceo");
     const { searchParams } = new URL(req.url);
     const entity = searchParams.get("entity") || "";
     const entityId = searchParams.get("entityId") || "";

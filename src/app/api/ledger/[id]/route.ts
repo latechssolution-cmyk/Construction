@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAuth();
-    requireRole(session, "admin", "accountant");
+    requireRole(session, "admin", "ceo", "accountant");
     const { id } = await params;
     const data = await req.json();
     await connectDB();
@@ -36,7 +36,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const update: any = {};
     if (data.date !== undefined) update.date = new Date(data.date);
     if (data.type !== undefined) update.type = data.type;
-    if (data.amount !== undefined) update.amount = parseFloat(data.amount);
+    if (data.amount !== undefined) { const parsedAmount = parseFloat(data.amount); if (!isNaN(parsedAmount)) update.amount = parsedAmount; }
     if (data.category !== undefined) update.category = data.category;
     if (data.description !== undefined) update.description = data.description;
     if (data.referenceNumber !== undefined) update.referenceNumber = data.referenceNumber;

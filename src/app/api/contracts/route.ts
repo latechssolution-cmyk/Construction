@@ -14,7 +14,7 @@ export async function GET() {
   try {
     await requireAuth();
     await connectDB();
-    const contracts = await Contract.find({}).populate("client", "id name").sort({ createdAt: -1 });
+    const contracts = await Contract.find({}).populate("client", "id name").sort({ createdAt: -1 }).limit(500);
     const contractIds = contracts.map((c) => c._id);
     const projects = await Project.find({ contractId: { $in: contractIds } }, { name: 1, status: 1, contractId: 1 });
     const result = contracts.map((c) => {

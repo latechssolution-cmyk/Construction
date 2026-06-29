@@ -30,7 +30,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!contract) throw new ApiError(404, "Contract not found");
     if (data.title !== undefined) contract.title = data.title;
     if (data.scope !== undefined) contract.scope = data.scope;
-    if (data.contractValue !== undefined) contract.contractValue = parseFloat(data.contractValue);
+    if (data.contractValue !== undefined) { const parsedValue = parseFloat(data.contractValue); if (!isNaN(parsedValue)) contract.contractValue = parsedValue; }
     if (data.startDate !== undefined) contract.startDate = data.startDate ? new Date(data.startDate) : null;
     if (data.endDate !== undefined) contract.endDate = data.endDate ? new Date(data.endDate) : null;
     if (data.status !== undefined) contract.status = data.status;

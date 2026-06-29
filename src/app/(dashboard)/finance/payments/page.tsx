@@ -21,7 +21,7 @@ export default function PaymentsPage() {
   const [form, setForm] = useState<any>({ type:"expense", category:"vendor_payment" });
   const [loading, setLoading] = useState(false);
 
-  const canManage = ["admin","accountant"].includes(session?.user?.role||"");
+  const canManage = ["admin","ceo","accountant"].includes(session?.user?.role||"");
   const list: any[] = Array.isArray(payments) ? payments : [];
   const filtered = list.filter((p:any)=>!typeFilter||p.type===typeFilter);
 

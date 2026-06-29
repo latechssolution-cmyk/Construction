@@ -74,7 +74,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.name !== undefined) update.name = data.name;
     if (data.status !== undefined) update.status = data.status;
     if (data.completionPercent !== undefined) update.completionPercent = clampPct(data.completionPercent);
-    if (data.budget !== undefined) update.budget = parseFloat(data.budget);
+    if (data.budget !== undefined) { const parsedBudget = parseFloat(data.budget); if (!isNaN(parsedBudget)) update.budget = parsedBudget; }
     if (data.location !== undefined) update.location = data.location;
     if (data.description !== undefined) update.description = data.description;
     if (data.startDate !== undefined) update.startDate = data.startDate ? new Date(data.startDate) : null;

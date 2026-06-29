@@ -31,7 +31,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.name !== undefined) account.name = data.name;
     if (data.bankName !== undefined) account.bankName = data.bankName;
     if (data.accountNumber !== undefined) account.accountNumber = data.accountNumber;
-    if (data.balance !== undefined) account.balance = parseFloat(data.balance);
+    if (data.balance !== undefined) { const parsedBalance = parseFloat(data.balance); if (!isNaN(parsedBalance)) account.balance = parsedBalance; }
     if (data.notes !== undefined) account.notes = data.notes;
     await account.save();
     await auditLog(session.user.id, "UPDATE", "BankAccount", id, `Updated: ${account.name}`);

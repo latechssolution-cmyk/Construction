@@ -6,6 +6,7 @@ import { connectDB } from "@/lib/mongoose";
 import Material from "@/models/Material";
 import MaterialUsage from "@/models/MaterialUsage";
 import LedgerEntry from "@/models/LedgerEntry";
+import BankAccount from "@/models/BankAccount";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -50,8 +51,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       if (data.notes !== undefined) material.notes = data.notes;
       await material.save();
 
-      // Record the expense in the ledger
+      // Record the expense in the ledger and update bank balance
       if (restockCost > 0) {
+        const bankAccountId = toId(data.bankAccountId) ?? null;
         await LedgerEntry.create({
           date: receivedDate,
           type: "expense",
@@ -60,8 +62,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           description: `Restock: ${material.itemName} × ${addQty} ${material.unit} @ PKR ${newPrice.toLocaleString()}/unit`,
           projectId: material.projectId,
           vendorId: toId(data.vendorId) ?? material.vendorId ?? null,
+          bankAccountId,
           createdById: session.user.id,
         });
+        if (bankAccountId) {
+          await BankAccount.findByIdAndUpdate(bankAccountId, { $inc: { balance: -restockCost } });
+        }
       }
 
       // Low stock alert after restocking (edge case: still low after restock)

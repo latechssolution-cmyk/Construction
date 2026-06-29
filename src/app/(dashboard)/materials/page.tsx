@@ -17,6 +17,7 @@ export default function MaterialsPage() {
   const { data: materials, mutate, isLoading } = useSWR("/api/materials", fetcher);
   const { data: vendors } = useSWR("/api/vendors", fetcher);
   const { data: projects } = useSWR("/api/projects", fetcher);
+  const { data: bankAccounts } = useSWR("/api/bank-accounts", fetcher);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [addForm, setAddForm] = useState<any>({ unit: "bags", quantity: 0, minStockLevel: 5, unitPrice: 0 });
@@ -64,6 +65,7 @@ export default function MaterialsPage() {
         restockQuantity: "",
         unitPrice: material.unitPrice ?? 0,
         vendorId: material.vendor?._id?.toString() || material.vendor?.id || "",
+        bankAccountId: "",
         notes: "",
         receivedDate: new Date().toISOString().slice(0, 10),
       });
@@ -93,6 +95,7 @@ export default function MaterialsPage() {
           unitPrice: parseFloat(addForm.unitPrice || 0),
           projectId: addForm.projectId,
           vendorId: addForm.vendorId || null,
+          bankAccountId: addForm.bankAccountId || null,
           notes: addForm.notes || null,
         }),
       });
@@ -134,6 +137,7 @@ export default function MaterialsPage() {
           restockQuantity: qty,
           unitPrice: parseFloat(modalForm.unitPrice) || selected.unitPrice,
           vendorId: modalForm.vendorId || null,
+          bankAccountId: modalForm.bankAccountId || null,
           notes: modalForm.notes,
           receivedDate: modalForm.receivedDate,
         }),
@@ -256,6 +260,14 @@ export default function MaterialsPage() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
                 <option value="">No Supplier</option>
                 {(vendors || []).filter((v: any) => v.isActive !== false).map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Paid From Account (optional)</label>
+              <select value={addForm.bankAccountId || ""} onChange={e => setAddForm({ ...addForm, bankAccountId: e.target.value || undefined })}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+                <option value="">Not specified</option>
+                {(bankAccounts || []).map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
             <div className="sm:col-span-3 bg-blue-50 rounded-lg px-4 py-2 text-sm text-blue-700">
@@ -499,6 +511,14 @@ export default function MaterialsPage() {
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/40">
                         <option value="">None</option>
                         {(vendors || []).map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-xs text-gray-500 block mb-1">Paid From Account (optional)</label>
+                      <select value={modalForm.bankAccountId || ""} onChange={e => setModalForm({ ...modalForm, bankAccountId: e.target.value })}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/40">
+                        <option value="">Not specified</option>
+                        {(bankAccounts || []).map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
                       </select>
                     </div>
                   </div>

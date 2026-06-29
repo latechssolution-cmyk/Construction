@@ -6,6 +6,7 @@ import { connectDB } from "@/lib/mongoose";
 import Material from "@/models/Material";
 import MaterialUsage from "@/models/MaterialUsage";
 import LedgerEntry from "@/models/LedgerEntry";
+import BankAccount from "@/models/BankAccount";
 
 export async function GET(req: NextRequest) {
   try {
@@ -80,6 +81,9 @@ export async function POST(req: NextRequest) {
         bankAccountId: toId(data.bankAccountId),
         createdById: session.user.id,
       });
+      if (data.bankAccountId) {
+        await BankAccount.findByIdAndUpdate(data.bankAccountId, { $inc: { balance: -totalPrice } });
+      }
     }
     if (qty <= minStock) {
       void notifyAdminsAndManagers("Low Stock Alert", `${material.itemName} stock is low (${qty} ${material.unit} remaining)`, "warning");

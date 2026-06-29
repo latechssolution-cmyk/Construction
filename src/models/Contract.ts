@@ -8,7 +8,7 @@ export interface IContract extends Document {
   contractValue: number;
   startDate?: Date | null;
   endDate?: Date | null;
-  status: "active" | "on_hold" | "completed" | "cancelled" | "terminated";
+  status: "draft" | "active" | "on_hold" | "completed" | "cancelled" | "terminated";
   paymentTerms?: string;
   documentPath?: string;
   notes?: string;
@@ -28,7 +28,7 @@ const contractSchema = new Schema<IContract>(
     endDate: { type: Date },
     status: {
       type: String,
-      enum: ["active", "on_hold", "completed", "cancelled", "terminated"],
+      enum: ["draft", "active", "on_hold", "completed", "cancelled", "terminated"],
       default: "active",
     },
     paymentTerms: { type: String },

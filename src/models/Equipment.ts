@@ -18,7 +18,7 @@ export interface IEquipment extends Omit<Document, "model"> {
 const equipmentSchema = new Schema<IEquipment>(
   {
     name: { type: String, required: true, trim: true },
-    type: { type: String, required: true },
+    type: { type: String, required: true, enum: ["excavator","crane","bulldozer","loader","mixer","generator","scaffold","scaffolding","pump","compactor","truck","vehicle","forklift","drill","welder","other"] },
     model: { type: String },
     serialNumber: { type: String },
     purchaseDate: { type: Date },

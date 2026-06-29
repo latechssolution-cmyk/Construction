@@ -32,13 +32,21 @@ export async function POST(req: NextRequest) {
     const material = await Material.findById(data.materialId);
     if (!material) throw new ApiError(404, "Material not found");
     const qty = parseFloat(data.quantityUsed);
-    if (qty > material.stockQuantity) {
-      throw new ApiError(400, `Insufficient stock. Available: ${material.stockQuantity} ${material.unit}`);
-    }
+    if (qty <= 0) throw new ApiError(400, "quantityUsed must be greater than 0");
     const dbSession = await mongoose.startSession();
     let usage: any;
     try {
       await dbSession.withTransaction(async () => {
+        // Atomic check-and-decrement inside the transaction prevents race conditions
+        const updated = await Material.findOneAndUpdate(
+          { _id: data.materialId, stockQuantity: { $gte: qty } },
+          { $inc: { stockQuantity: -qty } },
+          { session: dbSession, new: false }
+        );
+        if (!updated) {
+          const current = await Material.findById(data.materialId, { stockQuantity: 1, unit: 1 }, { session: dbSession });
+          throw new ApiError(400, `Insufficient stock. Available: ${current?.stockQuantity ?? 0} ${material.unit}`);
+        }
         [usage] = await MaterialUsage.create([{
           materialId: data.materialId,
           quantityUsed: qty,
@@ -47,11 +55,6 @@ export async function POST(req: NextRequest) {
           notes: data.notes || null,
           usedById: session.user.id,
         }], { session: dbSession });
-        await Material.findByIdAndUpdate(
-          data.materialId,
-          { $inc: { stockQuantity: -qty } },
-          { session: dbSession }
-        );
       });
     } finally {
       await dbSession.endSession();

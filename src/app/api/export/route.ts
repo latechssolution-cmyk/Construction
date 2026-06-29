@@ -10,7 +10,7 @@ function toCSV(rows: Record<string, unknown>[]): string {
   if (!rows.length) return "";
   const headers = Object.keys(rows[0]);
   const escape = (v: unknown) => {
-    const s = v === null || v === undefined ? "" : String(v).replace(/"/g, '""');
+    const s = v === null || v === undefined ? "" : String(v).replace(/"/g, '""').replace(/[\r\n]+/g, " ");
     return `"${s}"`;
   };
   const lines = [headers.map((h) => escape(h)).join(",")];

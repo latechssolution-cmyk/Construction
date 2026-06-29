@@ -33,7 +33,8 @@ export async function GET(req: NextRequest) {
       .populate("bankAccount", "id name")
       .populate("vendor", "id name")
       .populate("createdBy", "id name")
-      .sort({ date: -1 });
+      .sort({ date: -1 })
+      .limit(500);
     return ok(entries);
   } catch (e) {
     return handleApiError(e);

@@ -12,10 +12,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await connectDB();
     const invoice = await Invoice.findById(id);
     if (!invoice) throw new ApiError(404, "Invoice not found");
+    if (!data.description?.trim()) throw new ApiError(400, "description is required");
     const qty = parseFloat(data.quantity || "1");
     const unitPrice = parseFloat(data.unitPrice || "0");
+    if (qty <= 0) throw new ApiError(400, "quantity must be greater than 0");
+    if (unitPrice < 0) throw new ApiError(400, "unitPrice cannot be negative");
     const total = qty * unitPrice;
-    const newItem = { description: data.description, quantity: qty, unit: data.unit || null, unitPrice, total };
+    const newItem = { description: data.description.trim(), quantity: qty, unit: data.unit || null, unitPrice, total };
     invoice.items.push(newItem as any);
     const subtotal = invoice.items.reduce((s, i) => s + i.total, 0);
     const taxAmount = (subtotal * invoice.taxPercent) / 100;

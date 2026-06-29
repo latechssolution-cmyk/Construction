@@ -50,10 +50,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     requireRole(session, "admin", "ceo");
     const { id } = await params;
     await connectDB();
-    const activeProjects = await Project.countDocuments({ clientId: id, status: { $in: ["planning","in_progress","on_hold"] } });
-    if (activeProjects > 0) {
-      throw new ApiError(400, `Cannot deactivate client: ${activeProjects} active project(s) still linked. Complete or cancel those projects first.`);
-    }
+    const [activeProjects, activeContracts] = await Promise.all([
+      Project.countDocuments({ clientId: id, status: { $in: ["planning","in_progress","on_hold"] } }),
+      Contract.countDocuments({ clientId: id, status: { $in: ["draft","active","on_hold"] } }),
+    ]);
+    if (activeProjects > 0) throw new ApiError(400, `Cannot deactivate client: ${activeProjects} active project(s) still linked. Complete or cancel those projects first.`);
+    if (activeContracts > 0) throw new ApiError(400, `Cannot deactivate client: ${activeContracts} active contract(s) still linked. Terminate those contracts first.`);
     await Client.findByIdAndUpdate(id, { isActive: false });
     await auditLog(session.user.id, "DELETE", "Client", id, "Deactivated client");
     return ok({ success: true });

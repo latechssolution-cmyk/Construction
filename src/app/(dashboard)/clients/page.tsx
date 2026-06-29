@@ -19,7 +19,7 @@ export default function ClientsPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const canManage = ["admin","manager"].includes(session?.user?.role || "");
+  const canManage = ["admin","ceo","manager"].includes(session?.user?.role || "");
   const filtered = (Array.isArray(clients) ? clients : []).filter((c: any) =>
     c.name?.toLowerCase().includes(search.toLowerCase()) || c.email?.toLowerCase().includes(search.toLowerCase())
   );
@@ -40,7 +40,8 @@ export default function ClientsPage() {
       const res = await fetch(`/api/clients/${client.id}`, { method: "DELETE" });
       if (!res.ok) { const err = await res.json(); toast({ title: "Error", description: err.error || "Cannot deactivate client", variant: "destructive" }); return; }
     } else {
-      await fetch(`/api/clients/${client.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isActive: true }) });
+      const res = await fetch(`/api/clients/${client.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isActive: true }) });
+      if (!res.ok) { const err = await res.json().catch(()=>({})); toast({ title: "Error", description: err.error || "Cannot reactivate client", variant: "destructive" }); return; }
     }
     mutate();
   }

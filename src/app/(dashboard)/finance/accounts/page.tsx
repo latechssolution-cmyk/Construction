@@ -19,7 +19,7 @@ export default function BankAccountsPage() {
   const [form, setForm] = useState<any>({});
   const [loading, setLoading] = useState(false);
 
-  const canManage = ["admin"].includes(session?.user?.role||"");
+  const canManage = ["admin", "ceo"].includes(session?.user?.role||"");
   const list: any[] = Array.isArray(accounts) ? accounts : [];
 
   async function handleSubmit(ev: React.FormEvent) {

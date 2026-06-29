@@ -20,7 +20,7 @@ export default function VendorsPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const canManage = ["admin","manager"].includes(session?.user?.role || "");
+  const canManage = ["admin","ceo","manager"].includes(session?.user?.role || "");
   const filtered = (Array.isArray(vendors) ? vendors : []).filter((v: any) =>
     v.name?.toLowerCase().includes(search.toLowerCase()) || v.category?.toLowerCase().includes(search.toLowerCase())
   );

@@ -27,7 +27,7 @@ export default function EquipmentPage() {
   const [maintForm, setMaintForm] = useState<any>({});
   const [maintLoading, setMaintLoading] = useState(false);
 
-  const canManage = ["admin","manager"].includes(session?.user?.role||"");
+  const canManage = ["admin","ceo","manager"].includes(session?.user?.role||"");
   const filtered = (Array.isArray(equipment)?equipment:[]).filter((e:any)=>
     e.name?.toLowerCase().includes(search.toLowerCase())||e.type?.toLowerCase().includes(search.toLowerCase())
   );

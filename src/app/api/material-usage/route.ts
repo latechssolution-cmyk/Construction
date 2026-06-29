@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
     const logs = await MaterialUsage.find(materialId ? { materialId } : {})
       .populate("material", "itemName unit")
       .populate("usedBy", "name")
-      .sort({ date: -1 });
+      .sort({ date: -1 })
+      .limit(500);
     return ok(logs);
   } catch (e) {
     return handleApiError(e);

@@ -10,7 +10,7 @@ export async function GET() {
   try {
     await requireAuth();
     await connectDB();
-    const equipment = await Equipment.find({}).sort({ name: 1 });
+    const equipment = await Equipment.find({}).sort({ name: 1 }).limit(500);
     const ids = equipment.map((e) => e._id);
     const [assignments, maintenance] = await Promise.all([
       ProjectEquipment.find({ equipmentId: { $in: ids }, returnedAt: null }).populate("project", "id name"),

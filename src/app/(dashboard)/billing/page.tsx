@@ -131,7 +131,7 @@ export default function BillingPage() {
               {(projects||[]).map((p:any)=><option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             <select value={form.status||"draft"} onChange={e=>setForm({...form,status:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
-              {["draft","sent","paid","cancelled"].map(s=><option key={s} value={s}>{s}</option>)}
+              {["draft","sent","cancelled"].map(s=><option key={s} value={s}>{s}</option>)}
             </select>
             <div className="flex flex-col gap-1"><label className="text-xs text-gray-500">Issue Date</label><input type="date" value={form.issueDate||""} onChange={e=>setForm({...form,issueDate:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" /></div>
             <div className="flex flex-col gap-1"><label className="text-xs text-gray-500">Due Date</label><input type="date" value={form.dueDate||""} onChange={e=>setForm({...form,dueDate:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" /></div>

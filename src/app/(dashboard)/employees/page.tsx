@@ -145,10 +145,10 @@ export default function EmployeesPage() {
                     <td className="py-3 px-4 text-gray-500 whitespace-nowrap">{emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString() : "—"}</td>
                     <td className="py-3 px-4"><span className={`text-xs px-2 py-0.5 rounded-full ${emp.isActive !== false ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>{emp.isActive !== false ? "Active" : "Inactive"}</span></td>
                     <td className="py-3 px-4">
-                      {canManage && emp.isActive !== false && (
+                      {(canManage || canPaySalary) && emp.isActive !== false && (
                         <div className="flex items-center gap-3">
                           {canPaySalary && <button onClick={() => openSalaryModal(emp)} className="text-xs text-blue-600 hover:underline font-medium">Pay Salary</button>}
-                          <button onClick={() => deactivate(emp.id)} className="text-xs text-red-500 hover:underline">Deactivate</button>
+                          {canManage && <button onClick={() => deactivate(emp.id)} className="text-xs text-red-500 hover:underline">Deactivate</button>}
                         </div>
                       )}
                     </td>
@@ -175,10 +175,10 @@ export default function EmployeesPage() {
                   <div><span className="text-gray-400">Salary: </span><span className="text-gray-700 font-medium">PKR {(emp.salary || 0).toLocaleString()}</span></div>
                   <div><span className="text-gray-400">Type: </span><span className="text-gray-700 capitalize">{emp.salaryType}</span></div>
                 </div>
-                {canManage && emp.isActive !== false && (
+                {(canManage || canPaySalary) && emp.isActive !== false && (
                   <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end gap-4">
                     {canPaySalary && <button onClick={() => openSalaryModal(emp)} className="text-xs text-blue-600 hover:underline font-medium">Pay Salary</button>}
-                    <button onClick={() => deactivate(emp.id)} className="text-xs text-red-500 hover:underline">Deactivate</button>
+                    {canManage && <button onClick={() => deactivate(emp.id)} className="text-xs text-red-500 hover:underline">Deactivate</button>}
                   </div>
                 )}
               </div>

@@ -13,8 +13,15 @@ const cached: MongooseCache = globalWithMongoose.mongoose ?? { conn: null, promi
 if (!globalWithMongoose.mongoose) globalWithMongoose.mongoose = cached;
 
 export async function connectDB(): Promise<typeof mongoose> {
-  const MONGODB_URI = process.env.MONGODB_URI;
+  let MONGODB_URI = process.env.MONGODB_URI;
   if (!MONGODB_URI) throw new Error("MONGODB_URI environment variable is not set");
+  // Ensure the database name is always set — prevents connecting to wrong DB if URI omits it
+  if (!MONGODB_URI.includes("/construction_erp")) {
+    MONGODB_URI = MONGODB_URI.replace("mongodb+srv://", "").replace("mongodb://", "");
+    const [creds, rest] = MONGODB_URI.split("@");
+    const [host, query] = (rest || "").split("?");
+    MONGODB_URI = `mongodb+srv://${creds}@${host}/construction_erp${query ? "?" + query : ""}`;
+  }
 
   if (cached.conn && cached.conn.connection.readyState === 1) {
     return cached.conn;

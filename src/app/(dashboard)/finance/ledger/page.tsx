@@ -9,6 +9,7 @@ import { BookOpen } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 const TYPE_COLORS: Record<string,string> = { income:"bg-green-100 text-green-700", expense:"bg-red-100 text-red-700" };
+const CATEGORIES = ["material_purchase","salary","maintenance","invoice_payment","client_payment","vendor_payment","utility","overhead","advance","other"];
 
 export default function LedgerPage() {
   const { data: session } = useSession();
@@ -108,7 +109,10 @@ export default function LedgerPage() {
             </select>
             <input type="number" step="0.01" value={form.amount||""} onChange={e=>setForm({...form,amount:e.target.value})} placeholder="Amount (PKR) *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <input type="text" required value={form.description||""} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Description *" className="sm:col-span-2 border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
-            <input type="text" required value={form.category||""} onChange={e=>setForm({...form,category:e.target.value})} placeholder="Category * (e.g. Labour, Materials, Rent)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            <select required value={form.category||""} onChange={e=>setForm({...form,category:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+              <option value="">Select Category *</option>
+              {CATEGORIES.map(c=><option key={c} value={c}>{c.replace(/_/g," ")}</option>)}
+            </select>
             <input type="date" required value={form.date||""} onChange={e=>setForm({...form,date:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <select value={form.projectId||""} onChange={e=>setForm({...form,projectId:e.target.value||undefined})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40">
               <option value="">No Project (General)</option>

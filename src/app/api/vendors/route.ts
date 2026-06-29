@@ -18,10 +18,10 @@ export async function GET() {
     ]);
     const mcMap = Object.fromEntries(matCounts.map((r: any) => [r._id.toString(), r.count]));
     const lcMap = Object.fromEntries(ledCounts.map((r: any) => [r._id.toString(), r.count]));
-    const result = (vendors as any[]).map((v: any) => ({
-      ...v,
-      _count: { materials: mcMap[v.id] || 0, ledgerEntries: lcMap[v.id] || 0 },
-    }));
+    const result = (vendors as any[]).map((v: any) => {
+      const id = v._id?.toString() || v.id;
+      return { ...v, id, _count: { materials: mcMap[id] || 0, ledgerEntries: lcMap[id] || 0 } };
+    });
     return ok(result);
   } catch (e) {
     return handleApiError(e);

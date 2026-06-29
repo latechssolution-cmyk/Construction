@@ -32,7 +32,10 @@ export async function GET(req: NextRequest) {
       if (!usageMap[key]) usageMap[key] = [];
       if (usageMap[key].length < 5) usageMap[key].push(u);
     });
-    const result = (materials as any[]).map((m: any) => ({ ...m, usageLogs: usageMap[m.id] || [] }));
+    const result = (materials as any[]).map((m: any) => {
+      const id = m._id?.toString() || m.id;
+      return { ...m, id, usageLogs: usageMap[id] || [] };
+    });
     return ok(result);
   } catch (e) {
     return handleApiError(e);

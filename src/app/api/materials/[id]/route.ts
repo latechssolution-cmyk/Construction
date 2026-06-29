@@ -46,7 +46,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       material.quantity += addQty;
       material.unitPrice = newPrice;
       material.totalPrice += restockCost;
-      if (data.vendorId !== undefined) material.vendorId = toId(data.vendorId) ?? undefined;
+      if (data.vendorId !== undefined) material.vendorId = toId(data.vendorId) as any;
       if (data.notes !== undefined) material.notes = data.notes;
       await material.save();
 
@@ -84,7 +84,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.unit !== undefined) material.unit = data.unit;
     if (data.minStockLevel !== undefined) material.minStockLevel = parseFloat(data.minStockLevel);
     if (data.stockQuantity !== undefined) material.stockQuantity = parseFloat(data.stockQuantity);
-    if (data.vendorId !== undefined) material.vendorId = toId(data.vendorId) ?? undefined;
+    if (data.vendorId !== undefined) material.vendorId = toId(data.vendorId) as any;
     if (data.notes !== undefined) material.notes = data.notes;
     await material.save();
 

@@ -38,12 +38,16 @@ export async function GET(req: NextRequest) {
     const matMap = Object.fromEntries(matCounts.map((r: any) => [r._id.toString(), r.count]));
     const docMap = Object.fromEntries(docCounts.map((r: any) => [r._id.toString(), r.count]));
 
-    const result = (projects as any[]).map((p: any) => ({
-      ...p,
-      tasks: taskMap[p.id] || [],
-      milestones: mileMap[p.id] || [],
-      _count: { materials: matMap[p.id] || 0, documents: docMap[p.id] || 0 },
-    }));
+    const result = (projects as any[]).map((p: any) => {
+      const id = p._id?.toString() || p.id;
+      return {
+        ...p,
+        id,
+        tasks: taskMap[id] || [],
+        milestones: mileMap[id] || [],
+        _count: { materials: matMap[id] || 0, documents: docMap[id] || 0 },
+      };
+    });
     return ok(result);
   } catch (e) {
     return handleApiError(e);

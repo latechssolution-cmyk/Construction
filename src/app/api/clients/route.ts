@@ -18,10 +18,10 @@ export async function GET() {
     ]);
     const pcMap = Object.fromEntries(projectCounts.map((r: any) => [r._id.toString(), r.count]));
     const icMap = Object.fromEntries(invoiceCounts.map((r: any) => [r._id.toString(), r.count]));
-    const result = (clients as any[]).map((c: any) => ({
-      ...c,
-      _count: { projects: pcMap[c.id] || 0, invoices: icMap[c.id] || 0 },
-    }));
+    const result = (clients as any[]).map((c: any) => {
+      const id = c._id?.toString() || c.id;
+      return { ...c, id, _count: { projects: pcMap[id] || 0, invoices: icMap[id] || 0 } };
+    });
     return ok(result);
   } catch (e) {
     return handleApiError(e);

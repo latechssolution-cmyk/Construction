@@ -1,5 +1,30 @@
 import mongoose from "mongoose";
 
+// Side-effect imports — ensures all schemas are registered before any populate() runs.
+// Must be kept in dependency order (e.g. Project before Task).
+import "@/models/User";
+import "@/models/Client";
+import "@/models/Vendor";
+import "@/models/BankAccount";
+import "@/models/Project";
+import "@/models/Contract";
+import "@/models/ProjectPhase";
+import "@/models/Milestone";
+import "@/models/Task";
+import "@/models/Employee";
+import "@/models/ProjectEmployee";
+import "@/models/Equipment";
+import "@/models/ProjectEquipment";
+import "@/models/EquipmentMaintenance";
+import "@/models/Material";
+import "@/models/MaterialUsage";
+import "@/models/LedgerEntry";
+import "@/models/Invoice";
+import "@/models/Document";
+import "@/models/Attendance";
+import "@/models/AuditLog";
+import "@/models/Notification";
+
 interface MongooseCache {
   conn: typeof mongoose | null;
   promise: Promise<typeof mongoose> | null;

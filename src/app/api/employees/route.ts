@@ -24,11 +24,10 @@ export async function GET() {
       assignMap[key].push(a);
     });
     const attMap = Object.fromEntries(attCounts.map((r: any) => [r._id.toString(), r.count]));
-    const result = (employees as any[]).map((e: any) => ({
-      ...e,
-      projectAssignments: assignMap[e.id] || [],
-      _count: { attendanceRecords: attMap[e.id] || 0 },
-    }));
+    const result = (employees as any[]).map((e: any) => {
+      const id = e._id?.toString() || e.id;
+      return { ...e, id, projectAssignments: assignMap[id] || [], _count: { attendanceRecords: attMap[id] || 0 } };
+    });
     return ok(result);
   } catch (e) {
     return handleApiError(e);

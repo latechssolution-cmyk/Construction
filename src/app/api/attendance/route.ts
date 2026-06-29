@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       existing.status = status;
       existing.hoursWorked = hoursWorked;
       existing.notes = notes;
-      if (data.projectId !== undefined) existing.projectId = toId(data.projectId);
+      if (data.projectId !== undefined) existing.projectId = toId(data.projectId) as any;
       await existing.save();
       await existing.populate("employee", "id name");
       return ok(existing);

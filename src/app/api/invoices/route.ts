@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       .sort({ createdAt: -1 })
       .limit(200)
       .lean({ virtuals: true });
-    return ok(invoices);
+    return ok((invoices as any[]).map((inv: any) => ({ ...inv, id: inv._id?.toString() || inv.id })));
   } catch (e) {
     return handleApiError(e);
   }

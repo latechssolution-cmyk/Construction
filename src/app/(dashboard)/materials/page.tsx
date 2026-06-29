@@ -56,14 +56,14 @@ export default function MaterialsPage() {
         category: material.category || "",
         unit: material.unit || "bags",
         minStockLevel: material.minStockLevel ?? 5,
-        vendorId: material.vendor?.id || "",
+        vendorId: material.vendor?._id?.toString() || material.vendor?.id || "",
         notes: material.notes || "",
       });
     } else if (type === "restock") {
       setModalForm({
         restockQuantity: "",
         unitPrice: material.unitPrice ?? 0,
-        vendorId: material.vendor?.id || "",
+        vendorId: material.vendor?._id?.toString() || material.vendor?.id || "",
         notes: "",
         receivedDate: new Date().toISOString().slice(0, 10),
       });

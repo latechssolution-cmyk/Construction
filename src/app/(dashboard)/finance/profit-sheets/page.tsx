@@ -1,15 +1,28 @@
 "use client";
 import useSWR from "swr";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { StatsSkeleton, TableSkeleton } from "@/components/ui/skeleton";
+import { Lock } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export default function ProfitSheetsPage() {
+  const { data: session } = useSession();
   const year = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(year);
   const { data: summary, isLoading } = useSWR(`/api/ledger/summary?year=${selectedYear}`, fetcher);
   const { data: projects } = useSWR("/api/projects", fetcher);
+
+  if (session && !["admin","ceo","accountant"].includes(session.user?.role || "")) {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        <Lock className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+        <p className="font-medium">Access Restricted</p>
+        <p className="text-sm mt-1">Profit &amp; Loss statements are visible to finance roles only.</p>
+      </div>
+    );
+  }
 
   const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const monthly: any[] = summary?.monthly || [];

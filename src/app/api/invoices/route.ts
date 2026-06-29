@@ -45,16 +45,21 @@ export async function POST(req: NextRequest) {
     requireRole(session, "admin", "ceo", "accountant");
     const data = await req.json();
     if (!data.clientId) throw new Error("Client is required");
+    if (!Array.isArray(data.items) || data.items.length === 0) throw new Error("At least one line item is required");
     await connectDB();
-    const items = (data.items || []).map((item: any) => ({
-      description: item.description,
-      quantity: parseFloat(item.quantity || "1"),
-      unit: item.unit || null,
-      unitPrice: parseFloat(item.unitPrice || "0"),
-      total: parseFloat(item.quantity || "1") * parseFloat(item.unitPrice || "0"),
-    }));
+    const items = (data.items || []).map((item: any) => {
+      if (!item.description?.trim()) throw new Error("Each item must have a description");
+      return {
+        description: item.description,
+        quantity: parseFloat(item.quantity || "1"),
+        unit: item.unit || null,
+        unitPrice: parseFloat(item.unitPrice || "0"),
+        total: parseFloat(item.quantity || "1") * parseFloat(item.unitPrice || "0"),
+      };
+    });
     const subtotal = items.reduce((s: number, i: any) => s + i.total, 0);
-    const taxPercent = parseFloat(data.taxPercent || "0");
+    const rawTax = parseFloat(data.taxPercent || "0");
+    const taxPercent = isNaN(rawTax) ? 0 : Math.max(0, Math.min(100, rawTax));
     const taxAmount = (subtotal * taxPercent) / 100;
     const grandTotal = subtotal + taxAmount;
     const invoice = await Invoice.create({

@@ -25,7 +25,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     requireRole(session, "admin", "ceo", "manager");
     const { id } = await params;
     const data = await req.json();
-    const cost = parseFloat(data.cost || "0");
+    const rawCost = parseFloat(data.cost || "0");
+    const cost = isNaN(rawCost) ? 0 : rawCost;
     await connectDB();
     const record = await EquipmentMaintenance.create({
       equipmentId: id,

@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
       .populate("project", "id name")
       .populate("vendor", "id name")
       .sort({ itemName: 1 })
+      .limit(1000)
       .lean({ virtuals: true });
     const ids = (materials as any[]).map((m: any) => m._id);
     // Cap usage log fetch — at most 5 per material, hard limit avoids over-fetching on large data

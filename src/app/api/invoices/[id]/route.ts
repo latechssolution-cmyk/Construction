@@ -31,6 +31,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await connectDB();
     const existing = await Invoice.findById(id, { status: 1, grandTotal: 1, clientId: 1, invoiceNumber: 1, projectId: 1 });
     if (!existing) throw new ApiError(404, "Invoice not found");
+    const TRANSITIONS: Record<string, string[]> = {
+      draft: ["sent", "cancelled"],
+      sent: ["paid", "overdue", "cancelled", "draft"],
+      overdue: ["paid", "cancelled"],
+      paid: [],
+      cancelled: [],
+    };
+    if (data.status !== undefined && data.status !== existing.status) {
+      const allowed = TRANSITIONS[existing.status] || [];
+      if (!allowed.includes(data.status)) {
+        throw new ApiError(400, `Cannot change invoice status from "${existing.status}" to "${data.status}"`);
+      }
+    }
     const update: any = {};
     if (data.status !== undefined) update.status = data.status;
     if (data.dueDate !== undefined) update.dueDate = data.dueDate ? new Date(data.dueDate) : null;

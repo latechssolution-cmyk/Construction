@@ -20,6 +20,7 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(false);
 
   const canManage = ["admin","ceo","manager"].includes(session?.user?.role || "");
+  const canDeactivate = ["admin","ceo"].includes(session?.user?.role || "");
   const filtered = (Array.isArray(clients) ? clients : []).filter((c: any) =>
     c.name?.toLowerCase().includes(search.toLowerCase()) || c.email?.toLowerCase().includes(search.toLowerCase())
   );
@@ -93,7 +94,7 @@ export default function ClientsPage() {
             {client.address && <span className="flex items-center gap-1 text-xs text-gray-500 truncate"><MapPin className="w-3 h-3 shrink-0" />{client.address}</span>}
             <div className="flex items-center justify-between pt-2 border-t border-gray-100">
               <p className="text-xs text-gray-400">{client._count?.projects||0} projects · {client._count?.invoices||0} invoices</p>
-              {canManage && (
+              {(client.isActive===false ? canManage : canDeactivate) && (
                 <button onClick={()=>toggleActive(client)} className="text-xs text-gray-500 hover:text-blue-600">
                   {client.isActive===false?"Activate":"Deactivate"}
                 </button>

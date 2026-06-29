@@ -7,7 +7,7 @@ const { auth } = NextAuth({
   trustHost: true,
   session: { strategy: "jwt" },
   providers: [],
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "construction-erp-secret-key-2026",
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   callbacks: {
     async jwt({ token, user }) {
       if (user) {

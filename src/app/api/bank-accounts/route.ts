@@ -9,7 +9,7 @@ export async function GET() {
   try {
     await requireAuth();
     await connectDB();
-    const accounts = await BankAccount.find({ isActive: true }).sort({ name: 1 });
+    const accounts = await BankAccount.find({ isActive: true }).sort({ name: 1 }).limit(100);
     const ids = accounts.map((a) => a._id);
     const counts = await LedgerEntry.aggregate([
       { $match: { bankAccountId: { $in: ids } } },

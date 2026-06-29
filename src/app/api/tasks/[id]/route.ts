@@ -44,7 +44,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.assignedToId !== undefined) update.assignedToId = toId(data.assignedToId);
     if (data.phaseId !== undefined) update.phaseId = toId(data.phaseId);
     if (data.dueDate !== undefined) update.dueDate = data.dueDate ? new Date(data.dueDate) : null;
-    if (data.estimatedHours !== undefined) update.estimatedHours = parseFloat(data.estimatedHours);
+    if (data.estimatedHours !== undefined) { const parsedHours = parseFloat(data.estimatedHours); if (!isNaN(parsedHours)) update.estimatedHours = parsedHours; }
     if (data.notes !== undefined) update.notes = data.notes;
     if (data.status === "completed") update.completedAt = new Date();
 

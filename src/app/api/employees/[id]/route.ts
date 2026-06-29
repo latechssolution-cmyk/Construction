@@ -34,7 +34,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!employee) throw new ApiError(404, "Employee not found");
     const fields = ["name","role","department","phone","email","isActive","bankAccount","emergencyContact","notes"] as const;
     fields.forEach((f) => { if (data[f] !== undefined) (employee as any)[f] = data[f]; });
-    if (data.salary !== undefined) employee.salary = parseFloat(data.salary);
+    if (data.salary !== undefined) { const parsedSalary = parseFloat(data.salary); if (!isNaN(parsedSalary)) employee.salary = parsedSalary; }
     if (data.salaryType !== undefined) employee.salaryType = data.salaryType;
     await employee.save();
     await auditLog(session.user.id, "UPDATE", "Employee", id, `Updated employee: ${employee.name}`);

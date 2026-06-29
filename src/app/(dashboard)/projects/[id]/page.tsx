@@ -446,7 +446,7 @@ export default function ProjectDetailPage() {
           <div className="space-y-2">
             {(project.tasks || []).map((task: any) => (
               <div key={task.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
-                <input type="checkbox" checked={task.status === "completed"} onChange={() => canManage && updateTask(task.id, { status: task.status === "completed" ? "todo" : "completed" })} disabled={!canManage} className="w-4 h-4 accent-blue-600 disabled:opacity-50" />
+                <input type="checkbox" checked={task.status === "completed"} onChange={() => canManage && updateTask(task.id, { status: task.status === "completed" ? "in_progress" : "completed" })} disabled={!canManage} className="w-4 h-4 accent-blue-600 disabled:opacity-50" />
                 <div className="flex-1">
                   <p className={`text-sm font-medium ${task.status === "completed" ? "line-through text-gray-400" : "text-gray-900"}`}>{task.title}</p>
                   {task.assignedTo && <p className="text-xs text-gray-500">{task.assignedTo.name}</p>}

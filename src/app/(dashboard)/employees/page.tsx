@@ -23,6 +23,7 @@ export default function EmployeesPage() {
   const [salaryLoading, setSalaryLoading] = useState(false);
 
   const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
+  const canPaySalary = ["admin", "ceo", "accountant"].includes(session?.user?.role || "");
   const filtered = (Array.isArray(employees) ? employees : []).filter((e: any) =>
     e.name?.toLowerCase().includes(search.toLowerCase()) || e.role?.toLowerCase().includes(search.toLowerCase()) || e.department?.toLowerCase().includes(search.toLowerCase())
   );
@@ -68,6 +69,7 @@ export default function EmployeesPage() {
       }
       toast({ title: "Salary paid", description: `PKR ${Number(salaryForm.amount).toLocaleString()} paid to ${salaryModal.name}` });
       setSalaryModal(null);
+      mutate();
     } finally {
       setSalaryLoading(false);
     }
@@ -145,7 +147,7 @@ export default function EmployeesPage() {
                     <td className="py-3 px-4">
                       {canManage && emp.isActive !== false && (
                         <div className="flex items-center gap-3">
-                          <button onClick={() => openSalaryModal(emp)} className="text-xs text-blue-600 hover:underline font-medium">Pay Salary</button>
+                          {canPaySalary && <button onClick={() => openSalaryModal(emp)} className="text-xs text-blue-600 hover:underline font-medium">Pay Salary</button>}
                           <button onClick={() => deactivate(emp.id)} className="text-xs text-red-500 hover:underline">Deactivate</button>
                         </div>
                       )}
@@ -175,7 +177,7 @@ export default function EmployeesPage() {
                 </div>
                 {canManage && emp.isActive !== false && (
                   <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end gap-4">
-                    <button onClick={() => openSalaryModal(emp)} className="text-xs text-blue-600 hover:underline font-medium">Pay Salary</button>
+                    {canPaySalary && <button onClick={() => openSalaryModal(emp)} className="text-xs text-blue-600 hover:underline font-medium">Pay Salary</button>}
                     <button onClick={() => deactivate(emp.id)} className="text-xs text-red-500 hover:underline">Deactivate</button>
                   </div>
                 )}

@@ -145,9 +145,13 @@ export default function TasksPage() {
                     {t.dueDate && <span className={`text-xs ${new Date(t.dueDate)<new Date()&&t.status!=="completed"?"text-red-500":"text-gray-400"}`}>{new Date(t.dueDate).toLocaleDateString()}</span>}
                   </div>
                   {t.assignedTo && <p className="text-xs text-gray-500">{t.assignedTo.name}</p>}
-                  <select value={t.status} onChange={e=>updateStatus(t.id,e.target.value)} className="text-xs border border-gray-200 rounded px-1 py-0.5 w-full mt-1">
-                    {STATUSES.map(s=><option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                  </select>
+                  {canCreate ? (
+                    <select value={t.status} onChange={e=>updateStatus(t.id,e.target.value)} className="text-xs border border-gray-200 rounded px-1 py-0.5 w-full mt-1">
+                      {STATUSES.map(s=><option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                    </select>
+                  ) : (
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${STATUS_COLORS[t.status]}`}>{STATUS_LABELS[t.status]}</span>
+                  )}
                 </div>
               ))}
               {byStatus(status).length===0 && <p className="text-xs text-gray-300 text-center py-4">No tasks</p>}
@@ -174,9 +178,13 @@ export default function TasksPage() {
                     <td className="py-3 px-4 text-gray-500">{t.assignedTo?.name||"Unassigned"}</td>
                     <td className="py-3 px-4"><span className={`text-xs px-2 py-0.5 rounded-full ${PRIORITY_COLORS[t.priority||"medium"]}`}>{t.priority||"medium"}</span></td>
                     <td className="py-3 px-4">
-                      <select value={t.status} onChange={e=>updateStatus(t.id,e.target.value)} className={`text-xs px-2 py-0.5 rounded-full border border-gray-200 bg-white cursor-pointer`}>
-                        {STATUSES.map(s=><option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                      </select>
+                      {canCreate ? (
+                        <select value={t.status} onChange={e=>updateStatus(t.id,e.target.value)} className="text-xs px-2 py-0.5 rounded-full border border-gray-200 bg-white cursor-pointer">
+                          {STATUSES.map(s=><option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                        </select>
+                      ) : (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[t.status]}`}>{STATUS_LABELS[t.status]}</span>
+                      )}
                     </td>
                     <td className={`py-3 px-4 text-sm whitespace-nowrap ${t.dueDate&&new Date(t.dueDate)<new Date()&&t.status!=="completed"?"text-red-500":"text-gray-500"}`}>{t.dueDate?new Date(t.dueDate).toLocaleDateString():"—"}</td>
                     <td className="py-3 px-4">
@@ -204,9 +212,13 @@ export default function TasksPage() {
                   <div><span className="text-gray-400">Due: </span><span className={`whitespace-nowrap ${t.dueDate&&new Date(t.dueDate)<new Date()&&t.status!=="completed"?"text-red-500":"text-gray-700"}`}>{t.dueDate?new Date(t.dueDate).toLocaleDateString():"—"}</span></div>
                 </div>
                 <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
-                  <select value={t.status} onChange={e=>updateStatus(t.id,e.target.value)} className="text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white cursor-pointer">
-                    {STATUSES.map(s=><option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                  </select>
+                  {canCreate ? (
+                    <select value={t.status} onChange={e=>updateStatus(t.id,e.target.value)} className="text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white cursor-pointer">
+                      {STATUSES.map(s=><option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                    </select>
+                  ) : (
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[t.status]}`}>{STATUS_LABELS[t.status]}</span>
+                  )}
                   {canDelete && <button onClick={()=>deleteTask(t.id)} className="text-xs text-red-400 hover:text-red-600 hover:underline">Delete</button>}
                 </div>
               </div>

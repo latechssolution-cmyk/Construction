@@ -84,11 +84,13 @@ export default function AttendancePage() {
     const today = new Date().toISOString().slice(0, 10);
     setLoading(true);
     try {
-      await Promise.all(
+      const results = await Promise.all(
         empList.filter((e: any) => e.isActive).map((emp: any) =>
           fetch("/api/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ employeeId: emp.id, date: today, status }) })
         )
       );
+      const failed = results.filter(r => !r.ok).length;
+      if (failed > 0) setError(`${failed} record(s) failed to save. Others were saved successfully.`);
       if (month !== currentMonth()) setMonth(currentMonth());
       mutate();
     } finally { setLoading(false); }
@@ -96,13 +98,13 @@ export default function AttendancePage() {
 
   async function updateRecord(id: string, patch: any) {
     const res = await fetch(`/api/attendance/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); setError(e.error || "Failed to update record"); }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); setError(e.error || "Failed to update record"); return; }
     mutate();
   }
 
   async function deleteRecord(id: string) {
     const res = await fetch(`/api/attendance/${id}`, { method: "DELETE" });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); setError(e.error || "Failed to delete record"); }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); setError(e.error || "Failed to delete record"); setConfirmDelete(null); return; }
     setConfirmDelete(null);
     mutate();
   }

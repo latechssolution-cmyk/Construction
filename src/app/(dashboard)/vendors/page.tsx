@@ -21,6 +21,7 @@ export default function VendorsPage() {
   const [loading, setLoading] = useState(false);
 
   const canManage = ["admin","ceo","manager"].includes(session?.user?.role || "");
+  const canDeactivate = ["admin","ceo"].includes(session?.user?.role || "");
   const filtered = (Array.isArray(vendors) ? vendors : []).filter((v: any) =>
     v.name?.toLowerCase().includes(search.toLowerCase()) || v.category?.toLowerCase().includes(search.toLowerCase())
   );
@@ -121,7 +122,7 @@ export default function VendorsPage() {
             <AuditTrail entity="Vendor" entityId={vendor.id} createdAt={vendor.createdAt} />
             <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
               <p className="text-xs text-gray-400">{vendor._count?.materials || 0} materials · {vendor._count?.ledgerEntries || 0} transactions</p>
-              {canManage && vendor.isActive !== false && (
+              {canDeactivate && vendor.isActive !== false && (
                 <ConfirmDialog title="Deactivate Vendor?" message={`Deactivate ${vendor.name}? They will no longer appear in active vendor lists.`} confirmLabel="Deactivate" onConfirm={() => handleDeactivate(vendor.id, vendor.name)}>
                   {open => <button onClick={open} className="text-xs text-red-400 hover:text-red-600">Deactivate</button>}
                 </ConfirmDialog>

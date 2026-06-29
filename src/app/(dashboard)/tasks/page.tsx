@@ -29,7 +29,7 @@ export default function TasksPage() {
   const [form, setForm] = useState<any>({ status:"todo", priority:"medium" });
   const [loading, setLoading] = useState(false);
 
-  const canCreate = ["admin","manager"].includes(session?.user?.role||"");
+  const canCreate = ["admin","ceo","manager"].includes(session?.user?.role||"");
   const canDelete = ["admin","manager"].includes(session?.user?.role||"");
   const list: any[] = Array.isArray(tasks) ? tasks : [];
   const filtered = list.filter((t:any) => {

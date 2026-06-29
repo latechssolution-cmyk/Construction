@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
       .populate("client", "id name")
       .populate("assignedManager", "id name")
       .sort({ createdAt: -1 })
+      .limit(500)
       .lean({ virtuals: true });
 
     const ids = (projects as any[]).map((p: any) => p._id);

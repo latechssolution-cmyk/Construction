@@ -33,7 +33,7 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const canManage = ["admin","manager"].includes(session?.user?.role||"");
+  const canManage = ["admin","ceo","manager"].includes(session?.user?.role||"");
   const list: any[] = Array.isArray(documents) ? documents : [];
   const filtered = list.filter((d:any)=>(!projectFilter||d.projectId===projectFilter)&&(!typeFilter||d.type===typeFilter));
 

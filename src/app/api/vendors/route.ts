@@ -10,7 +10,7 @@ export async function GET() {
   try {
     await requireAuth();
     await connectDB();
-    const vendors = await Vendor.find({}).sort({ createdAt: -1 }).lean({ virtuals: true });
+    const vendors = await Vendor.find({}).sort({ createdAt: -1 }).limit(500).lean({ virtuals: true });
     const ids = (vendors as any[]).map((v: any) => v._id);
     const [matCounts, ledCounts] = await Promise.all([
       Material.aggregate([{ $match: { vendorId: { $in: ids } } }, { $group: { _id: "$vendorId", count: { $sum: 1 } } }]),

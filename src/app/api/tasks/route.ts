@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
       .populate("project", "id name")
       .populate("assignedTo", "id name")
       .populate("phase", "id name")
-      .sort({ dueDate: 1 });
+      .sort({ dueDate: 1 })
+      .limit(500);
     return ok(tasks);
   } catch (e) {
     return handleApiError(e);

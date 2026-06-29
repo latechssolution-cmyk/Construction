@@ -17,7 +17,8 @@ export async function GET(req: NextRequest) {
     const documents = await Doc.find(filter)
       .populate("project", "id name")
       .populate("uploadedBy", "id name")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .limit(500);
     return ok(documents);
   } catch (e) {
     return handleApiError(e);

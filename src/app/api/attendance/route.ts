@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       filter.date = { $gte: new Date(y, m - 1, 1), $lt: new Date(y, m, 1) };
     }
     await connectDB();
-    const records = await Attendance.find(filter).populate("employee", "id name").sort({ date: -1 });
+    const records = await Attendance.find(filter).populate("employee", "id name").sort({ date: -1 }).limit(500);
     return ok(records);
   } catch (e) {
     return handleApiError(e);

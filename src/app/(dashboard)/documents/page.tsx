@@ -75,7 +75,8 @@ export default function DocumentsPage() {
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this document?")) return;
-    await fetch(`/api/documents/${id}`,{method:"DELETE"});
+    const res = await fetch(`/api/documents/${id}`,{method:"DELETE"});
+    if (!res.ok) { const e = await res.json().catch(()=>({})); toast({ title: "Error", description: e.error || "Failed to delete document", variant: "destructive" }); return; }
     mutate();
   }
 

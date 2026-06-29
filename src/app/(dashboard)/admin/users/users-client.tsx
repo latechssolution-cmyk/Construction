@@ -44,11 +44,12 @@ export function UsersClient({ users, auditLogs }: any) {
   };
 
   const toggleUser = async (id: string, isActive: boolean) => {
-    await fetch("/api/users", {
+    const res = await fetch("/api/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, isActive: !isActive }),
     });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); toast({ title: "Error", description: e.error || "Failed to update user", variant: "destructive" }); return; }
     router.refresh();
   };
 

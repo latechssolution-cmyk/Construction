@@ -26,6 +26,9 @@ export async function PATCH(req: NextRequest) {
     requireRole(session, "admin");
     const data = await req.json();
     if (!data.id) throw new Error("id is required");
+    if (data.id === session.user.id && data.isActive === false) {
+      throw new Error("Cannot deactivate your own account");
+    }
     await connectDB();
     const user = await User.findByIdAndUpdate(data.id, { isActive: data.isActive }, { new: true, select: "-passwordHash" });
     if (!user) throw new Error("User not found");

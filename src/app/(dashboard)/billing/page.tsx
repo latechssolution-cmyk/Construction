@@ -7,7 +7,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { Receipt } from "lucide-react";
+import { Receipt, X } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 const STATUS_COLORS: Record<string,string> = { draft:"bg-gray-100 text-gray-700", sent:"bg-blue-100 text-blue-700", paid:"bg-green-100 text-green-700", overdue:"bg-red-100 text-red-700", cancelled:"bg-orange-100 text-orange-700" };
@@ -18,6 +18,7 @@ export default function BillingPage() {
   const { data: invoices, mutate, isLoading } = useSWR("/api/invoices", fetcher);
   const { data: clients } = useSWR("/api/clients", fetcher);
   const { data: projects } = useSWR("/api/projects", fetcher);
+  const { data: bankAccounts } = useSWR("/api/bank-accounts", fetcher);
   const [statusFilter, setStatusFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>({ status:"draft", taxPercent:0 });
@@ -25,6 +26,9 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [paidModal, setPaidModal] = useState<any>(null);
+  const [paidBankId, setPaidBankId] = useState("");
+  const [paidLoading, setPaidLoading] = useState(false);
 
   if (session && !["admin","ceo","accountant"].includes(session.user?.role||"")) {
     return <div className="p-6 text-center text-gray-500"><p className="text-4xl mb-2">&#x1F512;</p><p className="font-medium">Access Restricted</p><p className="text-sm mt-1">You do not have permission to view this module.</p></div>;
@@ -57,10 +61,16 @@ export default function BillingPage() {
     } finally { setLoading(false); }
   }
 
-  async function markPaid(id: string) {
-    const res = await fetch("/api/invoices/"+id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"paid"})});
-    if (!res.ok) { const e = await res.json(); toast({ title: "Error", description: e.error || "Failed", variant: "destructive" }); return; }
-    mutate();
+  async function confirmMarkPaid() {
+    if (!paidModal) return;
+    setPaidLoading(true);
+    try {
+      const res = await fetch("/api/invoices/"+paidModal.id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"paid",bankAccountId:paidBankId||undefined})});
+      if (!res.ok) { const e = await res.json(); toast({ title: "Error", description: e.error || "Failed", variant: "destructive" }); return; }
+      toast({ title: "Invoice marked paid", description: `PKR ${(paidModal.grandTotal||0).toLocaleString()} received` });
+      setPaidModal(null); setPaidBankId("");
+      mutate();
+    } finally { setPaidLoading(false); }
   }
   async function markSent(id: string) {
     const res = await fetch("/api/invoices/"+id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"sent"})});
@@ -190,9 +200,7 @@ export default function BillingPage() {
                           </ConfirmDialog>
                         )}
                         {canManage && ["sent","overdue"].includes(inv.status) && (
-                          <ConfirmDialog title="Mark as Paid?" message={"Confirm receipt of PKR "+(inv.grandTotal||0).toLocaleString()+" for "+inv.invoiceNumber+"?"} confirmLabel="Mark Paid" confirmClass="bg-green-600 hover:bg-green-700 text-white" onConfirm={()=>markPaid(inv.id)}>
-                            {open=><button onClick={open} className="text-xs text-green-600 hover:underline">Mark Paid</button>}
-                          </ConfirmDialog>
+                          <button onClick={()=>{setPaidModal(inv);setPaidBankId("");}} className="text-xs text-green-600 hover:underline font-medium">Mark Paid</button>
                         )}
                       </div>
                     </td>
@@ -227,15 +235,56 @@ export default function BillingPage() {
                     </ConfirmDialog>
                   )}
                   {canManage && ["sent","overdue"].includes(inv.status) && (
-                    <ConfirmDialog title="Mark as Paid?" message={"Confirm receipt of PKR "+(inv.grandTotal||0).toLocaleString()+" for "+inv.invoiceNumber+"?"} confirmLabel="Mark Paid" confirmClass="bg-green-600 hover:bg-green-700 text-white" onConfirm={()=>markPaid(inv.id)}>
-                      {open=><button onClick={open} className="text-xs text-green-600 hover:underline">Mark Paid</button>}
-                    </ConfirmDialog>
+                    <button onClick={()=>{setPaidModal(inv);setPaidBankId("");}} className="text-xs text-green-600 hover:underline font-medium">Mark Paid</button>
                   )}
                 </div>
               </div>
             ))}
           </div>
         </>
+      )}
+      {/* Mark Paid Modal */}
+      {paidModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+              <div>
+                <h2 className="font-semibold text-gray-900">Mark Invoice Paid</h2>
+                <p className="text-xs text-gray-500 mt-0.5">{paidModal.invoiceNumber} · PKR {(paidModal.grandTotal||0).toLocaleString()}</p>
+              </div>
+              <button onClick={()=>setPaidModal(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Received Into Bank Account</label>
+                <select
+                  value={paidBankId}
+                  onChange={e=>setPaidBankId(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                >
+                  <option value="">Not specified</option>
+                  {(Array.isArray(bankAccounts)?bankAccounts:[]).map((b:any)=>(
+                    <option key={b.id} value={b.id}>{b.name} — PKR {(b.balance||0).toLocaleString()}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={confirmMarkPaid} disabled={paidLoading}
+                  className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+                >
+                  {paidLoading ? "Processing…" : "Confirm Payment"}
+                </button>
+                <button
+                  onClick={()=>setPaidModal(null)}
+                  className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

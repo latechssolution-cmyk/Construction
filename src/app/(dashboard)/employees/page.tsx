@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { Users } from "lucide-react";
+import { Users, X } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -13,10 +13,14 @@ export default function EmployeesPage() {
   const { data: session } = useSession();
   const { toast } = useToast();
   const { data: employees, mutate, isLoading } = useSWR("/api/employees", fetcher);
+  const { data: bankAccounts } = useSWR("/api/bank-accounts", fetcher);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [salaryModal, setSalaryModal] = useState<any>(null);
+  const [salaryForm, setSalaryForm] = useState<any>({});
+  const [salaryLoading, setSalaryLoading] = useState(false);
 
   const canManage = ["admin", "manager"].includes(session?.user?.role || "");
   const filtered = (Array.isArray(employees) ? employees : []).filter((e: any) =>
@@ -38,6 +42,34 @@ export default function EmployeesPage() {
   async function deactivate(id: string) {
     await fetch(`/api/employees/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isActive: false }) });
     mutate();
+  }
+
+  function openSalaryModal(emp: any) {
+    const today = new Date().toISOString().slice(0, 10);
+    const month = new Date().toISOString().slice(0, 7);
+    setSalaryForm({ amount: emp.salary || "", date: today, month, bankAccountId: "" });
+    setSalaryModal(emp);
+  }
+
+  async function handlePaySalary(ev: React.FormEvent) {
+    ev.preventDefault();
+    setSalaryLoading(true);
+    try {
+      const res = await fetch(`/api/employees/${salaryModal.id}/salary`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(salaryForm),
+      });
+      if (!res.ok) {
+        const e = await res.json();
+        toast({ title: "Error", description: e.error || "Failed to pay salary", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Salary paid", description: `PKR ${Number(salaryForm.amount).toLocaleString()} paid to ${salaryModal.name}` });
+      setSalaryModal(null);
+    } finally {
+      setSalaryLoading(false);
+    }
   }
 
   return (
@@ -110,7 +142,12 @@ export default function EmployeesPage() {
                     <td className="py-3 px-4 text-gray-500 whitespace-nowrap">{emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString() : "—"}</td>
                     <td className="py-3 px-4"><span className={`text-xs px-2 py-0.5 rounded-full ${emp.isActive !== false ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>{emp.isActive !== false ? "Active" : "Inactive"}</span></td>
                     <td className="py-3 px-4">
-                      {canManage && emp.isActive !== false && <button onClick={() => deactivate(emp.id)} className="text-xs text-red-500 hover:underline">Deactivate</button>}
+                      {canManage && emp.isActive !== false && (
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => openSalaryModal(emp)} className="text-xs text-blue-600 hover:underline font-medium">Pay Salary</button>
+                          <button onClick={() => deactivate(emp.id)} className="text-xs text-red-500 hover:underline">Deactivate</button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -136,7 +173,8 @@ export default function EmployeesPage() {
                   <div><span className="text-gray-400">Type: </span><span className="text-gray-700 capitalize">{emp.salaryType}</span></div>
                 </div>
                 {canManage && emp.isActive !== false && (
-                  <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
+                  <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end gap-4">
+                    <button onClick={() => openSalaryModal(emp)} className="text-xs text-blue-600 hover:underline font-medium">Pay Salary</button>
                     <button onClick={() => deactivate(emp.id)} className="text-xs text-red-500 hover:underline">Deactivate</button>
                   </div>
                 )}
@@ -144,6 +182,78 @@ export default function EmployeesPage() {
             ))}
           </div>
         </>
+      )}
+      {/* Pay Salary Modal */}
+      {salaryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+              <div>
+                <h2 className="font-semibold text-gray-900">Pay Salary</h2>
+                <p className="text-xs text-gray-500 mt-0.5">{salaryModal.name} · {salaryModal.role}</p>
+              </div>
+              <button onClick={() => setSalaryModal(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handlePaySalary} className="p-6 space-y-4">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Amount (PKR) *</label>
+                <input
+                  required type="number" min="1"
+                  value={salaryForm.amount}
+                  onChange={e => setSalaryForm({ ...salaryForm, amount: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  placeholder="e.g. 50000"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">For Month *</label>
+                <input
+                  required type="month"
+                  value={salaryForm.month}
+                  onChange={e => setSalaryForm({ ...salaryForm, month: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Payment Date *</label>
+                <input
+                  required type="date"
+                  value={salaryForm.date}
+                  onChange={e => setSalaryForm({ ...salaryForm, date: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Pay From Bank Account *</label>
+                <select
+                  required
+                  value={salaryForm.bankAccountId}
+                  onChange={e => setSalaryForm({ ...salaryForm, bankAccountId: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                >
+                  <option value="">Select account…</option>
+                  {(Array.isArray(bankAccounts) ? bankAccounts : []).map((b: any) => (
+                    <option key={b.id} value={b.id}>{b.name} — PKR {(b.balance || 0).toLocaleString()}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="submit" disabled={salaryLoading}
+                  className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {salaryLoading ? "Processing…" : "Confirm Payment"}
+                </button>
+                <button
+                  type="button" onClick={() => setSalaryModal(null)}
+                  className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

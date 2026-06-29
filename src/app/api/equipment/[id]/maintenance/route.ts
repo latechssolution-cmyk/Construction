@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/mongoose";
 import Equipment from "@/models/Equipment";
 import EquipmentMaintenance from "@/models/EquipmentMaintenance";
 import LedgerEntry from "@/models/LedgerEntry";
+import BankAccount from "@/models/BankAccount";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -47,6 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         bankAccountId: maintBankId,
         createdById: session.user.id,
       });
+      await BankAccount.findByIdAndUpdate(maintBankId, { $inc: { balance: -cost } });
     }
     return created(record);
   } catch (e) {

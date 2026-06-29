@@ -4,6 +4,7 @@ import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Employee from "@/models/Employee";
 import LedgerEntry from "@/models/LedgerEntry";
+import BankAccount from "@/models/BankAccount";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -45,6 +46,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       partyName: employee.name,
       partyType: "employee",
     });
+    if (data.bankAccountId) {
+      await BankAccount.findByIdAndUpdate(data.bankAccountId, { $inc: { balance: -amount } });
+    }
     await auditLog(session.user.id, "CREATE", "Salary", entry.id, `Paid salary: ${employee.name} PKR ${amount}`);
     return created(entry);
   } catch (e) {

@@ -10,7 +10,7 @@ export async function GET() {
   try {
     await requireAuth();
     await connectDB();
-    const clients = await Client.find({}).sort({ name: 1 }).lean({ virtuals: true });
+    const clients = await Client.find({}).sort({ name: 1 }).limit(500).lean({ virtuals: true });
     const ids = (clients as any[]).map((c: any) => c._id);
     const [projectCounts, invoiceCounts] = await Promise.all([
       Project.aggregate([{ $match: { clientId: { $in: ids } } }, { $group: { _id: "$clientId", count: { $sum: 1 } } }]),

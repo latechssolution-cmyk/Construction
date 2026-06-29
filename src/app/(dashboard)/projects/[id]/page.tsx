@@ -102,7 +102,7 @@ export default function ProjectDetailPage() {
 
   async function createTask(e: React.FormEvent) {
     e.preventDefault();
-    const res = await fetch(`/api/projects/${id}/tasks`, {
+    const res = await fetch(`/api/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...taskForm, projectId: id }),

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, ApiError, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
-import { notifyAdminsAndManagers } from "@/lib/notifications";
+import { notifyAdminsAndManagers, checkBudgetAlert } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
 import Material from "@/models/Material";
 import MaterialUsage from "@/models/MaterialUsage";
@@ -68,6 +68,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         if (bankAccountId) {
           await BankAccount.findByIdAndUpdate(bankAccountId, { $inc: { balance: -restockCost } });
         }
+        void checkBudgetAlert(material.projectId?.toString(), restockCost);
       }
 
       // Low stock alert after restocking (edge case: still low after restock)

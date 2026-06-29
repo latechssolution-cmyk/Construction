@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
-import { notifyAdminsAndManagers } from "@/lib/notifications";
+import { notifyAdminsAndManagers, checkBudgetAlert } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
 import Material from "@/models/Material";
 import MaterialUsage from "@/models/MaterialUsage";
@@ -88,6 +88,7 @@ export async function POST(req: NextRequest) {
     if (qty <= minStock) {
       void notifyAdminsAndManagers("Low Stock Alert", `${material.itemName} stock is low (${qty} ${material.unit} remaining)`, "warning");
     }
+    void checkBudgetAlert(data.projectId, totalPrice);
     void auditLog(session.user.id, "CREATE", "Material", material.id, `Added material: ${material.itemName}`);
     return created(material);
   } catch (e) {

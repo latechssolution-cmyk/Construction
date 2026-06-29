@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
+import { checkBudgetAlert } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
 import Equipment from "@/models/Equipment";
 import EquipmentMaintenance from "@/models/EquipmentMaintenance";
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         createdById: session.user.id,
       });
       await BankAccount.findByIdAndUpdate(maintBankId, { $inc: { balance: -cost } });
+      void checkBudgetAlert(data.projectId, cost);
     }
     return created(record);
   } catch (e) {

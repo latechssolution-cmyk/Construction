@@ -29,7 +29,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const data = await req.json();
     await connectDB();
-    const existing = await Invoice.findById(id, { status: 1, grandTotal: 1, clientId: 1, invoiceNumber: 1 });
+    const existing = await Invoice.findById(id, { status: 1, grandTotal: 1, clientId: 1, invoiceNumber: 1, projectId: 1 });
     if (!existing) throw new ApiError(404, "Invoice not found");
     const update: any = {};
     if (data.status !== undefined) update.status = data.status;
@@ -51,6 +51,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         category: "invoice_payment",
         description: `Payment received for ${existing.invoiceNumber}`,
         bankAccountId: bankAccountId,
+        projectId: toId(existing.projectId),
         createdById: session.user.id,
         referenceNumber: existing.invoiceNumber,
         partyType: "client",

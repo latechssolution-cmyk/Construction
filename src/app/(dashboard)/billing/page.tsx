@@ -34,7 +34,7 @@ export default function BillingPage() {
     return <div className="p-6 text-center text-gray-500"><p className="text-4xl mb-2">&#x1F512;</p><p className="font-medium">Access Restricted</p><p className="text-sm mt-1">You do not have permission to view this module.</p></div>;
   }
 
-  const canManage = ["admin","accountant"].includes(session?.user?.role||"");
+  const canManage = ["admin","ceo","accountant"].includes(session?.user?.role||"");
   const list: any[] = Array.isArray(invoices) ? invoices : [];
   const filtered = list.filter((i:any)=>!statusFilter||i.status===statusFilter);
 

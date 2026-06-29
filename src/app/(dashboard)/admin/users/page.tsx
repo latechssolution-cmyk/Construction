@@ -38,7 +38,8 @@ export default function UsersPage() {
   }
 
   async function toggleActive(id: string, isActive: boolean) {
-    await fetch(`/api/users/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({isActive:!isActive})});
+    const res = await fetch(`/api/users/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({isActive:!isActive})});
+    if (!res.ok) { const err = await res.json().catch(()=>({})); toast({ title: "Error", description: err.error||"Failed to update user", variant: "destructive" }); return; }
     mutate();
   }
 
@@ -56,7 +57,8 @@ export default function UsersPage() {
   }
 
   async function handleRoleChange(id: string, role: string) {
-    await fetch(`/api/users/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({role})});
+    const res = await fetch(`/api/users/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({role})});
+    if (!res.ok) { const err = await res.json().catch(()=>({})); toast({ title: "Error", description: err.error||"Failed to change role", variant: "destructive" }); return; }
     mutate();
   }
 

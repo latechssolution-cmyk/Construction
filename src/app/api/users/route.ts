@@ -13,7 +13,7 @@ export async function GET() {
     const users = await User.find(
       {},
       { name: 1, email: 1, role: 1, isActive: 1, image: 1, createdAt: 1, lastLoginAt: 1 }
-    ).sort({ createdAt: -1 });
+    ).sort({ createdAt: -1 }).limit(500);
     return ok(users);
   } catch (e) {
     return handleApiError(e);

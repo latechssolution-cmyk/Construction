@@ -17,7 +17,7 @@ export default function LedgerPage() {
   const { data: projects } = useSWR("/api/projects", fetcher);
   const { data: bankAccounts } = useSWR("/api/bank-accounts", fetcher);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<any>({ type:"expense", category:"general" });
+  const [form, setForm] = useState<any>({ type:"expense", category:"" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -26,7 +26,7 @@ export default function LedgerPage() {
     return <div className="p-6 text-center text-gray-500"><p className="text-4xl mb-2">&#x1F512;</p><p className="font-medium">Access Restricted</p></div>;
   }
 
-  const canManage = ["admin","accountant"].includes(session?.user?.role||"");
+  const canManage = ["admin","ceo","accountant"].includes(session?.user?.role||"");
   const list: any[] = Array.isArray(entries) ? entries : [];
   const filtered = list.filter((e:any)=>!typeFilter||e.type===typeFilter);
 
@@ -57,7 +57,7 @@ export default function LedgerPage() {
       };
       const res = await fetch("/api/ledger", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       if (!res.ok) { const e = await res.json(); setError(e.error||"Failed to save entry"); return; }
-      mutate(); setShowForm(false); setForm({ type:"expense", category:"general", bankAccountId:"" });
+      mutate(); setShowForm(false); setForm({ type:"expense", category:"", bankAccountId:"" });
     } finally { setLoading(false); }
   }
 

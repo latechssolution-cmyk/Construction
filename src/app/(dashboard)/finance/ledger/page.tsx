@@ -14,6 +14,7 @@ export default function LedgerPage() {
   const { data: session } = useSession();
   const { data: entries, mutate, isLoading } = useSWR("/api/ledger", fetcher);
   const { data: projects } = useSWR("/api/projects", fetcher);
+  const { data: bankAccounts } = useSWR("/api/bank-accounts", fetcher);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>({ type:"expense", category:"general" });
   const [loading, setLoading] = useState(false);
@@ -48,13 +49,14 @@ export default function LedgerPage() {
         description: form.description || null,
         referenceNumber: form.referenceNumber || null,
         projectId: form.projectId || null,
+        bankAccountId: form.bankAccountId || null,
         vendorId: form.vendorId || null,
         partyName: form.partyName || null,
         partyType: form.partyType || "other",
       };
       const res = await fetch("/api/ledger", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       if (!res.ok) { const e = await res.json(); setError(e.error||"Failed to save entry"); return; }
-      mutate(); setShowForm(false); setForm({ type:"expense", category:"general" });
+      mutate(); setShowForm(false); setForm({ type:"expense", category:"general", bankAccountId:"" });
     } finally { setLoading(false); }
   }
 
@@ -111,6 +113,10 @@ export default function LedgerPage() {
             <select value={form.projectId||""} onChange={e=>setForm({...form,projectId:e.target.value||undefined})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40">
               <option value="">No Project (General)</option>
               {(projects||[]).map((p:any)=><option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <select value={form.bankAccountId||""} onChange={e=>setForm({...form,bankAccountId:e.target.value||undefined})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+              <option value="">Bank Account (optional)</option>
+              {(Array.isArray(bankAccounts)?bankAccounts:[]).map((b:any)=><option key={b.id} value={b.id}>{b.name} — PKR {(b.balance||0).toLocaleString()}</option>)}
             </select>
             <input type="text" value={form.referenceNumber||""} onChange={e=>setForm({...form,referenceNumber:e.target.value})} placeholder="Reference / Voucher # (optional)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
           </div>

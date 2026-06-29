@@ -425,9 +425,9 @@ export default function ProjectDetailPage() {
         <div className="space-y-4">
           <div className="flex justify-between">
             <h3 className="font-semibold text-gray-900">Tasks ({(project.tasks || []).length})</h3>
-            <button onClick={() => setShowTaskForm(!showTaskForm)} className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg">+ Add Task</button>
+            {canManage && <button onClick={() => setShowTaskForm(!showTaskForm)} className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg">+ Add Task</button>}
           </div>
-          {showTaskForm && (
+          {showTaskForm && canManage && (
             <form onSubmit={createTask} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2"><input required value={taskForm.title || ""} onChange={(e) => setTaskForm({...taskForm, title: e.target.value})} placeholder="Task title *" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" /></div>
@@ -446,7 +446,7 @@ export default function ProjectDetailPage() {
           <div className="space-y-2">
             {(project.tasks || []).map((task: any) => (
               <div key={task.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
-                <input type="checkbox" checked={task.status === "completed"} onChange={() => updateTask(task.id, { ...task, status: task.status === "completed" ? "todo" : "completed" })} className="w-4 h-4 accent-blue-600" />
+                <input type="checkbox" checked={task.status === "completed"} onChange={() => canManage && updateTask(task.id, { status: task.status === "completed" ? "todo" : "completed" })} disabled={!canManage} className="w-4 h-4 accent-blue-600 disabled:opacity-50" />
                 <div className="flex-1">
                   <p className={`text-sm font-medium ${task.status === "completed" ? "line-through text-gray-400" : "text-gray-900"}`}>{task.title}</p>
                   {task.assignedTo && <p className="text-xs text-gray-500">{task.assignedTo.name}</p>}
@@ -467,9 +467,9 @@ export default function ProjectDetailPage() {
         <div className="space-y-4">
           <div className="flex justify-between">
             <h3 className="font-semibold text-gray-900">Milestones</h3>
-            <button onClick={() => setShowMilestoneForm(!showMilestoneForm)} className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg">+ Add Milestone</button>
+            {canManage && <button onClick={() => setShowMilestoneForm(!showMilestoneForm)} className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg">+ Add Milestone</button>}
           </div>
-          {showMilestoneForm && (
+          {showMilestoneForm && canManage && (
             <form onSubmit={createMilestone} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
               <input required value={milestoneForm.name || ""} onChange={(e) => setMilestoneForm({...milestoneForm, name: e.target.value})} placeholder="Milestone name *" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
               <input type="date" value={milestoneForm.dueDate || ""} onChange={(e) => setMilestoneForm({...milestoneForm, dueDate: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
@@ -482,7 +482,7 @@ export default function ProjectDetailPage() {
           <div className="space-y-3">
             {(project.milestones || []).map((m: any) => (
               <div key={m.id} className={`bg-white border rounded-xl p-4 flex items-center gap-3 ${m.completedAt ? "border-green-200" : "border-gray-200"}`}>
-                <button onClick={() => toggleMilestone(m)} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${m.completedAt ? "bg-green-500 border-green-500 text-white" : "border-gray-300 hover:border-green-400"}`}>
+                <button onClick={() => canManage && toggleMilestone(m)} disabled={!canManage} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${m.completedAt ? "bg-green-500 border-green-500 text-white" : "border-gray-300 hover:border-green-400"} disabled:opacity-50 disabled:cursor-not-allowed`}>
                   {m.completedAt && "✓"}
                 </button>
                 <div className="flex-1">

@@ -89,8 +89,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.itemName !== undefined) material.itemName = data.itemName;
     if (data.category !== undefined) material.category = data.category;
     if (data.unit !== undefined) material.unit = data.unit;
-    if (data.minStockLevel !== undefined) material.minStockLevel = parseFloat(data.minStockLevel);
-    if (data.stockQuantity !== undefined) material.stockQuantity = parseFloat(data.stockQuantity);
+    const parsedMinStock = data.minStockLevel !== undefined ? parseFloat(data.minStockLevel) : NaN;
+    if (!isNaN(parsedMinStock)) material.minStockLevel = parsedMinStock;
+    const parsedStockQty = data.stockQuantity !== undefined ? parseFloat(data.stockQuantity) : NaN;
+    if (!isNaN(parsedStockQty)) material.stockQuantity = parsedStockQty;
+    const parsedQty = data.quantity !== undefined ? parseFloat(data.quantity) : NaN;
+    if (!isNaN(parsedQty)) material.quantity = parsedQty;
+    const parsedUnitPrice = data.unitPrice !== undefined ? parseFloat(data.unitPrice) : NaN;
+    if (!isNaN(parsedUnitPrice)) { material.unitPrice = parsedUnitPrice; material.totalPrice = material.quantity * parsedUnitPrice; }
     if (data.vendorId !== undefined) material.vendorId = toId(data.vendorId) as any;
     if (data.notes !== undefined) material.notes = data.notes;
     await material.save();

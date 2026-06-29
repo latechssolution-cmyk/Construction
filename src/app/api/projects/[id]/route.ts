@@ -80,7 +80,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.startDate !== undefined) update.startDate = data.startDate ? new Date(data.startDate) : null;
     if (data.endDate !== undefined) update.endDate = data.endDate ? new Date(data.endDate) : null;
     if (data.clientId !== undefined) update.clientId = toId(data.clientId);
-    if (data.assignedManagerId !== undefined) update.assignedManagerId = toId(data.assignedManagerId) || session.user.id;
+    if (data.assignedManagerId !== undefined) update.assignedManagerId = toId(data.assignedManagerId);
     if (data.type !== undefined) update.type = data.type;
     const project = await Project.findByIdAndUpdate(id, update, { new: true });
     await auditLog(session.user.id, "UPDATE", "Project", id, `Updated project: ${project!.name}`);

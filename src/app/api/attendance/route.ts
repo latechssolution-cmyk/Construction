@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
     const filter: any = {};
     if (employeeId) filter.employeeId = employeeId;
     if (month) {
+      if (!/^\d{4}-\d{2}$/.test(month)) throw new Error("Invalid month format. Use YYYY-MM");
       const [y, m] = month.split("-").map(Number);
       filter.date = { $gte: new Date(y, m - 1, 1), $lt: new Date(y, m, 1) };
     }
@@ -35,8 +36,9 @@ export async function POST(req: NextRequest) {
     requireRole(session, "admin", "ceo", "manager");
     const data = await req.json();
     if (!data.employeeId || !data.date) throw new Error("employeeId and date are required");
-    await connectDB();
     const status = data.status || "present";
+    if (!["present", "absent", "half_day"].includes(status)) throw new Error("status must be present, absent, or half_day");
+    await connectDB();
     const hoursWorked = data.hoursWorked !== undefined && data.hoursWorked !== ""
       ? Math.max(0, Number(data.hoursWorked) || 0)
       : defaultHours(status);

@@ -14,7 +14,8 @@ export async function GET(req: NextRequest) {
     const q = new URL(req.url).searchParams.get("q")?.trim() || "";
     if (q.length < 2) return ok([]);
     await connectDB();
-    const re = { $regex: q, $options: "i" };
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = { $regex: escaped, $options: "i" };
 
     const [projects, clients, vendors, employees, tasks, contracts] = await Promise.all([
       Project.find({ $or: [{ name: re }, { description: re }] }, { name: 1, status: 1 }).limit(5),

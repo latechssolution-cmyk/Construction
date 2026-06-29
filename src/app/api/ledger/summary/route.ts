@@ -11,15 +11,20 @@ export async function GET(req: NextRequest) {
     const year = isNaN(rawYear) ? new Date().getFullYear() : Math.max(1990, Math.min(2100, rawYear));
     await connectDB();
 
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year + 1, 0, 1);
+    const yearMatch = { date: { $gte: yearStart, $lt: yearEnd } };
+
     const [totalIncomeAgg, totalExpenseAgg, byCategoryAgg, monthlyAgg] = await Promise.all([
-      LedgerEntry.aggregate([{ $match: { type: "income" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
-      LedgerEntry.aggregate([{ $match: { type: "expense" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      LedgerEntry.aggregate([{ $match: { ...yearMatch, type: "income" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      LedgerEntry.aggregate([{ $match: { ...yearMatch, type: "expense" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       LedgerEntry.aggregate([
+        { $match: yearMatch },
         { $group: { _id: { category: "$category", type: "$type" }, total: { $sum: "$amount" } } },
         { $sort: { total: -1 } },
       ]),
       LedgerEntry.aggregate([
-        { $match: { date: { $gte: new Date(year, 0, 1), $lt: new Date(year + 1, 0, 1) } } },
+        { $match: yearMatch },
         {
           $group: {
             _id: { $month: "$date" },

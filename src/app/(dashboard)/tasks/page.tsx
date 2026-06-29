@@ -50,13 +50,15 @@ export default function TasksPage() {
   }
 
   async function updateStatus(id: string, status: string) {
-    await fetch(`/api/tasks/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status})});
+    const res = await fetch(`/api/tasks/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status})});
+    if (!res.ok) { const e = await res.json().catch(()=>({})); toast({ title: "Error", description: e.error || "Failed to update task", variant: "destructive" }); return; }
     mutate();
   }
 
   async function deleteTask(id: string) {
     if (!confirm("Delete this task?")) return;
-    await fetch(`/api/tasks/${id}`,{method:"DELETE"});
+    const res = await fetch(`/api/tasks/${id}`,{method:"DELETE"});
+    if (!res.ok) { const e = await res.json().catch(()=>({})); toast({ title: "Error", description: e.error || "Failed to delete task", variant: "destructive" }); return; }
     mutate();
   }
 

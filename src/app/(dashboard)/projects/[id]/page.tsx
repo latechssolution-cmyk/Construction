@@ -102,43 +102,47 @@ export default function ProjectDetailPage() {
 
   async function createTask(e: React.FormEvent) {
     e.preventDefault();
-    await fetch(`/api/projects/${id}/tasks`, {
+    const res = await fetch(`/api/projects/${id}/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...taskForm, projectId: id }),
     });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to create task", variant: "destructive" }); return; }
     mutate();
     setShowTaskForm(false);
     setTaskForm({});
   }
 
   async function updateTask(taskId: string, updates: any) {
-    await fetch(`/api/tasks/${taskId}`, {
+    const res = await fetch(`/api/tasks/${taskId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
     });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to update task", variant: "destructive" }); return; }
     mutate();
   }
 
   async function createMilestone(e: React.FormEvent) {
     e.preventDefault();
-    await fetch(`/api/projects/${id}/milestones`, {
+    const res = await fetch(`/api/projects/${id}/milestones`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(milestoneForm),
     });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to create milestone", variant: "destructive" }); return; }
     mutate();
     setShowMilestoneForm(false);
     setMilestoneForm({});
   }
 
   async function toggleMilestone(m: any) {
-    await fetch(`/api/milestones/${m.id}`, {
+    const res = await fetch(`/api/milestones/${m.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...m, completed: !m.completedAt }),
     });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to update milestone", variant: "destructive" }); return; }
     mutate();
   }
 
@@ -192,6 +196,7 @@ export default function ProjectDetailPage() {
 
   async function downloadReport() {
     const res = await fetch(`/api/projects/${id}/report`);
+    if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to generate report", variant: "destructive" }); return; }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -260,8 +265,9 @@ export default function ProjectDetailPage() {
           <div className="mt-4 flex items-center gap-3">
             <input
               type="range" min={0} max={100} step={5}
-              value={Math.round(project.completionPercent || 0)}
-              onChange={(e) => saveCompletion(Number(e.target.value))}
+              defaultValue={Math.round(project.completionPercent || 0)}
+              key={Math.round(project.completionPercent || 0)}
+              onPointerUp={(e) => saveCompletion(Number((e.target as HTMLInputElement).value))}
               disabled={saving}
               className="flex-1 accent-blue-600 cursor-pointer"
             />

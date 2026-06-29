@@ -96,8 +96,20 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     requireRole(session, "admin", "ceo");
     const { id } = await params;
     await connectDB();
+    if (!await Project.exists({ _id: id })) throw new ApiError(404, "Project not found");
+    await Promise.all([
+      Task.deleteMany({ projectId: id }),
+      Milestone.deleteMany({ projectId: id }),
+      Material.deleteMany({ projectId: id }),
+      LedgerEntry.deleteMany({ projectId: id }),
+      Invoice.deleteMany({ projectId: id }),
+      Doc.deleteMany({ projectId: id }),
+      ProjectPhase.deleteMany({ projectId: id }),
+      ProjectEmployee.deleteMany({ projectId: id }),
+      ProjectEquipment.deleteMany({ projectId: id }),
+    ]);
     await Project.findByIdAndDelete(id);
-    await auditLog(session.user.id, "DELETE", "Project", id, "Deleted project");
+    await auditLog(session.user.id, "DELETE", "Project", id, "Deleted project and all related data");
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

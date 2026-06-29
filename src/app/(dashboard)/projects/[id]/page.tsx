@@ -10,8 +10,8 @@ import { Pencil, Trash2, X, Download, FileText, BarChart2, Boxes, Wallet, HardHa
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-const PROJECT_STATUSES = ["planning", "in_progress", "on_hold", "completed"];
-const PROJECT_TYPES = ["residential", "commercial", "industrial", "renovation"];
+const PROJECT_STATUSES = ["planning", "in_progress", "on_hold", "completed", "cancelled"];
+const PROJECT_TYPES = ["residential", "commercial", "industrial", "renovation", "infrastructure", "other"];
 
 const TABS = ["Overview", "Phases & Tasks", "Materials", "Team", "Finance", "Documents", "Milestones", "Report"];
 const STATUS_COLORS: Record<string, string> = {

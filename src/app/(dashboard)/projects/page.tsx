@@ -18,7 +18,6 @@ export default function ProjectsPage() {
   const { data: session } = useSession();
   const { data: projects, mutate } = useSWR("/api/projects", fetcher);
   const { data: clients } = useSWR("/api/clients", fetcher);
-  const { data: users } = useSWR("/api/users", fetcher);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");

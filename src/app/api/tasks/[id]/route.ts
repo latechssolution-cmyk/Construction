@@ -70,7 +70,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     requireRole(session, "admin", "manager");
     const { id } = await params;
     await connectDB();
-    await Task.findByIdAndDelete(id);
+    const task = await Task.findByIdAndDelete(id);
+    if (task?.projectId) {
+      const allTasks = await Task.find({ projectId: task.projectId }, { status: 1 });
+      const done = allTasks.filter((t) => t.status === "completed").length;
+      const pct = allTasks.length > 0 ? Math.round((done / allTasks.length) * 100) : 0;
+      await Project.findByIdAndUpdate(task.projectId, { completionPercent: pct });
+    }
     await auditLog(session.user.id, "DELETE", "Task", id, "Deleted task");
     return ok({ success: true });
   } catch (e) {

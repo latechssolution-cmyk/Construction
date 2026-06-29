@@ -4,13 +4,13 @@ export interface IProject extends Document {
   name: string;
   location?: string;
   description?: string;
-  type: "residential" | "commercial" | "industrial" | "renovation";
+  type: "residential" | "commercial" | "industrial" | "renovation" | "infrastructure" | "other";
   clientId?: Types.ObjectId;
   assignedManagerId?: Types.ObjectId;
   contractId?: Types.ObjectId;
   budget: number;
   completionPercent: number;
-  status: "planning" | "in_progress" | "on_hold" | "completed";
+  status: "planning" | "in_progress" | "on_hold" | "completed" | "cancelled";
   startDate?: Date | null;
   endDate?: Date | null;
   createdById?: Types.ObjectId;
@@ -25,7 +25,7 @@ const projectSchema = new Schema<IProject>(
     description: { type: String },
     type: {
       type: String,
-      enum: ["residential", "commercial", "industrial", "renovation"],
+      enum: ["residential", "commercial", "industrial", "renovation", "infrastructure", "other"],
       default: "residential",
     },
     clientId: { type: Schema.Types.ObjectId, ref: "Client" },
@@ -35,7 +35,7 @@ const projectSchema = new Schema<IProject>(
     completionPercent: { type: Number, default: 0 },
     status: {
       type: String,
-      enum: ["planning", "in_progress", "on_hold", "completed"],
+      enum: ["planning", "in_progress", "on_hold", "completed", "cancelled"],
       default: "planning",
     },
     startDate: { type: Date },

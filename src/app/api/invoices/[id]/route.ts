@@ -75,7 +75,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     requireRole(session, "admin");
     const { id } = await params;
     await connectDB();
-    await Invoice.findByIdAndDelete(id);
+    const invoice = await Invoice.findByIdAndDelete(id);
+    if (invoice?.invoiceNumber) {
+      const relatedEntry = await LedgerEntry.findOneAndDelete({ referenceNumber: invoice.invoiceNumber, category: "invoice_payment" });
+      if (relatedEntry?.bankAccountId) {
+        await BankAccount.findByIdAndUpdate(relatedEntry.bankAccountId, { $inc: { balance: -relatedEntry.amount } });
+      }
+    }
     await auditLog(session.user.id, "DELETE", "Invoice", id, "Deleted invoice");
     return ok({ success: true });
   } catch (e) {

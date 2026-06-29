@@ -102,10 +102,10 @@ export default function ProjectDetailPage() {
 
   async function createTask(e: React.FormEvent) {
     e.preventDefault();
-    const res = await fetch(`/api/tasks`, {
+    const res = await fetch(`/api/projects/${id}/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...taskForm, projectId: id }),
+      body: JSON.stringify(taskForm),
     });
     if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to create task", variant: "destructive" }); return; }
     mutate();

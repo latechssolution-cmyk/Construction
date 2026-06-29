@@ -43,17 +43,33 @@ export default function DocumentsPage() {
     setLoading(true);
     try {
       let fileUrl = form.fileUrl || null;
+      let fileType = file?.type || null;
+      let fileSize = file?.size || null;
+
       if (file) {
+        // Get signature from server (fast — no file data sent)
+        const signRes = await fetch("/api/upload");
+        if (!signRes.ok) { toast({ title: "Error", description: "Could not get upload token", variant: "destructive" }); return; }
+        const { signature, timestamp, apiKey, cloudName, folder } = await signRes.json();
+
+        // Upload directly from browser to Cloudinary (bypasses Netlify timeout)
         const fd = new FormData();
         fd.append("file", file);
-        const uploadRes = await fetch("/api/upload", { method:"POST", body:fd });
-        if (!uploadRes.ok) { const e = await uploadRes.json(); toast({ title: "Error", description: e.error || "File upload failed", variant: "destructive" }); return; }
+        fd.append("api_key", apiKey);
+        fd.append("timestamp", timestamp);
+        fd.append("folder", folder);
+        fd.append("signature", signature);
+
+        const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: fd });
+        if (!uploadRes.ok) { toast({ title: "Error", description: "File upload to Cloudinary failed", variant: "destructive" }); return; }
         const json = await uploadRes.json();
-        fileUrl = json.url || null;
+        fileUrl = json.secure_url || null;
+        fileSize = json.bytes || fileSize;
       }
-      const res = await fetch("/api/documents",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...form,fileUrl,fileType:file?.type,fileSize:file?.size})});
-      if(!res.ok){const e=await res.json();toast({ title: "Error", description: e.error || "Failed to save document", variant: "destructive" });return;}
-      mutate(); setShowForm(false); setForm({type:"other"}); setFile(null);
+
+      const res = await fetch("/api/documents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, fileUrl, fileType, fileSize }) });
+      if (!res.ok) { const e = await res.json(); toast({ title: "Error", description: e.error || "Failed to save document", variant: "destructive" }); return; }
+      mutate(); setShowForm(false); setForm({ type: "other" }); setFile(null);
     } finally { setLoading(false); }
   }
 

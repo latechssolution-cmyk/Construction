@@ -20,6 +20,22 @@ export async function GET() {
   }
 }
 
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = await requireAuth();
+    requireRole(session, "admin");
+    const data = await req.json();
+    if (!data.id) throw new Error("id is required");
+    await connectDB();
+    const user = await User.findByIdAndUpdate(data.id, { isActive: data.isActive }, { new: true, select: "-passwordHash" });
+    if (!user) throw new Error("User not found");
+    await auditLog(session.user.id, "UPDATE", "User", data.id, `${data.isActive ? "Activated" : "Deactivated"} user: ${user.email}`);
+    return ok(user);
+  } catch (e) {
+    return handleApiError(e);
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();

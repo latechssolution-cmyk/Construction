@@ -6,10 +6,11 @@ import AuditLog from "@/models/AuditLog";
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth();
-    requireRole(session, "admin", "ceo");
     const { searchParams } = new URL(req.url);
     const entity = searchParams.get("entity") || "";
     const entityId = searchParams.get("entityId") || "";
+    // Full audit log dump is admin/ceo only; entity-specific lookups (AuditTrail widget) are open to all authenticated users
+    if (!entityId) requireRole(session, "admin", "ceo");
     const take = parseInt(searchParams.get("take") || "50");
     await connectDB();
     const filter: any = {};

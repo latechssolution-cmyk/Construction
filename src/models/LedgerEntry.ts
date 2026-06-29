@@ -10,7 +10,6 @@ export interface ILedgerEntry extends Document {
   employeeId?: Types.ObjectId;
   amount: number;
   description?: string;
-  paymentMode: "cash" | "bank_transfer" | "cheque";
   partyName?: string;
   partyType: "client" | "vendor" | "employee" | "other";
   referenceNumber?: string;
@@ -31,11 +30,6 @@ const ledgerEntrySchema = new Schema<ILedgerEntry>(
     employeeId: { type: Schema.Types.ObjectId, ref: "Employee" },
     amount: { type: Number, required: true },
     description: { type: String },
-    paymentMode: {
-      type: String,
-      enum: ["cash", "bank_transfer", "cheque"],
-      default: "cash",
-    },
     partyName: { type: String },
     partyType: {
       type: String,

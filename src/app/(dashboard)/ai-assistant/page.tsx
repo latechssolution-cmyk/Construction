@@ -7,7 +7,7 @@ interface Message { role: "user"|"model"; content: string; image?: string; }
 export default function AIAssistantPage() {
   const { data: session } = useSession();
   const [messages, setMessages] = useState<Message[]>([
-    { role:"model", content:"Hello! I'm your Construction AI Assistant. I can help you with:\n\n• **Quantity estimation** (materials for walls, slabs, roofs)\n• **Cost calculation** in PKR with current Pakistan market rates\n• **Blueprint analysis** (share an image for material takeoff)\n• **Construction guidance** and best practices\n• **Project scheduling** and resource planning\n\nAsk me anything construction-related!" }
+    { role:"model", content:"Hello! I'm your Construction AI Assistant. I can help with anything construction-related:\n\n• **Quantity estimation** — materials for walls, slabs, foundations, roofs\n• **Cost estimation** in PKR with 2026 Pakistan market rates\n• **Blueprint / floor plan analysis** — share an image for material take-off\n• **Project planning** — CPM scheduling, Gantt charts, WBS, milestones\n• **Contract management** — FIDIC, PPRA, variations, claims, EOT\n• **Health & Safety (HSE)** — risk assessments, method statements, PPE\n• **Procurement** — BOQ, tendering, vendor evaluation\n• **Finance & billing** — running bills, retention, GST/WHT, cash flow\n• **Labor management** — crew planning, Pakistani labor laws\n• **Equipment** — selection, productivity rates, hire costs\n\nYou can also **attach an image** (JPG, PNG, WebP) of a blueprint or drawing for analysis!" }
   ]);
   const [input, setInput] = useState("");
   const [image, setImage] = useState<File|null>(null);
@@ -70,10 +70,14 @@ export default function AIAssistantPage() {
   }
 
   const sampleQuestions = [
-    "Calculate bricks needed for a 20×30 ft room with 10 ft walls",
+    "Calculate bricks, cement and sand for a 20×30 ft room with 10 ft walls",
     "Estimate cement, sand, aggregate for 500 sq ft RCC slab (M20)",
-    "What is the cost to build 1000 sq ft house in Pakistan 2026?",
-    "How many steel rods for a 20×25 ft foundation?"
+    "What is the cost to build a 1000 sq ft house in Pakistan 2026?",
+    "How do I prepare a CPM schedule for a 6-month residential project?",
+    "What are FIDIC contract clauses for extension of time (EOT)?",
+    "Explain WHT and GST on construction contracts in Pakistan",
+    "What PPE is required for concrete pouring work?",
+    "How to prepare a BOQ for road construction per PPRA guidelines?"
   ];
 
   return (
@@ -82,7 +86,7 @@ export default function AIAssistantPage() {
         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl">🤖</div>
         <div>
           <h1 className="font-semibold text-gray-900">Construction AI Assistant</h1>
-          <p className="text-xs text-gray-500">Powered by Google Gemini · Construction specialist</p>
+          <p className="text-xs text-gray-500">Powered by Google Gemini · Construction, Project Management & ERP Expert</p>
         </div>
         <button onClick={()=>setMessages([{role:"model",content:"Chat cleared. How can I help you?"}])} className="ml-auto text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2 py-1">Clear Chat</button>
       </div>
@@ -127,12 +131,12 @@ export default function AIAssistantPage() {
           </div>
         )}
         <form onSubmit={handleSend} className="flex gap-2 items-end">
-          <button type="button" onClick={()=>fileRef.current?.click()} className="p-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-500 flex-shrink-0" title="Attach blueprint/image">📎</button>
-          <input ref={fileRef} type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
-          <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleSend();}}} placeholder="Ask about quantity estimation, cost calculation, or any construction question..." rows={2} className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={loading} />
+          <button type="button" onClick={()=>fileRef.current?.click()} className="p-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-500 flex-shrink-0" title="Attach blueprint/image (JPG, PNG, WebP)">📎</button>
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif" onChange={handleImageChange} className="hidden" />
+          <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleSend();}}} placeholder="Ask about materials, costs, project planning, contracts, HSE, procurement, finance..." rows={2} className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={loading} />
           <button type="submit" disabled={loading||(!input.trim()&&!image)} className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 flex-shrink-0">Send</button>
         </form>
-        <p className="text-xs text-gray-400 mt-2 text-center">Only answers construction, civil engineering & project management questions</p>
+        <p className="text-xs text-gray-400 mt-2 text-center">Covers construction, project management, contracts, HSE, procurement, finance & more · Attach blueprints as images (JPG, PNG, WebP)</p>
       </div>
     </div>
   );

@@ -35,6 +35,12 @@ export default function ProjectDetailPage() {
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
   const [editMaterialForm, setEditMaterialForm] = useState<any>({});
   const [deletingMaterialId, setDeletingMaterialId] = useState<string | null>(null);
+  const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
+  const [editMilestoneForm, setEditMilestoneForm] = useState<any>({});
+  const [deletingMilestoneId, setDeletingMilestoneId] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTaskForm, setEditTaskForm] = useState<any>({});
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
 
   // Inline editing of project details
   const [editing, setEditing] = useState(false);
@@ -123,6 +129,18 @@ export default function ProjectDetailPage() {
     mutate();
   }
 
+  async function deleteTask(taskId: string) {
+    const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+    if (res.ok) {
+      mutate();
+      setDeletingTaskId(null);
+      toast({ title: "Task deleted" });
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || "Failed to delete task", variant: "destructive" });
+    }
+  }
+
   async function createMilestone(e: React.FormEvent) {
     e.preventDefault();
     const res = await fetch(`/api/projects/${id}/milestones`, {
@@ -140,7 +158,8 @@ export default function ProjectDetailPage() {
     const res = await fetch(`/api/milestones/${m.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...m, completed: !m.completedAt }),
+      // Only send completed flag — do NOT spread the whole object to avoid overwriting fields
+      body: JSON.stringify({ completed: !m.completedAt }),
     });
     if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to update milestone", variant: "destructive" }); return; }
     mutate();
@@ -445,17 +464,103 @@ export default function ProjectDetailPage() {
           )}
           <div className="space-y-2">
             {(project.tasks || []).map((task: any) => (
-              <div key={task.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
-                <input type="checkbox" checked={task.status === "completed"} onChange={() => canManage && updateTask(task.id, { status: task.status === "completed" ? "in_progress" : "completed" })} disabled={!canManage} className="w-4 h-4 accent-blue-600 disabled:opacity-50" />
-                <div className="flex-1">
-                  <p className={`text-sm font-medium ${task.status === "completed" ? "line-through text-gray-400" : "text-gray-900"}`}>{task.title}</p>
-                  {task.assignedTo && <p className="text-xs text-gray-500">{task.assignedTo.name}</p>}
-                </div>
-                <div className="flex items-center gap-2">
-                  {task.dueDate && <span className="text-xs text-gray-400">{new Date(task.dueDate).toLocaleDateString()}</span>}
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[task.status] || ""}`}>{task.status?.replace("_"," ")}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${task.priority === "high" ? "bg-red-100 text-red-700" : task.priority === "medium" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>{task.priority}</span>
-                </div>
+              <div key={task.id} className="space-y-2">
+                {editingTaskId === task.id ? (
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const res = await fetch(`/api/tasks/${task.id}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          title: editTaskForm.title,
+                          description: editTaskForm.description,
+                          priority: editTaskForm.priority,
+                          status: editTaskForm.status,
+                          assignedToId: editTaskForm.assignedToId || null,
+                          dueDate: editTaskForm.dueDate || null,
+                        }),
+                      });
+                      if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to update task", variant: "destructive" }); return; }
+                      mutate();
+                      setEditingTaskId(null);
+                      setEditTaskForm({});
+                      toast({ title: "Task updated" });
+                    }}
+                    className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3"
+                  >
+                    <h4 className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Edit Task</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <input required value={editTaskForm.title || ""} onChange={e => setEditTaskForm({ ...editTaskForm, title: e.target.value })} placeholder="Task title *" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs col-span-2" />
+                      <textarea value={editTaskForm.description || ""} onChange={e => setEditTaskForm({ ...editTaskForm, description: e.target.value })} placeholder="Description" rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs col-span-2" />
+                      <select value={editTaskForm.priority || "medium"} onChange={e => setEditTaskForm({ ...editTaskForm, priority: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs">
+                        <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option>
+                      </select>
+                      <select value={editTaskForm.status || "todo"} onChange={e => setEditTaskForm({ ...editTaskForm, status: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs">
+                        <option value="todo">To Do</option><option value="in_progress">In Progress</option><option value="on_hold">On Hold</option><option value="completed">Completed</option>
+                      </select>
+                      <select value={editTaskForm.assignedToId || ""} onChange={e => setEditTaskForm({ ...editTaskForm, assignedToId: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs">
+                        <option value="">Unassigned</option>
+                        {(Array.isArray(managers) ? managers : []).map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      </select>
+                      <input type="date" value={editTaskForm.dueDate || ""} onChange={e => setEditTaskForm({ ...editTaskForm, dueDate: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold">Save</button>
+                      <button type="button" onClick={() => { setEditingTaskId(null); setEditTaskForm({}); }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold bg-white text-gray-700">Cancel</button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between gap-3 hover:shadow-sm transition-shadow">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <input type="checkbox" checked={task.status === "completed"} onChange={() => canManage && updateTask(task.id, { status: task.status === "completed" ? "in_progress" : "completed" })} disabled={!canManage} className="w-4 h-4 accent-blue-600 disabled:opacity-50 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-sm font-medium truncate ${task.status === "completed" ? "line-through text-gray-400" : "text-gray-900"}`}>{task.title}</p>
+                        {task.assignedTo && <p className="text-xs text-gray-500 mt-0.5">👤 {task.assignedTo.name}</p>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {task.dueDate && <span className="text-xs text-gray-400 font-medium">{new Date(task.dueDate).toLocaleDateString()}</span>}
+                      <span className={`text-xs px-2 py-0.5 rounded-full uppercase font-bold text-[9px] ${STATUS_COLORS[task.status] || ""}`}>{task.status?.replace("_", " ")}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full uppercase font-bold text-[9px] ${task.priority === "high" ? "bg-red-100 text-red-700" : task.priority === "medium" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>{task.priority}</span>
+                      {canManage && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingTaskId(task.id);
+                              setEditTaskForm({
+                                title: task.title,
+                                description: task.description || "",
+                                priority: task.priority || "medium",
+                                status: task.status,
+                                assignedToId: task.assignedToId || "",
+                                dueDate: task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : "",
+                              });
+                            }}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            title="Edit Task"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          {deletingTaskId === task.id ? (
+                            <span className="inline-flex items-center gap-1 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">
+                              <button onClick={() => deleteTask(task.id)} className="text-[10px] text-red-700 font-bold hover:underline">Confirm</button>
+                              <button onClick={() => setDeletingTaskId(null)} className="text-[10px] text-gray-500 hover:underline">Cancel</button>
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setDeletingTaskId(task.id)}
+                              className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+                              title="Delete Task"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
             {(project.tasks || []).length === 0 && <p className="text-center py-8 text-gray-400 text-sm">No tasks yet</p>}
@@ -465,36 +570,184 @@ export default function ProjectDetailPage() {
 
       {tab === "Milestones" && (
         <div className="space-y-4">
-          <div className="flex justify-between">
-            <h3 className="font-semibold text-gray-900">Milestones</h3>
-            {canManage && <button onClick={() => setShowMilestoneForm(!showMilestoneForm)} className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg">+ Add Milestone</button>}
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold text-gray-900">Milestones ({(project.milestones || []).length})</h3>
+            {canManage && (
+              <button
+                onClick={() => { setShowMilestoneForm(!showMilestoneForm); setEditingMilestoneId(null); }}
+                className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg"
+              >+ Add Milestone</button>
+            )}
           </div>
+
+          {/* Create milestone form */}
           {showMilestoneForm && canManage && (
             <form onSubmit={createMilestone} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
-              <input required value={milestoneForm.name || ""} onChange={(e) => setMilestoneForm({...milestoneForm, name: e.target.value})} placeholder="Milestone name *" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-              <input type="date" value={milestoneForm.dueDate || ""} onChange={(e) => setMilestoneForm({...milestoneForm, dueDate: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              <h4 className="text-sm font-semibold text-gray-700">New Milestone</h4>
+              <input
+                required
+                value={milestoneForm.name || ""}
+                onChange={(e) => setMilestoneForm({...milestoneForm, name: e.target.value})}
+                placeholder="Milestone name *"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              />
+              <textarea
+                value={milestoneForm.description || ""}
+                onChange={(e) => setMilestoneForm({...milestoneForm, description: e.target.value})}
+                placeholder="Description (optional)"
+                rows={2}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"
+              />
+              <input
+                type="date"
+                value={milestoneForm.dueDate || ""}
+                onChange={(e) => setMilestoneForm({...milestoneForm, dueDate: e.target.value})}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              />
               <div className="flex gap-2">
                 <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Create</button>
-                <button type="button" onClick={() => setShowMilestoneForm(false)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
+                <button type="button" onClick={() => { setShowMilestoneForm(false); setMilestoneForm({}); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
               </div>
             </form>
           )}
+
           <div className="space-y-3">
             {(project.milestones || []).map((m: any) => (
-              <div key={m.id} className={`bg-white border rounded-xl p-4 flex items-center gap-3 ${m.completedAt ? "border-green-200" : "border-gray-200"}`}>
-                <button onClick={() => canManage && toggleMilestone(m)} disabled={!canManage} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${m.completedAt ? "bg-green-500 border-green-500 text-white" : "border-gray-300 hover:border-green-400"} disabled:opacity-50 disabled:cursor-not-allowed`}>
-                  {m.completedAt && "✓"}
-                </button>
-                <div className="flex-1">
-                  <p className={`font-medium text-sm ${m.completedAt ? "text-green-800" : "text-gray-900"}`}>{m.name}</p>
-                </div>
-                <div className="text-right">
-                  {m.dueDate && <p className="text-xs text-gray-400">Due: {new Date(m.dueDate).toLocaleDateString()}</p>}
-                  {m.completedAt && <p className="text-xs text-green-600">✓ {new Date(m.completedAt).toLocaleDateString()}</p>}
-                </div>
+              <div key={m.id}>
+                {/* Edit milestone form (inline) */}
+                {editingMilestoneId === m.id && canManage ? (
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const res = await fetch(`/api/milestones/${m.id}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          name: editMilestoneForm.name,
+                          description: editMilestoneForm.description || "",
+                          dueDate: editMilestoneForm.dueDate || null,
+                        }),
+                      });
+                      if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to update milestone", variant: "destructive" }); return; }
+                      mutate();
+                      setEditingMilestoneId(null);
+                      setEditMilestoneForm({});
+                      toast({ title: "Milestone updated" });
+                    }}
+                    className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3"
+                  >
+                    <h4 className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Edit Milestone</h4>
+                    <input
+                      required
+                      value={editMilestoneForm.name || ""}
+                      onChange={(e) => setEditMilestoneForm({...editMilestoneForm, name: e.target.value})}
+                      placeholder="Milestone name *"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                    <textarea
+                      value={editMilestoneForm.description || ""}
+                      onChange={(e) => setEditMilestoneForm({...editMilestoneForm, description: e.target.value})}
+                      placeholder="Description (optional)"
+                      rows={2}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
+                    />
+                    <input
+                      type="date"
+                      value={editMilestoneForm.dueDate || ""}
+                      onChange={(e) => setEditMilestoneForm({...editMilestoneForm, dueDate: e.target.value})}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                    <div className="flex gap-2">
+                      <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium">Save Changes</button>
+                      <button type="button" onClick={() => { setEditingMilestoneId(null); setEditMilestoneForm({}); }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">Cancel</button>
+                    </div>
+                  </form>
+                ) : (
+                  /* Milestone card */
+                  <div className={`bg-white border rounded-xl p-4 ${m.completedAt ? "border-green-200" : "border-gray-200"}`}>
+                    <div className="flex items-start gap-3">
+                      {/* Toggle complete button */}
+                      <button
+                        onClick={() => canManage && toggleMilestone(m)}
+                        disabled={!canManage}
+                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${
+                          m.completedAt ? "bg-green-500 border-green-500 text-white" : "border-gray-300 hover:border-green-400"
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        title={m.completedAt ? "Mark as incomplete" : "Mark as complete"}
+                      >
+                        {m.completedAt && "✓"}
+                      </button>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-medium text-sm ${m.completedAt ? "text-green-800" : "text-gray-900"}`}>{m.name}</p>
+                        {m.description && (
+                          <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{m.description}</p>
+                        )}
+                        <div className="flex flex-wrap gap-3 mt-1.5">
+                          {m.dueDate && (
+                            <span className="text-xs text-gray-400">Due: {new Date(m.dueDate).toLocaleDateString()}</span>
+                          )}
+                          {m.completedAt && (
+                            <span className="text-xs text-green-600 font-medium">✓ Completed {new Date(m.completedAt).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Edit / Delete controls */}
+                      {canManage && (
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => {
+                              setEditingMilestoneId(m.id);
+                              setEditMilestoneForm({
+                                name: m.name,
+                                description: m.description || "",
+                                dueDate: m.dueDate ? new Date(m.dueDate).toISOString().slice(0, 10) : "",
+                              });
+                              setShowMilestoneForm(false);
+                            }}
+                            className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Edit milestone"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          {deletingMilestoneId === m.id ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={async () => {
+                                  const res = await fetch(`/api/milestones/${m.id}`, { method: "DELETE" });
+                                  if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to delete", variant: "destructive" }); return; }
+                                  mutate();
+                                  setDeletingMilestoneId(null);
+                                  toast({ title: "Milestone deleted" });
+                                }}
+                                className="text-xs px-2 py-1 bg-red-600 text-white rounded-md font-medium hover:bg-red-700"
+                              >Delete</button>
+                              <button
+                                onClick={() => setDeletingMilestoneId(null)}
+                                className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                              ><X className="w-3.5 h-3.5" /></button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setDeletingMilestoneId(m.id)}
+                              className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete milestone"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
-            {(project.milestones || []).length === 0 && <p className="text-center py-8 text-gray-400 text-sm">No milestones yet</p>}
+            {(project.milestones || []).length === 0 && (
+              <p className="text-center py-8 text-gray-400 text-sm">No milestones yet. Add your first milestone above.</p>
+            )}
           </div>
         </div>
       )}

@@ -26,6 +26,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const milestone = await Milestone.create({
       projectId: id,
       name: data.name,
+      description: data.description?.trim() || null,
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
     });
     return created(milestone);

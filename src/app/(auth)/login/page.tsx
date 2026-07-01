@@ -53,8 +53,7 @@ function LoginContent() {
       if (result?.error) {
         toast({ title: "Login failed", description: "Invalid email or password", variant: "destructive" });
       } else {
-        router.push(callbackUrl);
-        router.refresh();
+        window.location.href = callbackUrl;
       }
     } finally {
       setLoading(false);

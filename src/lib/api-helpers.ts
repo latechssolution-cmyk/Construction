@@ -58,11 +58,25 @@ export function handleApiError(error: unknown): NextResponse {
 }
 
 export function ok(data: unknown, status = 200): NextResponse {
-  return NextResponse.json(data, { status });
+  return NextResponse.json(data, {
+    status,
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0",
+    },
+  });
 }
 
 export function created(data: unknown): NextResponse {
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json(data, {
+    status: 201,
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0",
+    },
+  });
 }
 
 // Safely convert a form value to a MongoDB ObjectId string or null.

@@ -35,10 +35,48 @@ export async function POST(req: NextRequest) {
     const session = await requireAuth();
     requireRole(session, "admin", "ceo", "manager");
     const data = await req.json();
+    await connectDB();
+
+    if (Array.isArray(data)) {
+      const results = [];
+      for (const item of data) {
+        if (!item.employeeId || !item.date) continue;
+        const status = item.status || "present";
+        const hoursWorked = item.hoursWorked !== undefined && item.hoursWorked !== ""
+          ? Math.max(0, Number(item.hoursWorked) || 0)
+          : defaultHours(status);
+        const notes = item.notes?.trim() ? item.notes.trim() : null;
+
+        const date = new Date(item.date);
+        const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
+
+        let existing = await Attendance.findOne({ employeeId: item.employeeId, date: { $gte: dayStart, $lte: dayEnd } });
+        if (existing) {
+          existing.status = status;
+          existing.hoursWorked = hoursWorked;
+          existing.notes = notes;
+          if (item.projectId !== undefined) existing.projectId = toId(item.projectId) as any;
+          await existing.save();
+          results.push(existing);
+        } else {
+          const record = await Attendance.create({
+            employeeId: item.employeeId,
+            date: new Date(item.date),
+            status,
+            hoursWorked,
+            notes,
+            projectId: toId(item.projectId),
+          });
+          results.push(record);
+        }
+      }
+      return ok({ success: true, count: results.length });
+    }
+
     if (!data.employeeId || !data.date) throw new Error("employeeId and date are required");
     const status = data.status || "present";
     if (!["present", "absent", "half_day"].includes(status)) throw new Error("status must be present, absent, or half_day");
-    await connectDB();
     const hoursWorked = data.hoursWorked !== undefined && data.hoursWorked !== ""
       ? Math.max(0, Number(data.hoursWorked) || 0)
       : defaultHours(status);

@@ -3,7 +3,8 @@ import useSWR from "swr";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { ExportButton } from "@/components/export-button";
-import { Lock, Calendar, Trash2, X } from "lucide-react";
+import { Lock, Calendar, Trash2, X, ClipboardList, CheckSquare, Square } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -17,19 +18,40 @@ const STATUSES = ["present", "absent", "half_day"];
 const defaultHours = (s: string) => (s === "present" ? 8 : s === "half_day" ? 4 : 0);
 const currentMonth = () => new Date().toISOString().slice(0, 7);
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+interface BulkRow {
+  employeeId: string;
+  name: string;
+  role: string;
+  selected: boolean;
+  status: string;
+  notes: string;
+}
+
 export default function AttendancePage() {
   const { data: session } = useSession();
+  const { toast } = useToast();
   const [month, setMonth] = useState(currentMonth());
   const { data: records, mutate, isLoading } = useSWR(`/api/attendance?month=${month}`, fetcher);
   const { data: employees } = useSWR("/api/employees", fetcher);
 
+  // Single-record add form
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>({ status: "present", date: new Date().toISOString().slice(0, 10), hoursWorked: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Filters
   const [statusFilter, setStatusFilter] = useState("");
   const [employeeFilter, setEmployeeFilter] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  // ── Mark Attendance Modal ────────────────────────────────────────────────
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkDate, setBulkDate] = useState(new Date().toISOString().slice(0, 10));
+  const [bulkRows, setBulkRows] = useState<BulkRow[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkError, setBulkError] = useState("");
 
   if (session && !["admin", "ceo", "manager"].includes(session.user?.role || "")) {
     return (
@@ -43,6 +65,7 @@ export default function AttendancePage() {
   const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
   const list: any[] = Array.isArray(records) ? records : [];
   const empList: any[] = Array.isArray(employees) ? employees : [];
+  const activeEmps = empList.filter((e: any) => e.isActive);
 
   const filtered = list.filter((r: any) => {
     if (statusFilter && r.status !== statusFilter) return false;
@@ -65,6 +88,7 @@ export default function AttendancePage() {
   const monthPresent = list.filter((r: any) => r.status === "present").length;
   const attendanceRate = list.length > 0 ? Math.round((monthPresent / list.length) * 100) : 0;
 
+  // ── Single-record submit ────────────────────────────────────────────────
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
     setError("");
@@ -80,20 +104,67 @@ export default function AttendancePage() {
     } finally { setLoading(false); }
   }
 
-  async function bulkMark(status: string) {
-    const today = new Date().toISOString().slice(0, 10);
-    setLoading(true);
+  // ── Bulk modal open ─────────────────────────────────────────────────────
+  function openBulkModal() {
+    const rows: BulkRow[] = activeEmps.map((emp: any) => ({
+      employeeId: emp.id,
+      name: emp.name,
+      role: emp.role || emp.designation || "",
+      selected: true,
+      status: "present",
+      notes: "",
+    }));
+    setBulkRows(rows);
+    setBulkDate(new Date().toISOString().slice(0, 10));
+    setBulkError("");
+    setShowBulkModal(true);
+  }
+
+  function updateBulkRow(idx: number, field: keyof BulkRow, value: any) {
+    setBulkRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  }
+
+  function selectAll(val: boolean) {
+    setBulkRows(prev => prev.map(r => ({ ...r, selected: val })));
+  }
+
+  function setAllStatus(status: string) {
+    setBulkRows(prev => prev.map(r => r.selected ? { ...r, status } : r));
+  }
+
+  async function submitBulkAttendance() {
+    const selected = bulkRows.filter(r => r.selected);
+    if (selected.length === 0) { setBulkError("Select at least one employee."); return; }
+    if (!bulkDate) { setBulkError("Date is required."); return; }
+    setBulkLoading(true);
+    setBulkError("");
     try {
-      const results = await Promise.all(
-        empList.filter((e: any) => e.isActive).map((emp: any) =>
-          fetch("/api/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ employeeId: emp.id, date: today, status }) })
-        )
-      );
-      const failed = results.filter(r => !r.ok).length;
-      if (failed > 0) setError(`${failed} record(s) failed to save. Others were saved successfully.`);
-      if (month !== currentMonth()) setMonth(currentMonth());
-      mutate();
-    } finally { setLoading(false); }
+      const payload = selected.map(row => ({
+        employeeId: row.employeeId,
+        date: bulkDate,
+        status: row.status,
+        hoursWorked: defaultHours(row.status),
+        notes: row.notes.trim() || undefined,
+      }));
+      const res = await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        setBulkError(e.error || "Failed to submit attendance records.");
+      } else {
+        setShowBulkModal(false);
+        if (month !== currentMonth()) setMonth(currentMonth());
+        mutate();
+        toast({ title: "Attendance recorded", description: `Successfully submitted ${selected.length} records.` });
+      }
+    } catch {
+      setBulkError("Network error. Please try again.");
+    } finally {
+      setBulkLoading(false);
+    }
   }
 
   async function updateRecord(id: string, patch: any) {
@@ -109,6 +180,9 @@ export default function AttendancePage() {
     mutate();
   }
 
+  const allSelected = bulkRows.length > 0 && bulkRows.every(r => r.selected);
+  const someSelected = bulkRows.some(r => r.selected);
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
       {/* Header */}
@@ -121,9 +195,15 @@ export default function AttendancePage() {
           <ExportButton module="attendance" />
           {canManage && (
             <>
-              <button onClick={() => bulkMark("present")} disabled={loading} className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-green-700">✓ All Present</button>
-              <button onClick={() => bulkMark("absent")} disabled={loading} className="px-3 py-2 bg-red-500 text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-red-600">✗ All Absent</button>
-              <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">+ Add Record</button>
+              <button
+                onClick={openBulkModal}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center gap-1.5"
+              >
+                <ClipboardList className="w-4 h-4" /> Mark Attendance
+              </button>
+              <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                + Add Record
+              </button>
             </>
           )}
         </div>
@@ -161,27 +241,27 @@ export default function AttendancePage() {
         <div className="flex gap-2 flex-wrap sm:ml-auto">
           <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
             <option value="">All employees</option>
-            {empList.filter((e: any) => e.isActive).map((emp: any) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+            {activeEmps.map((emp: any) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
           </select>
           <input type="month" value={month} onChange={(e) => setMonth(e.target.value || currentMonth())} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
         </div>
       </div>
 
-      {/* Add form */}
+      {/* Single-record add form */}
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 space-y-4 shadow-sm">
           <h2 className="font-semibold text-lg">Add Attendance Record</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <select required value={form.employeeId || ""} onChange={(e) => setForm({ ...form, employeeId: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
               <option value="">Select Employee *</option>
-              {empList.filter((e: any) => e.isActive).map((emp: any) => <option key={emp.id} value={emp.id}>{emp.name} — {emp.role || ""}</option>)}
+              {activeEmps.map((emp: any) => <option key={emp.id} value={emp.id}>{emp.name} — {emp.role || ""}</option>)}
             </select>
             <input type="date" required value={form.date || ""} onChange={(e) => setForm({ ...form, date: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
             <select value={form.status || "present"} onChange={(e) => setForm({ ...form, status: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
               {STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
             </select>
             <input type="number" min={0} step={0.5} value={form.hoursWorked} onChange={(e) => setForm({ ...form, hoursWorked: e.target.value })} placeholder={`Hours (default ${defaultHours(form.status || "present")})`} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-            <input type="text" value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Notes (optional)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
+            <input type="text" value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Notes / reason (optional)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
           </div>
           <div className="flex gap-2">
             <button type="submit" disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50 hover:bg-blue-700">{loading ? "Saving…" : "Save Record"}</button>
@@ -197,7 +277,7 @@ export default function AttendancePage() {
         <div className="text-center py-16 text-gray-400 bg-white border border-gray-200 rounded-xl">
           <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="font-medium text-gray-600">No attendance records for this view</p>
-          <p className="text-sm mt-1">Pick another month, or {canManage ? "add today's attendance / use the bulk buttons above." : "check back later."}</p>
+          <p className="text-sm mt-1">Pick another month, or {canManage ? "use \"Mark Attendance\" to record today's attendance." : "check back later."}</p>
         </div>
       ) : (
         <div className="space-y-5">
@@ -225,7 +305,7 @@ export default function AttendancePage() {
                         <th className="text-left py-2 px-4 font-medium">Employee</th>
                         <th className="text-left py-2 px-3 font-medium">Status</th>
                         <th className="text-left py-2 px-3 font-medium w-28">Hours</th>
-                        <th className="text-left py-2 px-3 font-medium">Notes</th>
+                        <th className="text-left py-2 px-3 font-medium">Notes / Reason</th>
                         {canManage && <th className="text-right py-2 px-4 font-medium w-20">Actions</th>}
                       </tr>
                     </thead>
@@ -265,7 +345,7 @@ export default function AttendancePage() {
                                 type="text"
                                 defaultValue={r.notes || ""}
                                 key={`${r.id}-note`}
-                                placeholder="Add note…"
+                                placeholder="Add note / reason…"
                                 onBlur={(e) => { if ((e.target.value || "") !== (r.notes || "")) updateRecord(r.id, { notes: e.target.value }); }}
                                 className="w-full min-w-[120px] border border-transparent hover:border-gray-200 focus:border-gray-300 rounded-md px-2 py-1 text-sm"
                               />
@@ -293,6 +373,156 @@ export default function AttendancePage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Mark Attendance Modal ──────────────────────────────────────────── */}
+      {showBulkModal && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-12 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <ClipboardList className="w-5 h-5 text-indigo-600" /> Mark Attendance
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">{activeEmps.length} active employee{activeEmps.length !== 1 ? "s" : ""} · select employees and set their status</p>
+              </div>
+              <button onClick={() => setShowBulkModal(false)} className="text-gray-400 hover:text-gray-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Date + Quick-action bar */}
+            <div className="px-6 py-3 border-b border-gray-100 flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-gray-600">Date</label>
+                <input
+                  type="date"
+                  value={bulkDate}
+                  onChange={e => setBulkDate(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2 ml-auto flex-wrap">
+                {/* Select all / none */}
+                <button
+                  type="button"
+                  onClick={() => selectAll(!allSelected)}
+                  className="flex items-center gap-1 text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600"
+                >
+                  {allSelected ? <CheckSquare className="w-3.5 h-3.5 text-indigo-600" /> : <Square className="w-3.5 h-3.5" />}
+                  {allSelected ? "Deselect All" : "Select All"}
+                </button>
+                {/* Quick-set status for selected */}
+                {someSelected && (
+                  <>
+                    <span className="text-xs text-gray-400">Set selected:</span>
+                    <button type="button" onClick={() => setAllStatus("present")} className="text-xs px-2.5 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 font-medium">✓ All Present</button>
+                    <button type="button" onClick={() => setAllStatus("absent")} className="text-xs px-2.5 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium">✗ All Absent</button>
+                    <button type="button" onClick={() => setAllStatus("half_day")} className="text-xs px-2.5 py-1.5 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 font-medium">½ Half Day</button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Employee list */}
+            <div className="overflow-y-auto max-h-[50vh]">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
+                  <tr>
+                    <th className="py-2.5 px-4 text-left text-xs font-medium text-gray-500 w-10">
+                      <button onClick={() => selectAll(!allSelected)} className="p-0.5">
+                        {allSelected ? <CheckSquare className="w-4 h-4 text-indigo-600" /> : <Square className="w-4 h-4 text-gray-400" />}
+                      </button>
+                    </th>
+                    <th className="py-2.5 px-3 text-left text-xs font-medium text-gray-500">Employee</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-medium text-gray-500 w-36">Status</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-medium text-gray-500">Notes / Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bulkRows.map((row, idx) => (
+                    <tr
+                      key={row.employeeId}
+                      className={"border-b border-gray-50 last:border-0 transition-colors " + (row.selected ? "bg-white hover:bg-indigo-50/30" : "bg-gray-50/60 opacity-60")}
+                    >
+                      <td className="py-2.5 px-4">
+                        <button onClick={() => updateBulkRow(idx, "selected", !row.selected)} className="p-0.5">
+                          {row.selected
+                            ? <CheckSquare className="w-4 h-4 text-indigo-600" />
+                            : <Square className="w-4 h-4 text-gray-400" />
+                          }
+                        </button>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <p className="font-medium text-gray-900">{row.name}</p>
+                        {row.role && <p className="text-xs text-gray-400 capitalize">{row.role}</p>}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-1.5">
+                          {[
+                            { value: "present", label: "P", title: "Present", colorActive: "bg-green-600 text-white border-green-600 shadow-sm", colorInactive: "bg-green-50/50 hover:bg-green-100 text-green-700 border-green-200" },
+                            { value: "absent", label: "A", title: "Absent", colorActive: "bg-red-600 text-white border-red-600 shadow-sm", colorInactive: "bg-red-50/50 hover:bg-red-100 text-red-700 border-red-200" },
+                            { value: "half_day", label: "H", title: "Half Day", colorActive: "bg-yellow-500 text-white border-yellow-500 shadow-sm", colorInactive: "bg-yellow-50/50 hover:bg-yellow-100 text-yellow-700 border-yellow-250" },
+                          ].map(btn => {
+                            const active = row.status === btn.value;
+                            return (
+                              <button
+                                key={btn.value}
+                                type="button"
+                                disabled={!row.selected}
+                                title={btn.title}
+                                onClick={() => updateBulkRow(idx, "status", btn.value)}
+                                className={`w-7 h-7 rounded-full border text-[10px] font-bold transition-all flex items-center justify-center disabled:opacity-30 ${active ? btn.colorActive : btn.colorInactive}`}
+                              >
+                                {btn.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <input
+                          type="text"
+                          value={row.notes}
+                          onChange={e => updateBulkRow(idx, "notes", e.target.value)}
+                          disabled={!row.selected}
+                          placeholder="Reason, notes… (optional)"
+                          className="w-full text-sm border border-transparent hover:border-gray-200 focus:border-gray-300 focus:outline-none rounded-md px-2 py-1 disabled:opacity-40"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {activeEmps.length === 0 && (
+                <div className="text-center py-10 text-gray-400">
+                  <p className="text-sm">No active employees found.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal footer */}
+            {bulkError && <div className="mx-6 mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{bulkError}</div>}
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-xs text-gray-500">
+                {bulkRows.filter(r => r.selected).length} of {bulkRows.length} employee{bulkRows.length !== 1 ? "s" : ""} selected
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setShowBulkModal(false)} className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-50">
+                  Cancel
+                </button>
+                <button
+                  onClick={submitBulkAttendance}
+                  disabled={bulkLoading || !someSelected}
+                  className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {bulkLoading ? "Saving…" : `Submit Attendance (${bulkRows.filter(r => r.selected).length})`}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

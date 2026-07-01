@@ -32,10 +32,10 @@ const today = () => new Date().toISOString().split("T")[0];
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth();
-    const module = new URL(req.url).searchParams.get("module") || "";
+    const exportModule = new URL(req.url).searchParams.get("module") || "";
     await connectDB();
 
-    if (module === "invoices") {
+    if (exportModule === "invoices") {
       requireRole(session, "admin", "ceo", "accountant");
       const rows = await Invoice.find({}).populate("client", "name").populate("project", "name").sort({ createdAt: -1 });
       const csv = toCSV(rows.map((r) => ({
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
       return csvResponse(csv, `invoices-${today()}.csv`);
     }
 
-    if (module === "ledger") {
+    if (exportModule === "ledger") {
       requireRole(session, "admin", "ceo", "accountant");
       const rows = await LedgerEntry.find({}).populate("project", "name").populate("vendor", "name").sort({ date: -1 });
       const csv = toCSV(rows.map((r) => ({
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
       return csvResponse(csv, `ledger-${today()}.csv`);
     }
 
-    if (module === "attendance") {
+    if (exportModule === "attendance") {
       requireRole(session, "admin", "ceo", "manager");
       const rows = await Attendance.find({}).populate("employee", "name").sort({ date: -1 });
       const csv = toCSV(rows.map((r) => ({
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
       return csvResponse(csv, `attendance-${today()}.csv`);
     }
 
-    if (module === "materials") {
+    if (exportModule === "materials") {
       requireRole(session, "admin", "ceo", "manager");
       const rows = await Material.find({}).populate("project", "name").populate("vendor", "name").sort({ createdAt: -1 });
       const csv = toCSV(rows.map((r) => ({
@@ -100,9 +100,9 @@ export async function GET(req: NextRequest) {
       return csvResponse(csv, `materials-${today()}.csv`);
     }
 
-    if (module === "payments") {
+    if (exportModule === "payments") {
       requireRole(session, "admin", "ceo", "accountant");
-      const rows = await LedgerEntry.find({ category: { $in: ["client_payment","vendor_payment","invoice_payment"] } })
+      const rows = await LedgerEntry.find({ category: { $in: ["client_payment", "vendor_payment", "invoice_payment"] } })
         .populate("project", "name").populate("vendor", "name").sort({ date: -1 });
       const csv = toCSV(rows.map((r) => ({
         Date: new Date(r.date).toLocaleDateString(),

@@ -50,14 +50,21 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
     }
     if (inv.project?.name) {
       doc.font("Helvetica-Bold").fillColor("#111827").text("Project:", metaX, 160);
-      doc.font("Helvetica").fillColor("#374151").text(inv.project.name, metaX + 80, 160);
+      // Constrain project name to remaining page width so it never wraps into Status row
+      doc.font("Helvetica").fillColor("#374151").text(
+        inv.project.name,
+        metaX + 80, 160,
+        { width: doc.page.width - (metaX + 80) - 30, lineBreak: false, ellipsis: true }
+      );
     }
     doc.font("Helvetica-Bold").fillColor("#111827").text("Status:", metaX, 180);
-    doc.font("Helvetica").fillColor("#374151").text(inv.status.toUpperCase(), metaX + 80, 180);
+    doc.font("Helvetica").fillColor("#374151").text(inv.status.toUpperCase(), metaX + 80, 180, { lineBreak: false });
 
+    // Wider description column so long names fit without awkward wrapping
     const tableTop = 220;
-    const colWidths = [200, 60, 70, 90, 90];
-    const colX = [50, 250, 310, 380, 470];
+    const colWidths = [230, 55, 65, 85, 75];
+    const colX = [50, 280, 335, 400, 485];
+    const ROW_V_PAD = 6; // vertical padding inside each row
 
     doc.rect(50, tableTop, 510, 22).fill(primaryColor);
     ["Description", "Qty", "Unit", "Unit Price", "Total"].forEach((h, i) => {
@@ -67,14 +74,21 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
 
     let y = tableTop + 22;
     (inv.items || []).forEach((item: any, idx: number) => {
-      doc.rect(50, y, 510, 20).fill(idx % 2 === 0 ? "white" : lightGray);
+      // Calculate height needed for this description so nothing gets clipped
+      doc.font("Helvetica").fontSize(9);
+      const descH = doc.heightOfString(item.description || "", { width: colWidths[0] - 4 });
+      const rowH = Math.max(22, descH + ROW_V_PAD * 2);
+
+      doc.rect(50, y, 510, rowH).fill(idx % 2 === 0 ? "white" : lightGray);
       doc.fillColor("#111827").font("Helvetica").fontSize(9);
-      doc.text(item.description, colX[0], y + 5, { width: colWidths[0] });
-      doc.text(String(item.quantity), colX[1], y + 5, { width: colWidths[1], align: "right" });
-      doc.text(item.unit || "—", colX[2], y + 5, { width: colWidths[2], align: "right" });
-      doc.text(`PKR ${(item.unitPrice || 0).toLocaleString()}`, colX[3], y + 5, { width: colWidths[3], align: "right" });
-      doc.text(`PKR ${(item.total || 0).toLocaleString()}`, colX[4], y + 5, { width: colWidths[4], align: "right" });
-      y += 20;
+      doc.text(item.description, colX[0], y + ROW_V_PAD, { width: colWidths[0] - 4 });
+      // Numeric columns vertically centred on first text line
+      const numY = y + ROW_V_PAD;
+      doc.text(String(item.quantity), colX[1], numY, { width: colWidths[1], align: "right" });
+      doc.text(item.unit || "—", colX[2], numY, { width: colWidths[2], align: "right" });
+      doc.text(`PKR ${(item.unitPrice || 0).toLocaleString()}`, colX[3], numY, { width: colWidths[3], align: "right" });
+      doc.text(`PKR ${(item.total || 0).toLocaleString()}`, colX[4], numY, { width: colWidths[4], align: "right" });
+      y += rowH;
     });
 
     doc.rect(50, y, 510, 1).fill(primaryColor);
@@ -104,16 +118,19 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
       y += 50;
     }
 
-    y = Math.max(y, 640);
+    // Signature — drawn relative to content, no forced minimum that causes overflow
+    y += 30;
     doc.moveTo(350, y).lineTo(560, y).stroke("#9ca3af");
     doc.fillColor("#111827").font("Helvetica").fontSize(9).text("Authorized Signature", 350, y + 5);
     doc.text(appName, 350, y + 18);
 
-    doc.rect(0, doc.page.height - 40, doc.page.width, 40).fill(primaryColor);
+    // Footer — pinned to bottom of the same page using absolute positioning
+    const footerY = doc.page.height - 40;
+    doc.rect(0, footerY, doc.page.width, 40).fill(primaryColor);
     doc.fillColor("white").fontSize(8).font("Helvetica")
       .text(
         `${appName} · Thank you for your business · Generated on ${new Date().toLocaleDateString("en-PK")}`,
-        50, doc.page.height - 25,
+        50, footerY + 16,
         { align: "center", width: doc.page.width - 100 }
       );
 

@@ -13,6 +13,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const milestone = await Milestone.findById(id);
     if (!milestone) throw new ApiError(404, "Milestone not found");
     if (data.name !== undefined) milestone.name = data.name;
+    if (data.description !== undefined) milestone.description = data.description || null;
     if (data.dueDate !== undefined) milestone.dueDate = data.dueDate ? new Date(data.dueDate) : null;
     if (data.completed !== undefined) {
       milestone.completedAt = data.completed ? (milestone.completedAt ?? new Date()) : null;

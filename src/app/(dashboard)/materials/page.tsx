@@ -417,7 +417,7 @@ export default function MaterialsPage() {
                   <h2 className="font-semibold text-lg">Edit Material</h2>
                   <button onClick={closeModal} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
                 </div>
-                <p className="text-sm text-gray-500">Update the details for <strong>{selected?.itemName}</strong>. To add more stock, use the "Add Stock" button instead.</p>
+                <p className="text-sm text-gray-500">Update the details for <strong>{selected?.itemName}</strong>. To add more stock, use the &quot;Add Stock&quot; button instead.</p>
                 {modalError && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{modalError}</div>}
                 <div className="space-y-3">
                   <div>

@@ -2,6 +2,7 @@
 import useSWR from "swr";
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/hooks/use-toast";
 import { HardHat } from "lucide-react";
@@ -17,6 +18,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function ProjectsPage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const { data: projects, mutate } = useSWR("/api/projects", fetcher);
   const { data: clients } = useSWR("/api/clients", fetcher);
   const [showForm, setShowForm] = useState(false);
@@ -28,8 +30,7 @@ export default function ProjectsPage() {
 
   const canManage = ["admin","ceo","manager"].includes(session?.user?.role || "");
 
-  async function updateStatus(id: string, status: string, ev: React.MouseEvent) {
-    ev.preventDefault(); ev.stopPropagation();
+  async function updateStatus(id: string, status: string) {
     const res = await fetch(`/api/projects/${id}`, { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ status }) });
     if (!res.ok) { const e = await res.json().catch(()=>({})); toast({ title: "Error", description: e.error || "Failed to update status", variant: "destructive" }); return; }
     mutate();
@@ -150,14 +151,22 @@ export default function ProjectsPage() {
           const progress = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : (project.completionPercent || 0);
 
           return (
-            <Link key={project.id} href={`/projects/${project.id}`} className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow block">
+            <div
+              key={project.id}
+              onClick={() => router.push(`/projects/${project.id}`)}
+              className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow cursor-pointer block"
+            >
               <div className="flex items-start justify-between mb-3">
                 <h3 className="font-semibold text-gray-900 text-sm leading-tight flex-1 mr-2">{project.name}</h3>
                 {canManage ? (
                   <select
                     value={project.status}
-                    onClick={ev=>ev.stopPropagation()}
-                    onChange={ev=>{ev.stopPropagation();updateStatus(project.id,ev.target.value,ev as any);}}
+                    onClick={(ev) => ev.stopPropagation()}
+                    onMouseDown={(ev) => ev.stopPropagation()}
+                    onChange={(ev) => {
+                      ev.stopPropagation();
+                      updateStatus(project.id, ev.target.value);
+                    }}
                     className={`text-xs px-2 py-0.5 rounded-full font-medium border-0 cursor-pointer ${STATUS_COLORS[project.status] || "bg-gray-100 text-gray-700"}`}
                   >
                     <option value="planning">planning</option>
@@ -186,7 +195,7 @@ export default function ProjectsPage() {
                 <span>{totalTasks} tasks</span>
                 <span>PKR {(project.budget || 0).toLocaleString()}</span>
               </div>
-            </Link>
+            </div>
           );
         })}
       </div>
@@ -195,7 +204,7 @@ export default function ProjectsPage() {
         <div className="text-center py-16 text-gray-400">
           <HardHat className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="font-medium text-gray-700">No projects found</p><p className="text-sm mt-1 text-gray-400">Projects are the heart of your ERP. Click &quot;+ New Project&quot; to create your first one.</p>
-          {canManage && <p className="text-sm mt-1">Click "New Project" to get started</p>}
+          {canManage && <p className="text-sm mt-1">Click &quot;New Project&quot; to get started</p>}
         </div>
       )}
     </div>

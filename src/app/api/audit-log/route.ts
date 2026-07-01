@@ -8,13 +8,13 @@ export async function GET(req: NextRequest) {
     const session = await requireAuth();
     requireRole(session, "admin", "ceo");
     const { searchParams } = new URL(req.url);
-    const module = searchParams.get("module");
+    const auditModule = searchParams.get("module");
     const userId = searchParams.get("userId");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
     const take = Math.min(parseInt(searchParams.get("take") || "100"), 500);
     const filter: any = {};
-    if (module) filter.module = module;
+    if (auditModule) filter.module = auditModule;
     if (userId) filter.userId = userId;
     if (from || to) {
       filter.createdAt = {};

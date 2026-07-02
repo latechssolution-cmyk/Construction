@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, ApiError, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
+import { withTransaction } from "@/lib/db-transaction";
 import Invoice from "@/models/Invoice";
 import LedgerEntry from "@/models/LedgerEntry";
 import BankAccount from "@/models/BankAccount";
@@ -53,48 +54,39 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.dueDate !== undefined) update.dueDate = data.dueDate ? new Date(data.dueDate) : null;
     if (data.notes !== undefined) update.notes = data.notes;
     if (data.paymentTerms !== undefined) update.paymentTerms = data.paymentTerms;
-    if (data.status === "paid" && existing.status !== "paid") update.paidAt = new Date();
+    const marksPaid = data.status === "paid" && existing.status !== "paid";
+    if (marksPaid) update.paidAt = new Date();
 
-    const dbSession = await mongoose.startSession();
-    let invoice: any;
-    try {
-      await dbSession.withTransaction(async () => {
-        invoice = await Invoice.findByIdAndUpdate(id, update, { new: true, session: dbSession });
-        if (!invoice) throw new ApiError(404, "Invoice not found");
+    const bankAccountId = marksPaid ? toId(data.bankAccountId) : null;
 
-        if (data.status === "paid" && existing.status !== "paid") {
-          const existingPayment = await LedgerEntry.findOne({ referenceNumber: existing.invoiceNumber, category: "invoice_payment" }).session(dbSession);
-          if (!existingPayment) {
-            let bankAccountId = toId(data.bankAccountId);
-            if (!bankAccountId) {
-              const defaultAccount = await BankAccount.findOne({ isActive: true }).session(dbSession);
-              if (defaultAccount) bankAccountId = defaultAccount._id.toString();
-            }
-            const netAmount = existing.grandTotal;
-            await LedgerEntry.create([{
-              date: new Date(),
-              type: "income",
-              amount: netAmount,
-              category: "invoice_payment",
-              description: `Payment received for ${existing.invoiceNumber} (Net of Retention & WHT)`,
-              bankAccountId: bankAccountId,
-              projectId: toId(existing.projectId),
-              createdById: session.user.id,
-              referenceNumber: existing.invoiceNumber,
-              partyType: "client",
-            }], { session: dbSession });
-            if (bankAccountId) {
-              await BankAccount.findByIdAndUpdate(bankAccountId, {
-                $inc: { balance: netAmount },
-              }, { session: dbSession });
-            }
-          }
+    const invoice = await withTransaction(async (dbSession) => {
+      const updated = await Invoice.findByIdAndUpdate(id, update, { new: true, session: dbSession });
+      if (!updated) throw new ApiError(404, "Invoice not found");
+
+      if (marksPaid) {
+        await LedgerEntry.create(
+          [{
+            date: new Date(),
+            type: "income",
+            amount: existing.grandTotal,
+            category: "invoice_payment",
+            description: `Payment received for ${existing.invoiceNumber}`,
+            bankAccountId,
+            projectId: toId(existing.projectId),
+            createdById: session.user.id,
+            referenceNumber: existing.invoiceNumber,
+            partyType: "client",
+          }],
+          { session: dbSession }
+        );
+        if (bankAccountId) {
+          await BankAccount.findByIdAndUpdate(bankAccountId, { $inc: { balance: existing.grandTotal } }, { session: dbSession });
         }
-      });
-    } finally {
-      await dbSession.endSession();
-    }
-    await auditLog(session.user.id, "UPDATE", "Invoice", id, `Updated invoice ${invoice!.invoiceNumber} → ${invoice!.status}`);
+      }
+      return updated;
+    });
+
+    await auditLog(session.user.id, "UPDATE", "Invoice", id, `Updated invoice ${invoice.invoiceNumber} → ${invoice.status}`);
     return ok(invoice);
   } catch (e) {
     return handleApiError(e);
@@ -107,17 +99,22 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     requireRole(session, "admin", "ceo");
     const { id } = await params;
     await connectDB();
-    const invoice = await Invoice.findById(id);
-    if (!invoice) throw new ApiError(404, "Invoice not found");
-    // Issue #66: Soft-delete only — financial records must be retained 6+ years (FBR/SECP)
-    // Paid invoices cannot be deleted even by admins
-    if (invoice.status === "paid" || invoice.status === "partially_paid") {
-      throw new ApiError(400, "Paid invoices cannot be deleted. Cancel it and issue a credit note if needed.");
+    const existing = await Invoice.findById(id, { status: 1, invoiceNumber: 1 });
+    if (!existing) throw new ApiError(404, "Invoice not found");
+    if (existing.status === "paid") {
+      throw new ApiError(400, "Cannot delete a paid invoice. This would erase recorded income — cancel future invoices instead of deleting paid ones.");
     }
-    (invoice as any).deletedAt = new Date();
-    invoice.status = "cancelled";
-    await invoice.save();
-    await auditLog(session.user.id, "DELETE", "Invoice", id, `Soft-deleted invoice ${invoice.invoiceNumber}`);
+    await withTransaction(async (dbSession) => {
+      const relatedEntry = await LedgerEntry.findOneAndDelete(
+        { referenceNumber: existing.invoiceNumber, category: "invoice_payment" },
+        { session: dbSession }
+      );
+      if (relatedEntry?.bankAccountId) {
+        await BankAccount.findByIdAndUpdate(relatedEntry.bankAccountId, { $inc: { balance: -relatedEntry.amount } }, { session: dbSession });
+      }
+      await Invoice.findByIdAndDelete(id, { session: dbSession });
+    });
+    await auditLog(session.user.id, "DELETE", "Invoice", id, "Deleted invoice");
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

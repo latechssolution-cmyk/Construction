@@ -21,6 +21,10 @@ export default function PaymentsPage() {
   const [form, setForm] = useState<any>({ type:"expense", category:"vendor_payment" });
   const [loading, setLoading] = useState(false);
 
+  if (session && !["admin","ceo","accountant"].includes(session.user?.role||"")) {
+    return <div className="p-6 text-center text-gray-500"><p className="text-4xl mb-2">&#x1F512;</p><p className="font-medium">Access Restricted</p></div>;
+  }
+
   const canManage = ["admin","ceo","accountant"].includes(session?.user?.role||"");
   const list: any[] = Array.isArray(payments) ? payments : [];
   const filtered = list.filter((p:any)=>!typeFilter||p.type===typeFilter);

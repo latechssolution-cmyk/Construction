@@ -24,6 +24,7 @@ import "@/models/Document";
 import "@/models/Attendance";
 import "@/models/AuditLog";
 import "@/models/Notification";
+import "@/models/Counter";
 
 interface MongooseCache {
   conn: typeof mongoose | null;

@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, ApiError } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, ApiError, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
+import { withTransaction } from "@/lib/db-transaction";
 import LedgerEntry from "@/models/LedgerEntry";
 import BankAccount from "@/models/BankAccount";
 import mongoose from "mongoose";
@@ -29,44 +30,49 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     requireRole(session, "admin", "ceo", "accountant");
     const { id } = await params;
     const data = await req.json();
-    await connectDB();
-    const existing = await LedgerEntry.findById(id);
-    if (!existing) throw new ApiError(404, "Ledger entry not found");
-
-    const update: any = {};
-    if (data.date !== undefined) update.date = new Date(data.date);
-    if (data.type !== undefined) update.type = data.type;
-    if (data.amount !== undefined) { const parsedAmount = parseFloat(data.amount); if (!isNaN(parsedAmount)) update.amount = parsedAmount; }
-    if (data.category !== undefined) update.category = data.category;
-    if (data.description !== undefined) update.description = data.description;
-    if (data.referenceNumber !== undefined) update.referenceNumber = data.referenceNumber;
-    if (data.partyName !== undefined) update.partyName = data.partyName;
-    if (data.partyType !== undefined) update.partyType = data.partyType;
-    if (data.projectId !== undefined) update.projectId = data.projectId;
-    if (data.bankAccountId !== undefined) update.bankAccountId = data.bankAccountId;
-    if (data.vendorId !== undefined) update.vendorId = data.vendorId;
-
-    const dbSession = await mongoose.startSession();
-    let entry: any;
-    try {
-      await dbSession.withTransaction(async () => {
-        // Reconcile bank balance if amount or account changed
-        if (existing.bankAccountId) {
-          const oldDelta = existing.type === "income" ? -existing.amount : existing.amount;
-          await BankAccount.findByIdAndUpdate(existing.bankAccountId, { $inc: { balance: oldDelta } }, { session: dbSession });
-        }
-
-        entry = await LedgerEntry.findByIdAndUpdate(id, update, { new: true, session: dbSession });
-        if (!entry) throw new ApiError(404, "Ledger entry not found");
-
-        if (entry.bankAccountId) {
-          const newDelta = entry.type === "income" ? entry.amount : -entry.amount;
-          await BankAccount.findByIdAndUpdate(entry.bankAccountId, { $inc: { balance: newDelta } }, { session: dbSession });
-        }
-      });
-    } finally {
-      await dbSession.endSession();
+    if (data.amount !== undefined) {
+      const parsedAmount = parseFloat(data.amount);
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        throw new ApiError(400, "amount must be a positive number");
+      }
     }
+    if (data.type !== undefined && !["income", "expense"].includes(data.type)) {
+      throw new ApiError(400, "type must be 'income' or 'expense'");
+    }
+    await connectDB();
+
+    const entry = await withTransaction(async (dbSession) => {
+      const existing = await LedgerEntry.findById(id, null, { session: dbSession });
+      if (!existing) throw new ApiError(404, "Ledger entry not found");
+
+      const update: any = {};
+      if (data.date !== undefined) update.date = new Date(data.date);
+      if (data.type !== undefined) update.type = data.type;
+      if (data.amount !== undefined) update.amount = parseFloat(data.amount);
+      if (data.category !== undefined) update.category = data.category;
+      if (data.description !== undefined) update.description = data.description;
+      if (data.referenceNumber !== undefined) update.referenceNumber = data.referenceNumber;
+      if (data.partyName !== undefined) update.partyName = data.partyName;
+      if (data.partyType !== undefined) update.partyType = data.partyType;
+      if (data.projectId !== undefined) update.projectId = toId(data.projectId);
+      if (data.bankAccountId !== undefined) update.bankAccountId = toId(data.bankAccountId);
+      if (data.vendorId !== undefined) update.vendorId = toId(data.vendorId);
+
+      if (existing.bankAccountId) {
+        const oldDelta = existing.type === "income" ? -existing.amount : existing.amount;
+        await BankAccount.findByIdAndUpdate(existing.bankAccountId, { $inc: { balance: oldDelta } }, { session: dbSession });
+      }
+
+      const updated = await LedgerEntry.findByIdAndUpdate(id, update, { new: true, session: dbSession });
+      if (!updated) throw new ApiError(404, "Ledger entry not found");
+
+      if (updated.bankAccountId) {
+        const newDelta = updated.type === "income" ? updated.amount : -updated.amount;
+        await BankAccount.findByIdAndUpdate(updated.bankAccountId, { $inc: { balance: newDelta } }, { session: dbSession });
+      }
+
+      return updated;
+    });
 
     await auditLog(session.user.id, "UPDATE", "LedgerEntry", id, "Updated ledger entry");
     return ok(entry);
@@ -80,19 +86,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const session = await requireAuth();
     requireRole(session, "admin");
     const { id } = await params;
-    const dbSession = await mongoose.startSession();
-    try {
-      await dbSession.withTransaction(async () => {
-        const existing = await LedgerEntry.findById(id).session(dbSession);
-        if (existing && existing.bankAccountId) {
-          const delta = existing.type === "income" ? -existing.amount : existing.amount;
-          await BankAccount.findByIdAndUpdate(existing.bankAccountId, { $inc: { balance: delta } }, { session: dbSession });
-        }
-        await LedgerEntry.findByIdAndDelete(id, { session: dbSession });
-      });
-    } finally {
-      await dbSession.endSession();
-    }
+    await connectDB();
+    await withTransaction(async (dbSession) => {
+      const existing = await LedgerEntry.findById(id, null, { session: dbSession });
+      if (existing && existing.bankAccountId) {
+        const delta = existing.type === "income" ? -existing.amount : existing.amount;
+        await BankAccount.findByIdAndUpdate(existing.bankAccountId, { $inc: { balance: delta } }, { session: dbSession });
+      }
+      await LedgerEntry.findByIdAndDelete(id, { session: dbSession });
+    });
     await auditLog(session.user.id, "DELETE", "LedgerEntry", id, "Deleted ledger entry");
     return ok({ success: true });
   } catch (e) {

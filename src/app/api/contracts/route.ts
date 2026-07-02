@@ -2,24 +2,10 @@ import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
+import { nextContractNumber } from "@/lib/sequence";
 import Contract from "@/models/Contract";
 import Project from "@/models/Project";
 import Counter from "@/models/Counter";
-
-/**
- * Issue #64 / #85: Sequential, collision-free contract number generation.
- * Uses Counter model to ensure uniqueness.
- */
-async function generateContractNumber(): Promise<string> {
-  const now = new Date();
-  const prefix = `CNT-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const counter = await Counter.findByIdAndUpdate(
-    prefix,
-    { $inc: { seq: 1 } },
-    { upsert: true, new: true }
-  );
-  return `${prefix}-${String(counter!.seq).padStart(4, "0")}`;
-}
 
 export async function GET() {
   try {
@@ -47,7 +33,8 @@ export async function POST(req: NextRequest) {
     if (!data.title || !data.clientId) throw new Error("Title and client are required");
     await connectDB();
     const contract = await Contract.create({
-      contractNumber: data.contractNumber || await generateContractNumber(),
+<<<<<<< HEAD
+      contractNumber: data.contractNumber || (await nextContractNumber()),
       title: data.title,
       scope: data.scope || null,
       contractValue: parseFloat(data.contractValue || data.value || "0"),

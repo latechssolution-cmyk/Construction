@@ -2,25 +2,11 @@ import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
+import { nextInvoiceNumber } from "@/lib/sequence";
 import Invoice from "@/models/Invoice";
 import Project from "@/models/Project";
 import Contract from "@/models/Contract";
 import Counter from "@/models/Counter";
-
-/**
- * Issue #64 / #85: Sequential, collision-free invoice number generation.
- * Uses MongoDB Counter collection with upsert+increment — thread-safe on a replica set.
- */
-async function generateInvoiceNumber(): Promise<string> {
-  const now = new Date();
-  const prefix = `INV-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const counter = await Counter.findByIdAndUpdate(
-    prefix,
-    { $inc: { seq: 1 } },
-    { upsert: true, new: true }
-  );
-  return `${prefix}-${String(counter!.seq).padStart(4, "0")}`;
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -124,7 +110,8 @@ export async function POST(req: NextRequest) {
     }
 
     const invoice = await Invoice.create({
-      invoiceNumber: data.invoiceNumber || await generateInvoiceNumber(),
+<<<<<<< HEAD
+      invoiceNumber: data.invoiceNumber || (await nextInvoiceNumber()),
       clientId: toId(data.clientId),
       projectId: projId,
       issueDate: data.issueDate ? new Date(data.issueDate) : new Date(),

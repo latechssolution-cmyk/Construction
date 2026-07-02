@@ -3,6 +3,7 @@ import { requireAuth, requireRole, handleApiError, ok, ApiError, toId } from "@/
 import { auditLog } from "@/lib/audit";
 import { notifyAdminsAndManagers, checkBudgetAlert } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
+import { withTransaction } from "@/lib/db-transaction";
 import Material from "@/models/Material";
 import MaterialUsage from "@/models/MaterialUsage";
 import LedgerEntry from "@/models/LedgerEntry";
@@ -47,58 +48,64 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       const addQty = parseFloat(data.restockQuantity);
       if (!addQty || addQty <= 0) throw new ApiError(400, "Restock quantity must be greater than zero");
 
-      const newPrice = data.unitPrice ? parseFloat(data.unitPrice) : material.unitPrice;
+      const newPrice = data.unitPrice !== undefined ? parseFloat(data.unitPrice) : material.unitPrice;
+      if (!Number.isFinite(newPrice) || newPrice < 0) throw new ApiError(400, "unitPrice cannot be negative");
       const restockCost = addQty * newPrice;
       const receivedDate = data.receivedDate ? new Date(data.receivedDate) : new Date();
+      const bankAccountId = toId(data.bankAccountId) ?? null;
 
-      if (restockCost > 0 && data.bankAccountId) {
-        const bankAccount = await BankAccount.findById(data.bankAccountId);
-        if (!bankAccount) throw new ApiError(404, "Bank account not found");
-        if (bankAccount.balance < restockCost) {
-          throw new ApiError(400, `Insufficient funds: bank account balance is PKR ${bankAccount.balance.toLocaleString()}, but restock requires PKR ${restockCost.toLocaleString()}`);
+      const updatedMaterial = await withTransaction(async (dbSession) => {
+        const existingValue = material.quantity * material.unitPrice;
+        const newQuantity = material.quantity + addQty;
+        const newTotalValue = existingValue + restockCost;
+        const weightedUnitPrice = newQuantity > 0 ? newTotalValue / newQuantity : newPrice;
+
+        material.stockQuantity += addQty;
+        material.quantity = newQuantity;
+        material.unitPrice = weightedUnitPrice;
+        material.totalPrice = newTotalValue;
+        if (data.vendorId !== undefined) material.vendorId = toId(data.vendorId) as any;
+        if (data.notes !== undefined) material.notes = data.notes;
+        await material.save({ session: dbSession });
+
+        if (restockCost > 0) {
+          await LedgerEntry.create(
+            [{
+              date: receivedDate,
+              type: "expense",
+              amount: restockCost,
+              category: "material_purchase",
+              description: `Restock: ${material.itemName} × ${addQty} ${material.unit} @ PKR ${newPrice.toLocaleString()}/unit`,
+              projectId: material.projectId,
+              vendorId: toId(data.vendorId) ?? material.vendorId ?? null,
+              bankAccountId,
+              createdById: session.user.id,
+            }],
+            { session: dbSession }
+          );
+          if (bankAccountId) {
+            await BankAccount.findByIdAndUpdate(bankAccountId, { $inc: { balance: -restockCost } }, { session: dbSession });
+          }
         }
-      }
+        return material;
+      });
 
-      material.stockQuantity += addQty;
-      material.quantity += addQty;
-      material.unitPrice = newPrice;
-      if (data.vendorId !== undefined) material.vendorId = toId(data.vendorId) as any;
-      if (data.notes !== undefined) material.notes = data.notes;
-      await material.save();
-
-      // Record the expense in the ledger and update bank balance
       if (restockCost > 0) {
-        const bankAccountId = toId(data.bankAccountId) ?? null;
-        if (bankAccountId) {
-          await BankAccount.findByIdAndUpdate(bankAccountId, { $inc: { balance: -restockCost } });
-        }
-        await LedgerEntry.create({
-          date: receivedDate,
-          type: "expense",
-          amount: restockCost,
-          category: "inventory_asset",
-          description: `Restock: ${material.itemName} × ${addQty} ${material.unit} @ PKR ${newPrice.toLocaleString()}/unit`,
-          projectId: material.projectId,
-          vendorId: toId(data.vendorId) ?? material.vendorId ?? null,
-          bankAccountId,
-          createdById: session.user.id,
-          referenceNumber: id,
-        });
-        void checkBudgetAlert(material.projectId?.toString(), restockCost);
+        void checkBudgetAlert(updatedMaterial.projectId?.toString(), restockCost);
       }
 
       // Low stock alert after restocking (edge case: still low after restock)
-      if (material.stockQuantity <= material.minStockLevel) {
+      if (updatedMaterial.stockQuantity <= updatedMaterial.minStockLevel) {
         await notifyAdminsAndManagers(
           "Low Stock Alert",
-          `${material.itemName} stock is still low after restock (${material.stockQuantity} ${material.unit} remaining)`,
+          `${updatedMaterial.itemName} stock is still low after restock (${updatedMaterial.stockQuantity} ${updatedMaterial.unit} remaining)`,
           "warning"
         );
       }
 
       await auditLog(session.user.id, "UPDATE", "Material", id,
-        `Restocked ${material.itemName}: +${addQty} ${material.unit} @ PKR ${newPrice}/unit`);
-      return ok(material);
+        `Restocked ${updatedMaterial.itemName}: +${addQty} ${updatedMaterial.unit} @ PKR ${newPrice}/unit`);
+      return ok(updatedMaterial);
     }
 
     // ── Regular edit: update fields only ────────────────────────────────────
@@ -108,40 +115,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.unit !== undefined) material.unit = data.unit;
     
     const parsedMinStock = data.minStockLevel !== undefined ? parseFloat(data.minStockLevel) : NaN;
-    if (!isNaN(parsedMinStock)) material.minStockLevel = parsedMinStock;
-    
+    if (!isNaN(parsedMinStock) && parsedMinStock >= 0) material.minStockLevel = parsedMinStock;
     const parsedStockQty = data.stockQuantity !== undefined ? parseFloat(data.stockQuantity) : NaN;
-    if (!isNaN(parsedStockQty)) material.stockQuantity = parsedStockQty;
-    
+    if (!isNaN(parsedStockQty) && parsedStockQty >= 0) material.stockQuantity = parsedStockQty;
     const parsedQty = data.quantity !== undefined ? parseFloat(data.quantity) : NaN;
-    if (!isNaN(parsedQty)) material.quantity = parsedQty;
-    
+    if (!isNaN(parsedQty) && parsedQty >= 0) material.quantity = parsedQty;
     const parsedUnitPrice = data.unitPrice !== undefined ? parseFloat(data.unitPrice) : NaN;
-    if (!isNaN(parsedUnitPrice)) material.unitPrice = parsedUnitPrice;
-
-    const newTotalPrice = material.quantity * material.unitPrice;
-    const diff = newTotalPrice - oldTotalPrice;
-    if (diff !== 0) {
-      const entry = await LedgerEntry.findOne({ referenceNumber: id, category: "inventory_asset" }).sort({ createdAt: 1 });
-      if (entry) {
-        if (entry.bankAccountId) {
-          const bankAccount = await BankAccount.findById(entry.bankAccountId);
-          if (bankAccount) {
-            if (diff > 0 && bankAccount.balance < diff) {
-              throw new ApiError(400, `Insufficient funds: bank account balance is PKR ${bankAccount.balance.toLocaleString()}, but price increase requires PKR ${diff.toLocaleString()}`);
-            }
-            bankAccount.balance -= diff;
-            await bankAccount.save();
-          }
-        }
-        entry.amount += diff;
-        if (entry.description) {
-          entry.description = `${material.itemName} × ${material.quantity} ${material.unit}`;
-        }
-        await entry.save();
-      }
-    }
-
+    if (!isNaN(parsedUnitPrice) && parsedUnitPrice >= 0) { material.unitPrice = parsedUnitPrice; material.totalPrice = material.quantity * parsedUnitPrice; }
     if (data.vendorId !== undefined) material.vendorId = toId(data.vendorId) as any;
     if (data.notes !== undefined) material.notes = data.notes;
     await material.save();

@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
-import { requireAuth, handleApiError, ok, ApiError } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, ApiError } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/mongoose";
 import BankAccount from "@/models/BankAccount";
 import LedgerEntry from "@/models/LedgerEntry";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    requireRole(session, "admin", "ceo", "accountant");
     const { id } = await params;
     const { searchParams } = new URL(req.url);
     const from = searchParams.get("from");

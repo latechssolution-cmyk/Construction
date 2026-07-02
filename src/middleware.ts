@@ -1,14 +1,22 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 
+const edgeAuthSecret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+if (!edgeAuthSecret) {
+  throw new Error("AUTH_SECRET (or NEXTAUTH_SECRET) environment variable is not set.");
+}
+
 // Lightweight auth config for Edge middleware — no Mongoose/adapter imports.
 // JWT is verified using only the AUTH_SECRET without touching the database.
+// This only guards page routing; it cannot see DB-side deactivation/role
+// changes (no DB access at the Edge). The API layer (lib/auth.ts + requireAuth)
+// revalidates isActive/role against the DB, so a deactivated user loses real
+// data access within ~60s even if this middleware still lets the page shell load.
 const { auth } = NextAuth({
   trustHost: true,
   session: { strategy: "jwt" },
   providers: [],
-  // Issue #90: Use same secret resolution as auth.ts — no undefined fallback
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  secret: edgeAuthSecret,
   callbacks: {
     async jwt({ token, user }) {
       if (user) {

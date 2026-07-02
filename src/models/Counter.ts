@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface ICounter extends Document<string> {
   _id: string;
@@ -10,13 +10,7 @@ const counterSchema = new Schema<ICounter>({
   seq: { type: Number, default: 0 },
 });
 
-/**
- * Counter model for sequential auto-incrementing number generation.
- * Used to generate collision-free invoice and contract numbers.
- * Key format: "INV-{year}-{month}" or "CNT-{year}-{month}"
- */
-const Counter =
-  mongoose.models.Counter ||
-  mongoose.model<ICounter>("Counter", counterSchema);
+const Counter: Model<ICounter> =
+  mongoose.models.Counter || mongoose.model<ICounter>("Counter", counterSchema);
 
 export default Counter;

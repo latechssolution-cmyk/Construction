@@ -3,6 +3,7 @@ import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError }
 import { auditLog } from "@/lib/audit";
 import { notifyAdminsAndManagers, checkBudgetAlert } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
+import { withTransaction } from "@/lib/db-transaction";
 import Material from "@/models/Material";
 import MaterialUsage from "@/models/MaterialUsage";
 import LedgerEntry from "@/models/LedgerEntry";
@@ -67,29 +68,21 @@ export async function POST(req: NextRequest) {
     requireRole(session, "admin", "ceo", "manager");
     const data = await req.json();
     if (!data.itemName || !data.projectId) throw new Error("Item name and project are required");
+    const qty = parseFloat(data.quantity || "0");
+    const price = parseFloat(data.unitPrice || "0");
+    if (!Number.isFinite(qty) || qty <= 0) throw new ApiError(400, "quantity must be a positive number");
+    if (!Number.isFinite(price) || price < 0) throw new ApiError(400, "unitPrice cannot be negative");
     await connectDB();
+    const totalPrice = qty * price;
+    const minStock = parseFloat(data.minStockLevel || "5");
+    const receivedDate = data.receivedDate ? new Date(data.receivedDate) : new Date();
+    const bankAccountId = toId(data.bankAccountId);
+    const vendorId = toId(data.vendorId);
+    const projectId = toId(data.projectId);
 
-    const dbSession = await mongoose.startSession();
-    let material: any;
-    let totalPrice = 0;
-
-    try {
-      await dbSession.withTransaction(async () => {
-        // Check deactivated vendor status
-        const vId = toId(data.vendorId);
-        if (vId) {
-          const vendor = await Vendor.findById(vId).session(dbSession);
-          if (!vendor) throw new ApiError(404, "Vendor not found");
-          if (vendor.isActive === false) throw new ApiError(400, "Vendor is deactivated and cannot be used.");
-        }
-
-        const qty = parseFloat(data.quantity || "0");
-        const price = parseFloat(data.unitPrice || "0");
-        totalPrice = qty * price;
-        const minStock = parseFloat(data.minStockLevel || "5");
-        const receivedDate = data.receivedDate ? new Date(data.receivedDate) : new Date();
-
-        const [createdMaterial] = await Material.create([{
+    const material = await withTransaction(async (dbSession) => {
+      const [createdMaterial] = await Material.create(
+        [{
           itemName: data.itemName,
           category: data.category || "general",
           unit: data.unit || "pcs",
@@ -99,43 +92,35 @@ export async function POST(req: NextRequest) {
           unitPrice: price,
           totalPrice,
           receivedDate,
-          projectId: toId(data.projectId),
-          vendorId: vId,
+          projectId,
+          vendorId,
           notes: data.notes || null,
-        }], { session: dbSession });
-
-        material = createdMaterial;
-
-        if (totalPrice > 0) {
-          if (data.bankAccountId) {
-            const bankAccount = await BankAccount.findById(data.bankAccountId).session(dbSession);
-            if (!bankAccount) throw new Error("Bank account not found");
-            if (bankAccount.balance < totalPrice) {
-              throw new Error(`Insufficient funds: bank account balance is PKR ${bankAccount.balance.toLocaleString()}, but purchase requires PKR ${totalPrice.toLocaleString()}`);
-            }
-            bankAccount.balance -= totalPrice;
-            await bankAccount.save({ session: dbSession });
-          }
-          await LedgerEntry.create([{
+        }],
+        { session: dbSession }
+      );
+      if (totalPrice > 0) {
+        await LedgerEntry.create(
+          [{
             date: receivedDate,
             type: "expense",
             amount: totalPrice,
-            category: data.bankAccountId ? "inventory_asset" : "accounts_payable",
-            description: `${data.itemName} × ${qty} ${material.unit} (${data.bankAccountId ? "Paid" : "On Credit"})`,
-            projectId: toId(data.projectId),
-            vendorId: vId,
-            bankAccountId: toId(data.bankAccountId),
+            category: "material_purchase",
+            description: `${data.itemName} × ${qty} ${createdMaterial.unit}`,
+            projectId,
+            vendorId,
+            bankAccountId,
             createdById: session.user.id,
-            referenceNumber: material.id || material._id?.toString(),
-          }], { session: dbSession });
+          }],
+          { session: dbSession }
+        );
+        if (bankAccountId) {
+          await BankAccount.findByIdAndUpdate(bankAccountId, { $inc: { balance: -totalPrice } }, { session: dbSession });
         }
-      });
-    } finally {
-      await dbSession.endSession();
-    }
+      }
+      return createdMaterial;
+    });
 
-    const qty = parseFloat(data.quantity || "0");
-    const minStock = parseFloat(data.minStockLevel || "5");
+
     if (qty <= minStock) {
       void notifyAdminsAndManagers("Low Stock Alert", `${material.itemName} stock is low (${qty} ${material.unit} remaining)`, "warning");
     }

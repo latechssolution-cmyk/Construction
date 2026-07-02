@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
-import { requireAuth, handleApiError, ok } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/mongoose";
 import LedgerEntry from "@/models/LedgerEntry";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    requireRole(session, "admin", "ceo", "accountant");
     const { searchParams } = new URL(req.url);
     const rawYear = parseInt(searchParams.get("year") || String(new Date().getFullYear()));
     const year = isNaN(rawYear) ? new Date().getFullYear() : Math.max(1990, Math.min(2100, rawYear));

@@ -109,8 +109,12 @@ export default function ProjectDetailPage() {
     await saveProject({ completionPercent: clamped });
   }
 
-  const income = (project.ledgerEntries || []).filter((e: any) => e.type === "income").reduce((s: number, e: any) => s + e.amount, 0);
-  const expense = (project.ledgerEntries || []).filter((e: any) => e.type === "expense").reduce((s: number, e: any) => s + e.amount, 0);
+  // Use the server-side aggregate totals from /summary rather than summing
+  // the (at most 50) ledger entries embedded in the project payload — once
+  // a project has more than 50 entries those two numbers would otherwise
+  // silently disagree.
+  const income = summary?.income ?? 0;
+  const expense = summary?.expense ?? 0;
 
   async function createTask(e: React.FormEvent) {
     e.preventDefault();

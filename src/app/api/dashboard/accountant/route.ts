@@ -28,7 +28,7 @@ export async function GET() {
       BankAccount.find({ isActive: true }, { name: 1, bankName: 1, balance: 1, accountType: 1 })
         .sort({ balance: -1 }).lean(),
       Invoice.find(
-        { status: { $in: ["draft", "sent", "overdue", "partially_paid"] } },
+        { status: { $in: ["draft", "sent", "overdue"] } },
         { invoiceNumber: 1, dueDate: 1, grandTotal: 1, status: 1, clientId: 1 }
       ).populate("client", "name").sort({ dueDate: 1 }).limit(10).lean({ virtuals: true }),
       // Full-year monthly trend — single aggregation replaces 24 separate queries

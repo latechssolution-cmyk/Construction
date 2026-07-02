@@ -9,10 +9,10 @@ import Milestone from "@/models/Milestone";
 import Material from "@/models/Material";
 import ProjectEmployee from "@/models/ProjectEmployee";
 import ProjectEquipment from "@/models/ProjectEquipment";
+import Equipment from "@/models/Equipment";
 import LedgerEntry from "@/models/LedgerEntry";
 import Invoice from "@/models/Invoice";
 import Doc from "@/models/Document";
-import Equipment from "@/models/Equipment";
 import Attendance from "@/models/Attendance";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -99,31 +99,33 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     requireRole(session, "admin", "ceo");
     const { id } = await params;
     await connectDB();
-    if (!await Project.exists({ _id: id })) throw new ApiError(404, "Project not found");
-    const [hasInvoices, hasLedger] = await Promise.all([
-      Invoice.exists({ projectId: id }),
-      LedgerEntry.exists({ projectId: id }),
+    const project = await Project.findById(id, { name: 1 });
+    if (!project) throw new ApiError(404, "Project not found");
+
+    const [ledgerCount, invoiceCount] = await Promise.all([
+      LedgerEntry.countDocuments({ projectId: id }),
+      Invoice.countDocuments({ projectId: id }),
     ]);
-    if (hasInvoices || hasLedger) {
-      throw new ApiError(400, "Cannot delete project with associated financial records (invoices or ledger entries).");
+    if (ledgerCount > 0 || invoiceCount > 0) {
+      throw new ApiError(
+        400,
+        `Cannot delete project "${project.name}": it has ${ledgerCount} ledger ${ledgerCount === 1 ? "entry" : "entries"} and ${invoiceCount} invoice(s) linked. Set its status to "cancelled" instead of deleting it, to preserve financial history.`
+      );
     }
 
-    // Update equipment statuses to available for active assignments before deleting them
-    const activeAssignments = await ProjectEquipment.find({ projectId: id, returnedAt: null });
-    const equipmentIds = activeAssignments.map((a) => a.equipmentId);
-    if (equipmentIds.length > 0) {
-      await Equipment.updateMany({ _id: { $in: equipmentIds } }, { $set: { status: "available" } });
+    const activeAssignments = await ProjectEquipment.find({ projectId: id, returnedAt: null }, { equipmentId: 1 });
+    if (activeAssignments.length > 0) {
+      await Equipment.updateMany(
+        { _id: { $in: activeAssignments.map((a) => a.equipmentId) } },
+        { status: "available" }
+      );
     }
 
-    // Nullify attendance records to represent general overhead
-    await Attendance.updateMany({ projectId: id }, { $set: { projectId: null } });
 
     await Promise.all([
       Task.deleteMany({ projectId: id }),
       Milestone.deleteMany({ projectId: id }),
       Material.deleteMany({ projectId: id }),
-      LedgerEntry.deleteMany({ projectId: id }),
-      Invoice.deleteMany({ projectId: id }),
       Doc.deleteMany({ projectId: id }),
       ProjectPhase.deleteMany({ projectId: id }),
       ProjectEmployee.deleteMany({ projectId: id }),

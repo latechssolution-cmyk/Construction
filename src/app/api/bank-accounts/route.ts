@@ -6,10 +6,12 @@ import BankAccount from "@/models/BankAccount";
 import LedgerEntry from "@/models/LedgerEntry";
 
 import mongoose from "mongoose";
+const FINANCE_ROLES = ["admin", "ceo", "accountant"];
 
 export async function GET() {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    const isFinance = FINANCE_ROLES.includes(session.user.role);
     await connectDB();
     const accounts = await BankAccount.find({ isActive: true }).sort({ name: 1 }).limit(100);
     const ids = accounts.map((a) => a._id);
@@ -18,7 +20,18 @@ export async function GET() {
       { $group: { _id: "$bankAccountId", count: { $sum: 1 } } },
     ]);
     const cMap = Object.fromEntries(counts.map((r: any) => [r._id.toString(), r.count]));
-    const result = accounts.map((a) => ({ ...a.toJSON(), _count: { ledgerEntries: cMap[a.id] || 0 } }));
+    // Non-finance roles (e.g. managers picking a bank account on an expense
+    // form) get the account names only — balance/account number are financial
+    // data and shouldn't be readable by every authenticated user.
+    const result = accounts.map((a) => {
+      const json = a.toJSON() as any;
+      if (!isFinance) {
+        delete json.balance;
+        delete json.accountNumber;
+        delete json.notes;
+      }
+      return { ...json, _count: { ledgerEntries: cMap[a.id] || 0 } };
+    });
     return ok(result);
   } catch (e) {
     return handleApiError(e);

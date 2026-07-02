@@ -19,7 +19,7 @@ export interface IInvoice extends Document {
   paidAt?: Date | null;
   paidAmount?: number;
   deletedAt?: Date | null;
-  status: "draft" | "sent" | "issued" | "paid" | "partially_paid" | "overdue" | "cancelled";
+  status: "draft" | "sent" | "paid" | "overdue" | "cancelled";
   subtotal: number;
   taxPercent: number;
   taxAmount: number;
@@ -63,9 +63,13 @@ const invoiceSchema = new Schema<IInvoice>(
     issueDate: { type: Date, default: Date.now },
     dueDate: { type: Date },
     paidAt: { type: Date },
+    // "issued" and "partially_paid" were removed — neither had a UI path to
+    // reach them nor a transition out of them, so an invoice could get
+    // permanently stuck. Add them back only alongside real partial-payment
+    // tracking (an amountPaid field + endpoint) and a corresponding transition.
     status: {
       type: String,
-      enum: ["draft", "sent", "issued", "paid", "partially_paid", "overdue", "cancelled"],
+      enum: ["draft", "sent", "paid", "overdue", "cancelled"],
       default: "draft",
     },
     subtotal: { type: Number, default: 0 },

@@ -94,8 +94,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
     if (doc.fileUrl) {
       if (doc.fileUrl.startsWith("/uploads/")) {
-        const filePath = path.join(process.cwd(), "public", doc.fileUrl);
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        const uploadsDir = path.join(process.cwd(), "public", "uploads");
+        const filePath = path.resolve(uploadsDir, "." + doc.fileUrl.slice("/uploads".length));
+        if (filePath === uploadsDir || filePath.startsWith(uploadsDir + path.sep)) {
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        } else {
+          console.error("[Document Delete] Blocked path traversal attempt:", doc.fileUrl);
+        }
       } else if (doc.fileUrl.includes("res.cloudinary.com")) {
         await deleteCloudinaryAsset(doc.fileUrl);
       }

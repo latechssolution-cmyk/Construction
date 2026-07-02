@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError } from "@/lib/api-helpers";
+import { auditLog } from "@/lib/audit";
 import { checkBudgetAlert } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
-import { auditLog } from "@/lib/audit";
+import { withTransaction } from "@/lib/db-transaction";
 import Equipment from "@/models/Equipment";
 import EquipmentMaintenance from "@/models/EquipmentMaintenance";
 import LedgerEntry from "@/models/LedgerEntry";
@@ -27,44 +28,50 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { id } = await params;
     const data = await req.json();
     const rawCost = parseFloat(data.cost || "0");
-    const cost = isNaN(rawCost) ? 0 : rawCost;
+    if (!Number.isFinite(rawCost) || rawCost < 0) throw new ApiError(400, "cost cannot be negative");
+    const cost = rawCost;
     await connectDB();
-    const record = await EquipmentMaintenance.create({
-      equipmentId: id,
-      projectId: toId(data.projectId),
-      cost,
-      description: data.description || null,
-      date: data.date ? new Date(data.date) : new Date(),
-    });
-    if (data.condition) {
-      await Equipment.findByIdAndUpdate(id, { condition: data.condition, status: "maintenance" });
-    }
+    const projectId = toId(data.projectId);
     const maintBankId = toId(data.bankAccountId);
-    if (cost > 0) {
-      if (maintBankId) {
-        const bankAccount = await BankAccount.findById(maintBankId);
-        if (!bankAccount) throw new Error("Bank account not found");
-        if (bankAccount.balance < cost) {
-          throw new Error(`Insufficient funds: bank account balance is PKR ${bankAccount.balance.toLocaleString()}, but maintenance requires PKR ${cost.toLocaleString()}`);
-        }
-        bankAccount.balance -= cost;
-        await bankAccount.save();
-      }
+    const maintDate = data.date ? new Date(data.date) : new Date();
 
-      await LedgerEntry.create({
-        date: record.date,
-        type: "expense",
-        amount: cost,
-        category: "equipment_maintenance",
-        description: data.description || "Equipment maintenance",
-        projectId: toId(data.projectId),
-        bankAccountId: maintBankId ?? null,
-        createdById: session.user.id,
-      });
-      void checkBudgetAlert(data.projectId, cost);
-    }
-    const eq = await Equipment.findById(id, { name: 1 });
-    await auditLog(session.user.id, "CREATE", "EquipmentMaintenance", record.id, `Logged maintenance for ${eq?.name || id} costing PKR ${cost}`);
+    const record = await withTransaction(async (dbSession) => {
+      const [createdRecord] = await EquipmentMaintenance.create(
+        [{
+          equipmentId: id,
+          projectId,
+          cost,
+          description: data.description || null,
+          date: maintDate,
+        }],
+        { session: dbSession }
+      );
+      if (data.condition) {
+        await Equipment.findByIdAndUpdate(id, { condition: data.condition, status: "maintenance" }, { session: dbSession });
+      }
+      if (cost > 0) {
+        await LedgerEntry.create(
+          [{
+            date: maintDate,
+            type: "expense",
+            amount: cost,
+            category: "maintenance",
+            description: data.description || "Equipment maintenance",
+            projectId,
+            bankAccountId: maintBankId,
+            createdById: session.user.id,
+          }],
+          { session: dbSession }
+        );
+        if (maintBankId) {
+          await BankAccount.findByIdAndUpdate(maintBankId, { $inc: { balance: -cost } }, { session: dbSession });
+        }
+      }
+      return createdRecord;
+    });
+
+    if (cost > 0) void checkBudgetAlert(data.projectId, cost);
+    void auditLog(session.user.id, "CREATE", "EquipmentMaintenance", record.id, `Logged maintenance for equipment ${id}: PKR ${cost}`);
     return created(record);
   } catch (e) {
     return handleApiError(e);

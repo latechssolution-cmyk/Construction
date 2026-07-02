@@ -16,6 +16,7 @@ export default function BillingPage() {
   const { data: session } = useSession();
   const { toast } = useToast();
   const { data: invoices, mutate, isLoading } = useSWR("/api/invoices", fetcher);
+  const { data: stats, mutate: mutateStats } = useSWR("/api/invoices/stats", fetcher);
   const { data: clients } = useSWR("/api/clients", fetcher);
   const { data: projects } = useSWR("/api/projects", fetcher);
   const { data: bankAccounts } = useSWR("/api/bank-accounts", fetcher);
@@ -56,7 +57,7 @@ export default function BillingPage() {
       const res = await fetch("/api/invoices",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...form,items})});
       if (!res.ok) { const e = await res.json(); setError(e.error||"Failed to create invoice"); return; }
       setSuccess("Invoice created successfully!");
-      mutate(); setShowForm(false); setForm({status:"draft",taxPercent:0}); setItems([{description:"",quantity:1,unitPrice:0}]);
+      mutate(); mutateStats(); setShowForm(false); setForm({status:"draft",taxPercent:0}); setItems([{description:"",quantity:1,unitPrice:0}]);
       setTimeout(()=>setSuccess(""),3000);
     } finally { setLoading(false); }
   }
@@ -69,17 +70,21 @@ export default function BillingPage() {
       if (!res.ok) { const e = await res.json(); toast({ title: "Error", description: e.error || "Failed", variant: "destructive" }); return; }
       toast({ title: "Invoice marked paid", description: `PKR ${(paidModal.grandTotal||0).toLocaleString()} received` });
       setPaidModal(null); setPaidBankId("");
-      mutate();
+      mutate(); mutateStats();
     } finally { setPaidLoading(false); }
   }
   async function markSent(id: string) {
     const res = await fetch("/api/invoices/"+id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"sent"})});
     if (!res.ok) { const e = await res.json(); toast({ title: "Error", description: e.error || "Failed", variant: "destructive" }); return; }
-    mutate();
+    mutate(); mutateStats();
   }
 
-  const totalPaid = list.filter((i:any)=>i.status==="paid").reduce((s:number,i:any)=>s+i.grandTotal,0);
-  const totalPending = list.filter((i:any)=>["sent","overdue"].includes(i.status)).reduce((s:number,i:any)=>s+i.grandTotal,0);
+  // True totals come from a server-side aggregate over *all* invoices, not
+  // just the capped 200-row list — otherwise these cards silently drift
+  // from reality once invoice volume passes that cap.
+  const totalPaid = stats?.totalPaid ?? 0;
+  const totalPending = stats?.totalPending ?? 0;
+  const totalInvoiced = stats?.totalInvoiced ?? 0;
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -105,7 +110,7 @@ export default function BillingPage() {
         </div>
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
           <p className="text-xs text-gray-600 font-medium">Total Invoiced</p>
-          <p className="text-2xl font-bold text-gray-800">PKR {list.reduce((s:number,i:any)=>s+(i.grandTotal||0),0).toLocaleString()}</p>
+          <p className="text-2xl font-bold text-gray-800">PKR {totalInvoiced.toLocaleString()}</p>
         </div>
       </div>
 

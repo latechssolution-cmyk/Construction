@@ -34,7 +34,11 @@ function LoginContent() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  // Only allow same-site, relative redirect targets — an absolute or
+  // protocol-relative URL here would let an attacker craft a login link
+  // that sends the user off-site after a successful sign-in.
+  const rawCallbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const callbackUrl = rawCallbackUrl.startsWith("/") && !rawCallbackUrl.startsWith("//") ? rawCallbackUrl : "/dashboard";
   const { toast } = useToast();
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
@@ -154,15 +158,6 @@ function LoginContent() {
                 Sign In
               </Button>
             </form>
-
-            {/* Demo credentials */}
-            <div className="bg-muted rounded-lg p-3 text-xs space-y-1">
-              <p className="font-semibold text-muted-foreground">Demo Credentials:</p>
-              <p>Admin: admin@constructionlatech.com / Admin@1234</p>
-              <p>CEO: ceo@constructionlatech.com / Ceo@1234</p>
-              <p>Manager: manager@constructionlatech.com / Manager@1234</p>
-              <p>Accountant: accountant@constructionlatech.com / Account@1234</p>
-            </div>
           </CardContent>
         </Card>
       </div>

@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { notifyAdminsAndManagers } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
+import { withTransaction } from "@/lib/db-transaction";
 import LedgerEntry from "@/models/LedgerEntry";
 import BankAccount from "@/models/BankAccount";
 import Project from "@/models/Project";
@@ -12,7 +13,8 @@ import Subcontract from "@/models/Subcontract";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    requireRole(session, "admin", "ceo", "accountant");
     const { searchParams } = new URL(req.url);
     const projectId = searchParams.get("projectId");
     const type = searchParams.get("type");
@@ -67,29 +69,18 @@ export async function POST(req: NextRequest) {
     if (!data.date || !data.type || !data.amount || !data.category) {
       throw new Error("date, type, amount, and category are required");
     }
-    await connectDB();
     const amount = parseFloat(data.amount);
-    const dbSession = await mongoose.startSession();
-    let entry: any;
-    try {
-      await dbSession.withTransaction(async () => {
-        if (data.category === "subcontractor_payment" && data.projectId && data.vendorId) {
-          const subcontract = await Subcontract.findOne({ projectId: data.projectId, vendorId: data.vendorId }).session(dbSession);
-          if (subcontract) {
-            const pastExpenses = await LedgerEntry.find({
-              projectId: data.projectId,
-              vendorId: data.vendorId,
-              category: "subcontractor_payment",
-              type: "expense"
-            }).session(dbSession);
-            const pastSum = pastExpenses.reduce((sum, e) => sum + e.amount, 0);
-            if (pastSum + amount > subcontract.contractValue) {
-              throw new Error(`Payment limit exceeded. Total subcontractor payments including this payment will be PKR ${(pastSum + amount).toLocaleString()}, which exceeds the subcontract value of PKR ${subcontract.contractValue.toLocaleString()}.`);
-            }
-          }
-        }
-
-        const [createdEntry] = await LedgerEntry.create([{
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new ApiError(400, "amount must be a positive number");
+    }
+    if (!["income", "expense"].includes(data.type)) {
+      throw new ApiError(400, "type must be 'income' or 'expense'");
+    }
+    await connectDB();
+    const bankAccountId = toId(data.bankAccountId);
+    const entry = await withTransaction(async (dbSession) => {
+      const [createdEntry] = await LedgerEntry.create(
+        [{
           date: new Date(data.date),
           type: data.type,
           amount,
@@ -97,24 +88,21 @@ export async function POST(req: NextRequest) {
           description: data.description || null,
           referenceNumber: data.referenceNumber || null,
           projectId: toId(data.projectId),
-          bankAccountId: toId(data.bankAccountId),
+          bankAccountId,
           vendorId: toId(data.vendorId),
           partyName: data.partyName || null,
           partyType: data.partyType || "other",
           receiptPath: data.receiptPath || null,
           createdById: session.user.id,
-        }], { session: dbSession });
-        entry = createdEntry;
-
-        if (data.bankAccountId) {
-          const delta = data.type === "income" ? amount : -amount;
-          await BankAccount.findByIdAndUpdate(data.bankAccountId, { $inc: { balance: delta } }, { session: dbSession });
-        }
-      });
-    } finally {
-      await dbSession.endSession();
-    }
-
+        }],
+        { session: dbSession }
+      );
+      if (bankAccountId) {
+        const delta = data.type === "income" ? amount : -amount;
+        await BankAccount.findByIdAndUpdate(bankAccountId, { $inc: { balance: delta } }, { session: dbSession });
+      }
+      return createdEntry;
+    });
     if (data.projectId && data.type === "expense") {
       const project = await Project.findById(data.projectId, { budget: 1, name: 1 });
       if (project && project.budget > 0) {

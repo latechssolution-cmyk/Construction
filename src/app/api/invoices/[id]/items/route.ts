@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, created, ApiError } from "@/lib/api-helpers";
+import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Invoice from "@/models/Invoice";
 
@@ -12,6 +13,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await connectDB();
     const invoice = await Invoice.findById(id);
     if (!invoice) throw new ApiError(404, "Invoice not found");
+    // A paid invoice's total is already booked as ledger income — changing
+    // line items afterward would desync the invoice from that recorded
+    // income with no trace of the edit.
+    if (invoice.status === "paid" || invoice.status === "cancelled") {
+      throw new ApiError(400, `Cannot modify line items on a ${invoice.status} invoice`);
+    }
     if (!data.description?.trim()) throw new ApiError(400, "description is required");
     const qty = parseFloat(data.quantity || "1");
     const unitPrice = parseFloat(data.unitPrice || "0");
@@ -27,6 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     invoice.grandTotal = subtotal + taxAmount;
     await invoice.save();
     const addedItem = invoice.items[invoice.items.length - 1];
+    void auditLog(session.user.id, "UPDATE", "Invoice", id, `Added line item to ${invoice.invoiceNumber}: ${newItem.description}`);
     return created(addedItem);
   } catch (e) {
     return handleApiError(e);
@@ -44,6 +52,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     await connectDB();
     const invoice = await Invoice.findById(id);
     if (!invoice) throw new ApiError(404, "Invoice not found");
+    if (invoice.status === "paid" || invoice.status === "cancelled") {
+      throw new ApiError(400, `Cannot modify line items on a ${invoice.status} invoice`);
+    }
     invoice.items = invoice.items.filter((i) => i._id?.toString() !== itemId) as any;
     const subtotal = invoice.items.reduce((s, i) => s + i.total, 0);
     const taxAmount = (subtotal * invoice.taxPercent) / 100;
@@ -51,6 +62,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     invoice.taxAmount = taxAmount;
     invoice.grandTotal = subtotal + taxAmount;
     await invoice.save();
+    void auditLog(session.user.id, "UPDATE", "Invoice", id, `Removed line item from ${invoice.invoiceNumber}`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

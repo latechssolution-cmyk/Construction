@@ -34,6 +34,10 @@ export default function BankAccountsPage() {
   const [editLoading, setEditLoading] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+  if (session && !["admin","ceo","accountant"].includes(session.user?.role||"")) {
+    return <div className="p-6 text-center text-gray-500"><p className="text-4xl mb-2">&#x1F512;</p><p className="font-medium">Access Restricted</p></div>;
+  }
+
   const canManage = ["admin", "ceo"].includes(session?.user?.role||"");
   const list: any[] = Array.isArray(accounts) ? accounts : [];
 

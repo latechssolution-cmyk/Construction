@@ -82,6 +82,21 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   );
 }
 
+// Fail hard rather than silently signing sessions with a secret that is
+// checked into source control — anyone reading the code could otherwise
+// forge a valid admin session token.
+const authSecret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+if (!authSecret) {
+  throw new Error(
+    "AUTH_SECRET (or NEXTAUTH_SECRET) environment variable is not set. Refusing to start with an insecure default secret."
+  );
+}
+
+// Re-check role/active status against the DB at most this often, so a
+// deactivation or role change takes effect quickly without a DB round trip
+// on every single request.
+const SESSION_REVALIDATE_MS = 60_000;
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   session: { strategy: "jwt" },
@@ -92,57 +107,54 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers,
   callbacks: {
     async jwt({ token, user, account }) {
+      const now = Date.now();
+
       if (user) {
         token.id = user.id;
         token.role = (user as any).role;
-        // Store passwordChangedAt so we can invalidate stale sessions (Issue #89)
-        token.passwordChangedAt = (user as any).passwordChangedAt || null;
+        token.roleCheckedAt = now;
       }
 
-      // Issue #89: Invalidate token if password was changed after it was issued
-      if (token.passwordChangedAt && token.iat) {
-        const changedAtMs = new Date(token.passwordChangedAt as string).getTime();
-        const issuedAtMs = (token.iat as number) * 1000;
-        if (issuedAtMs < changedAtMs) {
-          // Token issued before password change — force re-authentication
-          return {} as any;
-        }
-      }
-
-      // For OAuth sign-ins, fetch role from DB
       if (account && account.type !== "credentials" && token.email) {
         await connectDB();
         const dbUser = await User.findOne({ email: token.email });
-        if (dbUser) {
-          if (!dbUser.isActive) {
-            // Deactivated account — block access
-            (token as any).blocked = true;
-            token.role = null;
-            return token;
-          }
+        if (dbUser && dbUser.isActive) {
           token.id = dbUser._id.toString();
           token.role = dbUser.role;
-          token.passwordChangedAt = dbUser.passwordChangedAt?.toISOString() || null;
+          token.roleCheckedAt = now;
         } else {
-          // Issue #59: New OAuth user not in DB — block until admin creates their account
-          (token as any).blocked = true;
-          token.role = null;
+          delete token.id;
+          delete token.role;
         }
       }
+
+      if (token.id) {
+        const checkedAt = typeof token.roleCheckedAt === "number" ? token.roleCheckedAt : 0;
+        if (now - checkedAt > SESSION_REVALIDATE_MS) {
+          await connectDB();
+          const dbUser = await User.findById(token.id as string, { role: 1, isActive: 1 });
+          if (dbUser && dbUser.isActive) {
+            token.role = dbUser.role;
+            token.roleCheckedAt = now;
+          } else {
+            delete token.id;
+            delete token.role;
+          }
+        }
+      }
+
 
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as string;
-        session.user.blocked = (token as any).blocked || false;
+        session.user.id = (token.id as string) || "";
+        session.user.role = (token.role as string) || "";
       }
       return session;
     },
   },
-  // Issue #58: No hardcoded fallback — secret must be set via environment variable
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  secret: authSecret,
 });
 
 // Augment NextAuth types

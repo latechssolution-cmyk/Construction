@@ -50,7 +50,12 @@ export default function DocumentsPage() {
         // Get signature from server (fast — no file data sent)
         const signRes = await fetch("/api/upload");
         if (!signRes.ok) { toast({ title: "Error", description: "Could not get upload token", variant: "destructive" }); return; }
-        const { signature, timestamp, apiKey, cloudName, folder } = await signRes.json();
+        const { signature, timestamp, apiKey, cloudName, folder, maxFileSize } = await signRes.json();
+
+        if (maxFileSize && file.size > maxFileSize) {
+          toast({ title: "Error", description: `File is too large (max ${Math.round(maxFileSize / 1024 / 1024)}MB)`, variant: "destructive" });
+          return;
+        }
 
         // Upload directly from browser to Cloudinary (bypasses Netlify timeout)
         const fd = new FormData();
@@ -58,6 +63,7 @@ export default function DocumentsPage() {
         fd.append("api_key", apiKey);
         fd.append("timestamp", timestamp);
         fd.append("folder", folder);
+        fd.append("max_file_size", String(maxFileSize));
         fd.append("signature", signature);
 
         const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: fd });

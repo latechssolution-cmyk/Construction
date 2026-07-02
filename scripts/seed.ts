@@ -31,7 +31,7 @@ async function seed() {
     "projects","projectphases","milestones","tasks","projectemployees",
     "projectequipments","equipmentmaintenances","materials","materialusages",
     "invoices","ledgerentries","contracts","documents","attendances",
-    "notifications","auditlogs","payments",
+    "notifications","auditlogs","counters",
   ];
   for (const c of cols) {
     try { await db.collection(c).deleteMany({}); } catch {}

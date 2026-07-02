@@ -68,6 +68,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await connectDB();
     const existing = await Project.findById(id, { assignedManagerId: 1 });
     if (!existing) throw new ApiError(404, "Project not found");
+    const currentManagerId = existing.assignedManagerId?.toString() || null;
     if (session.user.role === "manager" && existing.assignedManagerId?.toString() !== session.user.id) {
       throw new ApiError(403, "You can only edit your assigned projects");
     }
@@ -82,7 +83,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.startDate !== undefined) update.startDate = data.startDate ? new Date(data.startDate) : null;
     if (data.endDate !== undefined) update.endDate = data.endDate ? new Date(data.endDate) : null;
     if (data.clientId !== undefined) update.clientId = toId(data.clientId);
-    if (data.assignedManagerId !== undefined) update.assignedManagerId = toId(data.assignedManagerId);
+    // Reassigning a project to a different manager is an admin/ceo decision
+    // — a manager reassigning their own project could hand it off (or dump
+    // it) without oversight otherwise. The project edit form always submits
+    // the full object, so only gate this when the value actually changes.
+    if (data.assignedManagerId !== undefined) {
+      const newManagerId = toId(data.assignedManagerId);
+      if (newManagerId !== currentManagerId) {
+        requireRole(session, "admin", "ceo");
+      }
+      update.assignedManagerId = newManagerId;
+    }
     if (data.contractId !== undefined) update.contractId = toId(data.contractId);
     if (data.type !== undefined) update.type = data.type;
     const project = await Project.findByIdAndUpdate(id, update, { new: true });

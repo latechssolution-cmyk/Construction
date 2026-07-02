@@ -17,10 +17,15 @@ export async function GET() {
 
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const folder = "construction-erp";
-    const signatureStr = `folder=${folder}&timestamp=${timestamp}${apiSecret}`;
+    // max_file_size is a signed Cloudinary upload param — including it here
+    // (and in the actual upload request) makes Cloudinary itself reject
+    // oversized uploads, instead of only enforcing the 50MB limit the UI
+    // *claims* but a direct API call could previously ignore entirely.
+    const maxFileSize = 50 * 1024 * 1024;
+    const signatureStr = `folder=${folder}&max_file_size=${maxFileSize}&timestamp=${timestamp}${apiSecret}`;
     const signature = crypto.createHash("sha1").update(signatureStr).digest("hex");
 
-    return NextResponse.json({ signature, timestamp, apiKey, cloudName, folder });
+    return NextResponse.json({ signature, timestamp, apiKey, cloudName, folder, maxFileSize });
   } catch (e) {
     return handleApiError(e);
   }

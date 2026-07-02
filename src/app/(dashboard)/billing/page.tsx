@@ -78,6 +78,12 @@ export default function BillingPage() {
     if (!res.ok) { const e = await res.json(); toast({ title: "Error", description: e.error || "Failed", variant: "destructive" }); return; }
     mutate(); mutateStats();
   }
+  async function cancelInvoice(id: string) {
+    const res = await fetch("/api/invoices/"+id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"cancelled"})});
+    if (!res.ok) { const e = await res.json(); toast({ title: "Error", description: e.error || "Failed", variant: "destructive" }); return; }
+    toast({ title: "Invoice cancelled" });
+    mutate(); mutateStats();
+  }
 
   // True totals come from a server-side aggregate over *all* invoices, not
   // just the capped 200-row list — otherwise these cards silently drift
@@ -207,6 +213,11 @@ export default function BillingPage() {
                         {canManage && ["sent","overdue"].includes(inv.status) && (
                           <button onClick={()=>{setPaidModal(inv);setPaidBankId("");}} className="text-xs text-green-600 hover:underline font-medium">Mark Paid</button>
                         )}
+                        {canManage && ["draft","sent"].includes(inv.status) && (
+                          <ConfirmDialog title="Cancel Invoice?" message={"Cancel invoice "+inv.invoiceNumber+"? This cannot be undone."} confirmLabel="Cancel Invoice" confirmClass="bg-red-600 hover:bg-red-700 text-white" onConfirm={()=>cancelInvoice(inv.id)}>
+                            {open=><button onClick={open} className="text-xs text-red-500 hover:underline">Cancel</button>}
+                          </ConfirmDialog>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -241,6 +252,11 @@ export default function BillingPage() {
                   )}
                   {canManage && ["sent","overdue"].includes(inv.status) && (
                     <button onClick={()=>{setPaidModal(inv);setPaidBankId("");}} className="text-xs text-green-600 hover:underline font-medium">Mark Paid</button>
+                  )}
+                  {canManage && ["draft","sent"].includes(inv.status) && (
+                    <ConfirmDialog title="Cancel Invoice?" message={"Cancel invoice "+inv.invoiceNumber+"? This cannot be undone."} confirmLabel="Cancel Invoice" confirmClass="bg-red-600 hover:bg-red-700 text-white" onConfirm={()=>cancelInvoice(inv.id)}>
+                      {open=><button onClick={open} className="text-xs text-red-500 hover:underline">Cancel</button>}
+                    </ConfirmDialog>
                   )}
                 </div>
               </div>

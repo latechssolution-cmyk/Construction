@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, created, ApiError, toId } from "@/lib/api-helpers";
+import { auditLog } from "@/lib/audit";
 import { notifyAdminsAndManagers } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
 import { withTransaction } from "@/lib/db-transaction";
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
         "warning"
       );
     }
+    void auditLog(session.user.id, "CREATE", "MaterialUsage", usage.id, `Used ${qty} ${material.unit} of ${material.itemName}`);
     return created(usage);
   } catch (e) {
     return handleApiError(e);

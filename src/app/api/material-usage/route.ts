@@ -2,10 +2,9 @@ import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, created, ApiError, toId } from "@/lib/api-helpers";
 import { notifyAdminsAndManagers } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
+import { withTransaction } from "@/lib/db-transaction";
 import Material from "@/models/Material";
 import MaterialUsage from "@/models/MaterialUsage";
-import LedgerEntry from "@/models/LedgerEntry";
-import mongoose from "mongoose";
 
 export async function GET(req: NextRequest) {
   try {
@@ -36,57 +35,31 @@ export async function POST(req: NextRequest) {
     if (!material) throw new ApiError(404, "Material not found");
     const qty = parseFloat(data.quantityUsed);
     if (qty <= 0) throw new ApiError(400, "quantityUsed must be greater than 0");
-    const dbSession = await mongoose.startSession();
-    let usage: any;
-    try {
-      await dbSession.withTransaction(async () => {
-        // Atomic check-and-decrement inside the transaction prevents race conditions
-        const updated = await Material.findOneAndUpdate(
-          { _id: data.materialId, stockQuantity: { $gte: qty } },
-          { $inc: { stockQuantity: -qty } },
-          { session: dbSession, new: false }
-        );
-        if (!updated) {
-          const current = await Material.findById(data.materialId, { stockQuantity: 1, unit: 1 }, { session: dbSession });
-          throw new ApiError(400, `Insufficient stock. Available: ${current?.stockQuantity ?? 0} ${material.unit}`);
-        }
-        
-        const destProjectId = toId(data.projectId) || material.projectId;
 
-        [usage] = await MaterialUsage.create([{
-          materialId: data.materialId,
-          projectId: destProjectId,
-          quantityUsed: qty,
-          date: data.date ? new Date(data.date) : new Date(),
-          purpose: data.purpose || null,
-          notes: data.notes || null,
-          usedById: session.user.id,
-        }], { session: dbSession });
+    const usage = await withTransaction(async (dbSession) => {
+      const updated = await Material.findOneAndUpdate(
+        { _id: data.materialId, stockQuantity: { $gte: qty } },
+        { $inc: { stockQuantity: -qty } },
+        { session: dbSession, new: false }
+      );
+      if (!updated) {
+        const current = await Material.findById(data.materialId, { stockQuantity: 1, unit: 1 }, { session: dbSession });
+        throw new ApiError(400, `Insufficient stock. Available: ${current?.stockQuantity ?? 0} ${material.unit}`);
+      }
+      const destProjectId = toId(data.projectId) || material.projectId;
+      const [createdUsage] = await MaterialUsage.create([{
+        materialId: data.materialId,
+        projectId: destProjectId,
+        quantityUsed: qty,
+        date: data.date ? new Date(data.date) : new Date(),
+        purpose: data.purpose || null,
+        notes: data.notes || null,
+        usedById: session.user.id,
+      }], { session: dbSession });
+      return createdUsage;
+    });
 
-        const cost = qty * material.unitPrice;
-        await LedgerEntry.create([{
-          date: data.date ? new Date(data.date) : new Date(),
-          type: "expense",
-          amount: cost,
-          category: "material_usage",
-          description: `Usage of ${qty} ${material.unit} of ${material.itemName}`,
-          projectId: destProjectId,
-          createdById: session.user.id,
-          referenceNumber: usage._id?.toString() || usage.id,
-        }, {
-          date: data.date ? new Date(data.date) : new Date(),
-          type: "income",
-          amount: cost,
-          category: "inventory_asset",
-          description: `Inventory offset: Consumption of ${qty} ${material.unit} of ${material.itemName}`,
-          projectId: material.projectId,
-          createdById: session.user.id,
-          referenceNumber: usage._id?.toString() || usage.id,
-        }], { session: dbSession });
-      });
-    } finally {
-      await dbSession.endSession();
-    }
+
     const updated = await Material.findById(data.materialId);
     if (updated && updated.stockQuantity <= updated.minStockLevel) {
       await notifyAdminsAndManagers(

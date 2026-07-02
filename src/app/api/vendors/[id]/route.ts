@@ -32,8 +32,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await connectDB();
     const vendor = await Vendor.findById(id);
     if (!vendor) throw new ApiError(404, "Vendor not found");
-    const fields = ["name","category","contactPerson","phone","email","isActive","notes","bankAccount","taxId"] as const;
+    const fields = ["name","category","contactPerson","phone","email","notes","bankAccount","taxId"] as const;
     fields.forEach((f) => { if (data[f] !== undefined) (vendor as any)[f] = data[f]; });
+    // Activation/deactivation is admin/ceo only — matches the DELETE route's
+    // role requirement instead of letting a manager flip it via PUT.
+    if (data.isActive !== undefined) {
+      requireRole(session, "admin", "ceo");
+      vendor.isActive = data.isActive;
+    }
     await vendor.save();
     await auditLog(session.user.id, "UPDATE", "Vendor", id, `Updated vendor: ${vendor.name}`);
     return ok(vendor);

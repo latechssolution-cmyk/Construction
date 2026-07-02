@@ -21,6 +21,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 }
 
+// Managers may only touch tasks that live inside a project assigned to them —
+// admins/ceo can touch any task, everyone else can only update their own
+// assigned tasks (status/notes) via the branch below.
+async function assertManagerOwnsTask(session: { user: { id: string; role: string } }, task: { projectId?: any }) {
+  if (session.user.role !== "manager" || !task.projectId) return;
+  const project = await Project.findById(task.projectId, { assignedManagerId: 1 });
+  if (project?.assignedManagerId?.toString() !== session.user.id) {
+    throw new ApiError(403, "You can only manage tasks in your assigned projects");
+  }
+}
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAuth();
@@ -40,6 +51,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       if (taskExist.assignedToId?.toString() !== session.user.id) throw new ApiError(403, "You can only update tasks assigned to you");
       const allowedKeys = ["status", "notes"];
       if (Object.keys(data).some((k) => !allowedKeys.includes(k))) throw new ApiError(403, "Insufficient permissions to modify task details");
+    } else {
+      const existingTask = await Task.findById(id, { projectId: 1 });
+      if (!existingTask) throw new ApiError(404, "Task not found");
+      await assertManagerOwnsTask(session, existingTask);
     }
 
     const update: any = {};
@@ -53,21 +68,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.estimatedHours !== undefined) { const parsedHours = parseFloat(data.estimatedHours); if (!isNaN(parsedHours)) update.estimatedHours = parsedHours; }
     if (data.notes !== undefined) update.notes = data.notes;
     if (data.weight !== undefined) { const parsedWeight = parseFloat(data.weight); if (!isNaN(parsedWeight)) update.weight = parsedWeight; }
-    if (data.status !== undefined) {
-      update.completedAt = data.status === "completed" ? new Date() : null;
-    }
+    if (data.status === "completed") update.completedAt = new Date();
+    else if (data.status !== undefined) update.completedAt = null;
 
     const task = await Task.findByIdAndUpdate(id, update, { new: true }).populate("assignedTo", "name");
     if (!task) throw new ApiError(404, "Task not found");
     await auditLog(session.user.id, "UPDATE", "Task", id, `Updated task: ${task.title} → ${task.status}`);
 
-    if ((data.status !== undefined || data.weight !== undefined) && task.projectId) {
-      const allTasks = await Task.find({ projectId: task.projectId }, { status: 1, weight: 1 });
-      const totalWeight = allTasks.reduce((sum, t) => sum + (t.weight || 1), 0);
-      const completedWeight = allTasks.filter(t => t.status === "completed").reduce((sum, t) => sum + (t.weight || 1), 0);
-      const pct = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
-      await Project.findByIdAndUpdate(task.projectId, { completionPercent: pct });
-    }
+    // Project.completionPercent is intentionally NOT recomputed here — it's
+    // a manually-tracked figure the project owner adjusts directly (see the
+    // slider on the project detail page). Task-based progress is already
+    // surfaced separately as "taskProgress" via /api/projects/[id]/summary;
+    // overwriting completionPercent from it here silently clobbered manual
+    // updates every time any task's status changed.
     return ok(task);
   } catch (e) {
     return handleApiError(e);
@@ -80,22 +93,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     requireRole(session, "admin", "ceo", "manager");
     const { id } = await params;
     await connectDB();
-    const task = await Task.findById(id);
-    if (!task) throw new ApiError(404, "Task not found");
-    if (session.user.role === "manager") {
-      const project = await Project.findById(task.projectId, { assignedManagerId: 1 });
-      if (project && project.assignedManagerId?.toString() !== session.user.id) {
-        throw new ApiError(403, "You can only manage tasks on your assigned projects");
-      }
-    }
-    await Task.findByIdAndDelete(id);
-    if (task?.projectId) {
-      const allTasks = await Task.find({ projectId: task.projectId }, { status: 1, weight: 1 });
-      const totalWeight = allTasks.reduce((sum, t) => sum + (t.weight || 1), 0);
-      const completedWeight = allTasks.filter(t => t.status === "completed").reduce((sum, t) => sum + (t.weight || 1), 0);
-      const pct = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
-      await Project.findByIdAndUpdate(task.projectId, { completionPercent: pct });
-    }
+    const existingTask = await Task.findById(id, { projectId: 1 });
+    if (!existingTask) throw new ApiError(404, "Task not found");
+    await assertManagerOwnsTask(session, existingTask);
+    const task = await Task.findByIdAndDelete(id);
     await auditLog(session.user.id, "DELETE", "Task", id, "Deleted task");
     return ok({ success: true });
   } catch (e) {

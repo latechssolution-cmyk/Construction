@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created, ApiError } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, assertManagerOwnsProject } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Task from "@/models/Task";
@@ -7,9 +7,10 @@ import Project from "@/models/Project";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const { id } = await params;
     await connectDB();
+    assertManagerOwnsProject(session, await Project.findById(id, { assignedManagerId: 1 }));
     const tasks = await Task.find({ projectId: id })
       .populate("assignedTo", "id name")
       .populate("phase", "id name")
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const data = await req.json();
     if (!data.title) throw new Error("Task title is required");
     await connectDB();
-    if (!await Project.exists({ _id: id })) throw new ApiError(404, "Project not found");
+    assertManagerOwnsProject(session, await Project.findById(id, { assignedManagerId: 1 }));
     const task = await Task.create({
       title: data.title,
       description: data.description || null,

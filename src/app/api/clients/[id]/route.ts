@@ -34,8 +34,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await connectDB();
     const client = await Client.findById(id);
     if (!client) throw new ApiError(404, "Client not found");
-    const fields = ["name","contactPerson","phone","email","address","isActive","notes","cnicOrCompanyReg","taxId"] as const;
+    const fields = ["name","contactPerson","phone","email","address","notes","cnicOrCompanyReg","taxId"] as const;
     fields.forEach((f) => { if (data[f] !== undefined) (client as any)[f] = data[f]; });
+    // isActive is only settable by admin/ceo, and only through the same
+    // "no active projects/contracts" guard DELETE enforces — otherwise a
+    // manager could deactivate a client with live projects via this route.
+    if (data.isActive !== undefined && data.isActive !== client.isActive) {
+      requireRole(session, "admin", "ceo");
+      if (data.isActive === false) {
+        const [activeProjects, activeContracts] = await Promise.all([
+          Project.countDocuments({ clientId: id, status: { $in: ["planning", "in_progress", "on_hold"] } }),
+          Contract.countDocuments({ clientId: id, status: { $in: ["draft", "active", "on_hold"] } }),
+        ]);
+        if (activeProjects > 0) throw new ApiError(400, `Cannot deactivate client: ${activeProjects} active project(s) still linked. Complete or cancel those projects first.`);
+        if (activeContracts > 0) throw new ApiError(400, `Cannot deactivate client: ${activeContracts} active contract(s) still linked. Terminate those contracts first.`);
+      }
+      client.isActive = data.isActive;
+    }
     await client.save();
     await auditLog(session.user.id, "UPDATE", "Client", id, `Updated client: ${client.name}`);
     return ok(client);

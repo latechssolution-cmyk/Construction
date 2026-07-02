@@ -34,8 +34,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await connectDB();
     const employee = await Employee.findById(id);
     if (!employee) throw new ApiError(404, "Employee not found");
-    const fields = ["name","role","department","phone","email","isActive","bankAccount","emergencyContact","notes","cnic","address","joiningDate"] as const;
+    const fields = ["name","role","department","phone","email","bankAccount","emergencyContact","notes","cnic","address","joiningDate"] as const;
     fields.forEach((f) => { if (data[f] !== undefined) (employee as any)[f] = data[f]; });
+    // Activation/deactivation is admin-only — matches the DELETE route's
+    // role requirement instead of letting a manager flip it via PUT.
+    if (data.isActive !== undefined) {
+      requireRole(session, "admin");
+      employee.isActive = data.isActive;
+    }
     if (data.salary !== undefined) { const parsedSalary = parseFloat(data.salary); if (!isNaN(parsedSalary)) employee.salary = parsedSalary; }
     if (data.salaryType !== undefined) employee.salaryType = data.salaryType;
     await employee.save();

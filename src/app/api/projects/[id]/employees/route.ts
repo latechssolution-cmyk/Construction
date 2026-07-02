@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created, ApiError } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, ApiError, assertManagerOwnsProject } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Project from "@/models/Project";
@@ -8,18 +8,16 @@ import ProjectEmployee from "@/models/ProjectEmployee";
 
 async function assertProjectAccess(session: { user: { id: string; role: string } }, projectId: string) {
   const project = await Project.findById(projectId, { assignedManagerId: 1, name: 1 });
-  if (!project) throw new ApiError(404, "Project not found");
-  if (session.user.role === "manager" && project.assignedManagerId?.toString() !== session.user.id) {
-    throw new ApiError(403, "You can only manage your assigned projects");
-  }
-  return project;
+  assertManagerOwnsProject(session, project);
+  return project!;
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const { id } = await params;
     await connectDB();
+    assertManagerOwnsProject(session, await Project.findById(id, { assignedManagerId: 1 }));
     const assignments = await ProjectEmployee.find({ projectId: id }).populate("employee").sort({ startDate: -1 });
     return ok(assignments);
   } catch (e) {

@@ -29,15 +29,16 @@ const nextConfig: NextConfig = {
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
         ],
       },
-      // Cache dashboard API responses for 30 seconds (private — user-specific)
+      // No HTTP-level caching on API responses. These endpoints were
+      // previously cached for 10-30s via Cache-Control — but SWR's mutate()
+      // (called after every create/update/delete) triggers a `fetch()` to
+      // the same URL expecting a fresh network response, and the browser's
+      // HTTP cache would silently serve the pre-edit cached response instead
+      // for up to that window. Client-side caching/deduping is already
+      // handled by SWR's own dedupingInterval, so no HTTP cache is needed.
       {
-        source: "/api/dashboard/:path*",
-        headers: [{ key: "Cache-Control", value: "private, max-age=30, stale-while-revalidate=60" }],
-      },
-      // Light cache for list endpoints — 10 s avoids duplicate requests on tab focus
-      {
-        source: "/api/(projects|clients|employees|vendors|materials|invoices)",
-        headers: [{ key: "Cache-Control", value: "private, max-age=10, stale-while-revalidate=30" }],
+        source: "/api/:path*",
+        headers: [{ key: "Cache-Control", value: "private, no-store" }],
       },
     ];
   },

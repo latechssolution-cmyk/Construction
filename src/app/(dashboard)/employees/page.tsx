@@ -25,8 +25,8 @@ export default function EmployeesPage() {
 
   const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
   const canPaySalary = ["admin", "ceo", "accountant"].includes(session?.user?.role || "");
-  const list: any[] = employees?.data ? employees.data : (Array.isArray(employees) ? employees : []);
-  const filtered = list.filter((e: any) =>
+  const canDeactivate = session?.user?.role === "admin";
+  const filtered = (Array.isArray(employees) ? employees : []).filter((e: any) =>
     e.name?.toLowerCase().includes(search.toLowerCase()) || e.role?.toLowerCase().includes(search.toLowerCase()) || e.department?.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -147,10 +147,10 @@ export default function EmployeesPage() {
                     <td className="py-3 px-4 text-gray-500 whitespace-nowrap">{emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString() : "—"}</td>
                     <td className="py-3 px-4"><span className={`text-xs px-2 py-0.5 rounded-full ${emp.isActive !== false ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>{emp.isActive !== false ? "Active" : "Inactive"}</span></td>
                     <td className="py-3 px-4">
-                      {(canManage || canPaySalary) && emp.isActive !== false && (
+                      {(canDeactivate || canPaySalary) && emp.isActive !== false && (
                         <div className="flex items-center gap-3">
                           {canPaySalary && <button onClick={() => openSalaryModal(emp)} className="text-xs text-blue-600 hover:underline font-medium">Pay Salary</button>}
-                          {canManage && <button onClick={() => deactivate(emp.id)} className="text-xs text-red-500 hover:underline">Deactivate</button>}
+                          {canDeactivate && <button onClick={() => deactivate(emp.id)} className="text-xs text-red-500 hover:underline">Deactivate</button>}
                         </div>
                       )}
                     </td>

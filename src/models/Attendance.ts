@@ -43,7 +43,20 @@ attendanceSchema.virtual("employee", {
   justOne: true,
 });
 
-attendanceSchema.index({ employeeId: 1, date: -1 });
+// Normalize to midnight so "one record per employee per calendar day" can be
+// enforced by a real unique index — without this, two records for the same
+// employee/day but different times-of-day would both pass a naive unique
+// index on the raw Date value.
+attendanceSchema.pre("save", function (next) {
+  if (this.isModified("date") && this.date) {
+    const d = new Date(this.date);
+    d.setHours(0, 0, 0, 0);
+    this.date = d;
+  }
+  next();
+});
+
+attendanceSchema.index({ employeeId: 1, date: 1 }, { unique: true });
 attendanceSchema.index({ projectId: 1, date: -1 });
 
 const Attendance: Model<IAttendance> =

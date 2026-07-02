@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, ApiError } from "@/lib/api-helpers";
+import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import { auditLog } from "@/lib/audit";
 import Milestone from "@/models/Milestone";
@@ -27,7 +28,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       milestone.completedAt = data.completed ? (milestone.completedAt ?? new Date()) : null;
     }
     await milestone.save();
-    await auditLog(session.user.id, "UPDATE", "Milestone", id, `Updated milestone: ${milestone.name}`);
+    void auditLog(session.user.id, "UPDATE", "Milestone", id, `Updated milestone: ${milestone.name}`);
     return ok(milestone);
   } catch (e) {
     return handleApiError(e);
@@ -40,16 +41,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     requireRole(session, "admin", "ceo", "manager");
     const { id } = await params;
     await connectDB();
-    const milestone = await Milestone.findById(id);
-    if (!milestone) throw new ApiError(404, "Milestone not found");
-    if (session.user.role === "manager") {
-      const project = await Project.findById(milestone.projectId, { assignedManagerId: 1 });
-      if (project && project.assignedManagerId?.toString() !== session.user.id) {
-        throw new ApiError(403, "You can only manage milestones on your assigned projects");
-      }
-    }
-    await Milestone.findByIdAndDelete(id);
-    await auditLog(session.user.id, "DELETE", "Milestone", id, `Deleted milestone: ${milestone.name}`);
+    const milestone = await Milestone.findByIdAndDelete(id);
+    void auditLog(session.user.id, "DELETE", "Milestone", id, `Deleted milestone: ${milestone?.name}`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

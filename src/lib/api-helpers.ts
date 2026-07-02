@@ -19,6 +19,22 @@ export function requireRole(session: AuthSession, ...roles: string[]): void {
   }
 }
 
+// A manager may only touch data that hangs off a project assigned to them.
+// Several project sub-resource routes (summary/stock/report/phases/
+// milestones/tasks/employees) fetch a project without this check, letting
+// a manager read or edit another manager's project via those endpoints even
+// though the main project detail route already enforces it.
+export function assertManagerOwnsProject<T extends { assignedManagerId?: { toString(): string } | null } | null>(
+  session: AuthSession,
+  project: T,
+  notFoundMessage = "Project not found"
+): asserts project is NonNullable<T> {
+  if (!project) throw new ApiError(404, notFoundMessage);
+  if (session.user.role === "manager" && project.assignedManagerId?.toString() !== session.user.id) {
+    throw new ApiError(403, "You can only access your assigned projects");
+  }
+}
+
 export class ApiError extends Error {
   constructor(public statusCode: number, message: string) {
     super(message);

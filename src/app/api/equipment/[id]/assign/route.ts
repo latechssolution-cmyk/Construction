@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, created, ApiError } from "@/lib/api-helpers";
-import { connectDB } from "@/lib/mongoose";
 import { auditLog } from "@/lib/audit";
+import { connectDB } from "@/lib/mongoose";
 import Equipment from "@/models/Equipment";
 import ProjectEquipment from "@/models/ProjectEquipment";
 
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       notes: data.notes || null,
     });
     await Equipment.findByIdAndUpdate(id, { status: "in_use" });
-    await auditLog(session.user.id, "CREATE", "ProjectEquipment", assignment.id, `Assigned machinery "${equipment.name}" to project ID: ${data.projectId}`);
+    void auditLog(session.user.id, "CREATE", "ProjectEquipment", assignment.id, `Assigned ${equipment.name} to project ${data.projectId}`);
     return created(assignment);
   } catch (e) {
     return handleApiError(e);
@@ -39,8 +39,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     await connectDB();
     await ProjectEquipment.updateMany({ equipmentId: id, returnedAt: null }, { returnedAt: new Date() });
-    const eq = await Equipment.findByIdAndUpdate(id, { status: "available" }, { new: true });
-    await auditLog(session.user.id, "DELETE", "ProjectEquipment", id, `Returned machinery "${eq?.name || id}" to available pool`);
+    await Equipment.findByIdAndUpdate(id, { status: "available" });
+    void auditLog(session.user.id, "UPDATE", "Equipment", id, "Returned equipment from project");
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

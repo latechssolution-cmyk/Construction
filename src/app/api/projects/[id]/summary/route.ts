@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, handleApiError, ok, ApiError } from "@/lib/api-helpers";
+import { requireAuth, handleApiError, ok, assertManagerOwnsProject } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/mongoose";
 import Project from "@/models/Project";
 import Task from "@/models/Task";
@@ -9,11 +9,11 @@ import LedgerEntry from "@/models/LedgerEntry";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const { id } = await params;
     await connectDB();
-    const project = await Project.findById(id, { budget: 1, name: 1 });
-    if (!project) throw new ApiError(404, "Project not found");
+    const project = await Project.findById(id, { budget: 1, name: 1, assignedManagerId: 1 });
+    assertManagerOwnsProject(session, project);
 
     const [tasks, milestones, materials, incomeAgg, expenseAgg] = await Promise.all([
       Task.find({ projectId: id }, { status: 1, weight: 1 }),

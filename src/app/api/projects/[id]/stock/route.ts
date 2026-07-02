@@ -1,17 +1,17 @@
 import { NextRequest } from "next/server";
-import { requireAuth, handleApiError, ok } from "@/lib/api-helpers";
+import { requireAuth, handleApiError, ok, assertManagerOwnsProject } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/mongoose";
+import Project from "@/models/Project";
 import Material from "@/models/Material";
 import MaterialUsage from "@/models/MaterialUsage";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const { id } = await params;
     await connectDB();
-    
-    // Get all materials purchased directly for this project
-    const purchased = await Material.find({ projectId: id })
+    assertManagerOwnsProject(session, await Project.findById(id, { assignedManagerId: 1 }));
+    const materials = await Material.find({ projectId: id })
       .populate("vendor", "id name")
       .sort({ itemName: 1 });
 
@@ -25,7 +25,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     // Collect all materials involved (purchased + used from other projects)
     const materialMap = new Map<string, any>();
-    purchased.forEach((m) => {
+    materials.forEach((m) => {
       materialMap.set(m.id, { ...m.toJSON(), usageLogs: [] });
     });
 
@@ -52,9 +52,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     const summary = {
       total: result.length,
-      lowStock: purchased.filter((m) => m.stockQuantity <= m.minStockLevel).length,
-      outOfStock: purchased.filter((m) => m.stockQuantity === 0).length,
-      totalValue: purchased.reduce((s, m) => s + m.stockQuantity * m.unitPrice, 0),
+      lowStock: materials.filter((m) => m.stockQuantity <= m.minStockLevel).length,
+      outOfStock: materials.filter((m) => m.stockQuantity === 0).length,
+      totalValue: materials.reduce((s, m) => s + m.stockQuantity * m.unitPrice, 0),
     };
     return ok({ materials: result, summary });
   } catch (e) {

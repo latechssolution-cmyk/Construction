@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, ApiError } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import User from "@/models/User";
 import bcrypt from "bcryptjs";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function GET() {
   try {
@@ -45,10 +47,10 @@ export async function POST(req: NextRequest) {
     requireRole(session, "admin");
     const data = await req.json();
     if (!data.name || !data.email || !data.password) throw new Error("name, email and password are required");
-    // Issue #77: Enforce password strength — minimum 8 chars, 1 uppercase, 1 number
-    if (data.password.length < 8) throw new Error("Password must be at least 8 characters long");
-    if (!/[A-Z]/.test(data.password)) throw new Error("Password must contain at least one uppercase letter");
-    if (!/[0-9]/.test(data.password)) throw new Error("Password must contain at least one number");
+    if (!EMAIL_RE.test(data.email)) throw new ApiError(400, "Invalid email address");
+    if (data.password.length < 8) throw new ApiError(400, "Password must be at least 8 characters");
+    if (!/[A-Z]/.test(data.password)) throw new ApiError(400, "Password must contain at least one uppercase letter");
+    if (!/[0-9]/.test(data.password)) throw new ApiError(400, "Password must contain at least one number");
     await connectDB();
     const passwordHash = await bcrypt.hash(data.password, 12);
     const user = await User.create({

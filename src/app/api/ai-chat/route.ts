@@ -143,7 +143,6 @@ const MODEL_FALLBACKS = [
   "gemini-2.5-flash",
   "gemini-flash-lite-latest",
   "gemini-2.5-flash-lite",
-  "gemini-3.5-flash",
 ];
 
 async function sleep(ms: number) {

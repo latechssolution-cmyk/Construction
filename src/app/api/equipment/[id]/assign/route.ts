@@ -13,11 +13,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const data = await req.json();
     if (!data.projectId) throw new ApiError(400, "projectId is required");
     await connectDB();
-    const eq = await Equipment.findById(id);
-    if (!eq) throw new ApiError(404, "Equipment not found");
-    if (eq.status === "maintenance" || eq.status === "decommissioned") {
-      throw new ApiError(400, `Cannot assign equipment. Machinery status is currently "${eq.status}".`);
-    }
+    const equipment = await Equipment.findById(id, { status: 1, name: 1 });
+    if (!equipment) throw new ApiError(404, "Equipment not found");
+    if (equipment.status === "decommissioned") throw new ApiError(400, `${equipment.name} is decommissioned and cannot be assigned to a project`);
+    if (equipment.status === "maintenance") throw new ApiError(400, `${equipment.name} is under maintenance and cannot be assigned to a project until it's marked available`);
     await ProjectEquipment.updateMany({ equipmentId: id, returnedAt: null }, { returnedAt: new Date() });
     const assignment = await ProjectEquipment.create({
       equipmentId: id,
@@ -26,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       notes: data.notes || null,
     });
     await Equipment.findByIdAndUpdate(id, { status: "in_use" });
-    await auditLog(session.user.id, "CREATE", "ProjectEquipment", assignment.id, `Assigned machinery "${eq.name}" to project ID: ${data.projectId}`);
+    await auditLog(session.user.id, "CREATE", "ProjectEquipment", assignment.id, `Assigned machinery "${equipment.name}" to project ID: ${data.projectId}`);
     return created(assignment);
   } catch (e) {
     return handleApiError(e);

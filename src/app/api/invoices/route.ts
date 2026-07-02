@@ -110,7 +110,6 @@ export async function POST(req: NextRequest) {
     }
 
     const invoice = await Invoice.create({
-<<<<<<< HEAD
       invoiceNumber: data.invoiceNumber || (await nextInvoiceNumber()),
       clientId: toId(data.clientId),
       projectId: projId,

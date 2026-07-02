@@ -33,7 +33,6 @@ export async function POST(req: NextRequest) {
     if (!data.title || !data.clientId) throw new Error("Title and client are required");
     await connectDB();
     const contract = await Contract.create({
-<<<<<<< HEAD
       contractNumber: data.contractNumber || (await nextContractNumber()),
       title: data.title,
       scope: data.scope || null,

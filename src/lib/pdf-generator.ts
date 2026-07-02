@@ -77,16 +77,16 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
 
     drawTableHeaders(tableTop);
     let y = tableTop + 22;
+    const ITEMS_PAGE_BREAK_Y = 680;
 
     (inv.items || []).forEach((item: any, idx: number) => {
       doc.font("Helvetica").fontSize(9);
       const descH = doc.heightOfString(item.description || "", { width: colWidths[0] - 4 });
       const rowH = Math.max(22, descH + ROW_V_PAD * 2);
 
-      // Issue #98: Page overflow guard inside item loop
-      if (y + rowH > 730) {
+      if (y + rowH > ITEMS_PAGE_BREAK_Y) {
         doc.addPage();
-        y = 50; // reset y on the new page
+        y = 50;
         drawTableHeaders(y);
         y += 22;
       }
@@ -103,8 +103,7 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
       y += rowH;
     });
 
-    // Check if totals section fits, if not, push to next page
-    if (y + 160 > 750) {
+    if (y > 680) {
       doc.addPage();
       y = 50;
     }

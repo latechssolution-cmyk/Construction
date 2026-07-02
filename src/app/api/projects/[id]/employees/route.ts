@@ -1,48 +1,64 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created, ApiError, toId } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, ApiError } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
-import ProjectEmployee from "@/models/ProjectEmployee";
+import Project from "@/models/Project";
 import Employee from "@/models/Employee";
+import ProjectEmployee from "@/models/ProjectEmployee";
+
+async function assertProjectAccess(session: { user: { id: string; role: string } }, projectId: string) {
+  const project = await Project.findById(projectId, { assignedManagerId: 1, name: 1 });
+  if (!project) throw new ApiError(404, "Project not found");
+  if (session.user.role === "manager" && project.assignedManagerId?.toString() !== session.user.id) {
+    throw new ApiError(403, "You can only manage your assigned projects");
+  }
+  return project;
+}
+
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    await requireAuth();
+    const { id } = await params;
+    await connectDB();
+    const assignments = await ProjectEmployee.find({ projectId: id }).populate("employee").sort({ startDate: -1 });
+    return ok(assignments);
+  } catch (e) {
+    return handleApiError(e);
+  }
+}
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAuth();
     requireRole(session, "admin", "ceo", "manager");
-    const { id: projectId } = await params;
+    const { id } = await params;
     const data = await req.json();
     if (!data.employeeId) throw new ApiError(400, "employeeId is required");
     await connectDB();
+    const project = await assertProjectAccess(session, id);
 
-    const employee = await Employee.findById(data.employeeId);
+    const employee = await Employee.findById(data.employeeId, { name: 1, isActive: 1 });
     if (!employee) throw new ApiError(404, "Employee not found");
-    if (!employee.isActive) throw new ApiError(400, "Cannot assign deactivated employee to a project");
+    if (!employee.isActive) throw new ApiError(400, "Cannot assign a deactivated employee to a project");
 
-    let assignment = await ProjectEmployee.findOne({ projectId, employeeId: data.employeeId });
-    if (assignment) {
-      assignment.role = data.role || assignment.role;
-      assignment.startDate = data.startDate ? new Date(data.startDate) : assignment.startDate;
-      assignment.endDate = null; // Reactivate
-      await assignment.save();
+    const existing = await ProjectEmployee.findOne({ projectId: id, employeeId: data.employeeId });
+    let assignment;
+    if (existing) {
+      existing.role = data.role || existing.role;
+      existing.endDate = null;
+      existing.startDate = new Date();
+      await existing.save();
+      assignment = existing;
     } else {
       assignment = await ProjectEmployee.create({
-        projectId: toId(projectId),
-        employeeId: toId(data.employeeId),
+        projectId: id,
+        employeeId: data.employeeId,
         role: data.role || null,
-        startDate: data.startDate ? new Date(data.startDate) : new Date(),
-        endDate: null,
+        startDate: new Date(),
       });
     }
-
-    await assignment.populate("employee");
-    await auditLog(
-      session.user.id,
-      "CREATE",
-      "ProjectEmployee",
-      assignment.id,
-      `Assigned employee ${employee.name} to project`
-    );
-
+    await assignment.populate("employee", "id name role");
+    await auditLog(session.user.id, "CREATE", "ProjectEmployee", assignment.id, `Assigned ${employee.name} to project ${project.name}`);
     return created(assignment);
   } catch (e) {
     return handleApiError(e);
@@ -53,26 +69,20 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   try {
     const session = await requireAuth();
     requireRole(session, "admin", "ceo", "manager");
-    const { id: projectId } = await params;
+    const { id } = await params;
     const { searchParams } = new URL(req.url);
     const employeeId = searchParams.get("employeeId");
     if (!employeeId) throw new ApiError(400, "employeeId is required");
     await connectDB();
+    const project = await assertProjectAccess(session, id);
 
-    const assignment = await ProjectEmployee.findOne({ projectId, employeeId });
-    if (!assignment) throw new ApiError(404, "Assignment not found");
-    if (assignment.endDate) throw new ApiError(400, "Employee is already inactive on this project");
-    assignment.endDate = new Date();
-    await assignment.save();
-
-    await auditLog(
-      session.user.id,
-      "DELETE",
-      "ProjectEmployee",
-      assignment.id,
-      `Removed employee assignment from project`
+    const assignment = await ProjectEmployee.findOneAndUpdate(
+      { projectId: id, employeeId, endDate: null },
+      { endDate: new Date() },
+      { new: true }
     );
-
+    if (!assignment) throw new ApiError(404, "Active assignment not found");
+    await auditLog(session.user.id, "UPDATE", "ProjectEmployee", assignment.id, `Removed employee ${employeeId} from project ${project.name}`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

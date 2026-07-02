@@ -34,6 +34,7 @@ export default function AttendancePage() {
   const [month, setMonth] = useState(currentMonth());
   const { data: records, mutate, isLoading } = useSWR(`/api/attendance?month=${month}`, fetcher);
   const { data: employees } = useSWR("/api/employees", fetcher);
+  const { data: projects } = useSWR("/api/projects", fetcher);
 
   // Single-record add form
   const [showForm, setShowForm] = useState(false);
@@ -285,7 +286,11 @@ export default function AttendancePage() {
               {STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
             </select>
             <input type="number" min={0} step={0.5} value={form.hoursWorked} onChange={(e) => setForm({ ...form, hoursWorked: e.target.value })} placeholder={`Hours (default ${defaultHours(form.status || "present")})`} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-            <input type="text" value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Notes / reason (optional)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
+            <select value={form.projectId || ""} onChange={(e) => setForm({ ...form, projectId: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
+              <option value="">No project (general)</option>
+              {(Array.isArray(projects) ? projects : []).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <input type="text" value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Notes (optional)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
           </div>
           <div className="flex gap-2">
             <button type="submit" disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50 hover:bg-blue-700">{loading ? "Saving…" : "Save Record"}</button>

@@ -34,7 +34,7 @@ export async function GET() {
         { title: 1, dueDate: 1, projectId: 1, priority: 1 }
       ).populate("project", "name").sort({ dueDate: 1 }).limit(10).lean({ virtuals: true }),
       Milestone.find(
-        { projectId: { $in: projectIds }, completedAt: null, dueDate: { $lte: new Date(Date.now() + 30 * 86400000) } },
+        { projectId: { $in: projectIds }, completedAt: null, dueDate: { $lte: new Date(Date.now() + 30 * 86400000), $gte: now } },
         { name: 1, dueDate: 1, projectId: 1 }
       ).populate("project", "name").sort({ dueDate: 1 }).limit(10).lean({ virtuals: true }),
       // Filter low-stock in MongoDB — $expr compares two fields in same document

@@ -41,12 +41,27 @@ export function Header({ user, onMenuClick }: HeaderProps) {
 
   const [showNotifs, setShowNotifs] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const { data: notifData } = useSWR("/api/notifications", fetcher, { refreshInterval: 300000, dedupingInterval: 60000, revalidateOnFocus: false });
+  const { data: notifData, mutate: mutateNotifs } = useSWR("/api/notifications", fetcher, { refreshInterval: 300000, dedupingInterval: 60000, revalidateOnFocus: false });
   const allNotifs: any[] = (notifData?.notifications || []).filter((n: any) => !dismissed.has(n.id));
   const count = allNotifs.length;
 
-  function dismiss(id: string) { setDismissed(prev => new Set([...prev, id])); }
-  function dismissAll() { setDismissed(new Set(allNotifs.map((n: any) => n.id))); }
+  // Computed alerts (overdue tasks/invoices, low stock, upcoming milestones)
+  // are re-derived from live data on every fetch and have no DB row, so
+  // dismissing them is client-side only. Persisted notifications (budget
+  // alerts, etc.) have a real Notification document — dismiss marks it read
+  // server-side so it stays gone across refreshes/devices.
+  function dismiss(n: any) {
+    setDismissed(prev => new Set([...prev, n.id]));
+    if (n.persisted) {
+      fetch(`/api/notifications/${n.id}/read`, { method: "POST" }).then(() => mutateNotifs());
+    }
+  }
+  function dismissAll() {
+    setDismissed(new Set(allNotifs.map((n: any) => n.id)));
+    if (allNotifs.some((n) => n.persisted)) {
+      fetch("/api/notifications/read-all", { method: "POST" }).then(() => mutateNotifs());
+    }
+  }
 
   function goTo(href: string) { router.push(href); setShowNotifs(false); }
 
@@ -104,7 +119,7 @@ export function Header({ user, onMenuClick }: HeaderProps) {
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
                         <button onClick={() => goTo(n.href)} className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">View<ExternalLink className="w-2.5 h-2.5" /></button>
-                        <button onClick={() => dismiss(n.id)} className="text-xs text-gray-400 hover:text-gray-600">Dismiss</button>
+                        <button onClick={() => dismiss(n)} className="text-xs text-gray-400 hover:text-gray-600">Dismiss</button>
                       </div>
                     </div>
                   ))

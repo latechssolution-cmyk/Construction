@@ -161,6 +161,13 @@ export default function EquipmentPage() {
     mutate();
   }
 
+  async function markAvailable(id: string) {
+    const res = await fetch(`/api/equipment/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"available"})});
+    if(!res.ok){const e=await res.json().catch(()=>({}));toast({title:"Error",description:e.error||"Failed to update equipment",variant:"destructive"});return;}
+    mutate();
+    toast({title:"Marked available"});
+  }
+
   function openMaintModal(eq: any) {
     const today = new Date().toISOString().slice(0, 10);
     setMaintForm({ cost: "", description: "", date: today, condition: eq.condition || "good", bankAccountId: "", projectId: "" });

@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     const employees = await Employee.find({}).sort({ name: 1 }).skip(skip).limit(limit).lean({ virtuals: true });
     const ids = (employees as any[]).map((e: any) => e._id);
     const [assignments, attCounts] = await Promise.all([
-      ProjectEmployee.find({ employeeId: { $in: ids } }, { employeeId: 1, projectId: 1, role: 1, joinedAt: 1 })
+      ProjectEmployee.find({ employeeId: { $in: ids }, endDate: null }, { employeeId: 1, projectId: 1, role: 1, startDate: 1 })
         .populate("project", "id name status").lean({ virtuals: true }),
       Attendance.aggregate([{ $match: { employeeId: { $in: ids } } }, { $group: { _id: "$employeeId", count: { $sum: 1 } } }]),
     ]);

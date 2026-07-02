@@ -8,6 +8,15 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const session = await requireAuth();
     const { id } = await params;
     await connectDB();
+    if (id.startsWith("task-") || id.startsWith("inv-") || id.startsWith("stock-") || id.startsWith("mile-")) {
+      const DismissedAlert = (await import("@/models/DismissedAlert")).default;
+      await DismissedAlert.updateOne(
+        { userId: session.user.id, alertKey: id },
+        { $setOnInsert: { userId: session.user.id, alertKey: id } },
+        { upsert: true }
+      );
+      return ok({ success: true });
+    }
     const notification = await Notification.findById(id);
     if (!notification) throw new ApiError(404, "Notification not found");
     if (notification.userId?.toString() !== session.user.id) throw new ApiError(403, "Forbidden");

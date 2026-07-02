@@ -12,7 +12,8 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 export default function EmployeesPage() {
   const { data: session } = useSession();
   const { toast } = useToast();
-  const { data: employees, mutate, isLoading } = useSWR("/api/employees", fetcher);
+  const [page, setPage] = useState(1);
+  const { data: employees, mutate, isLoading } = useSWR(`/api/employees?page=${page}&limit=50`, fetcher);
   const { data: bankAccounts } = useSWR("/api/bank-accounts", fetcher);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>({});
@@ -24,7 +25,8 @@ export default function EmployeesPage() {
 
   const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
   const canPaySalary = ["admin", "ceo", "accountant"].includes(session?.user?.role || "");
-  const filtered = (Array.isArray(employees) ? employees : []).filter((e: any) =>
+  const list: any[] = employees?.data ? employees.data : (Array.isArray(employees) ? employees : []);
+  const filtered = list.filter((e: any) =>
     e.name?.toLowerCase().includes(search.toLowerCase()) || e.role?.toLowerCase().includes(search.toLowerCase()) || e.department?.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -186,6 +188,32 @@ export default function EmployeesPage() {
           </div>
         </>
       )}
+
+      {/* Pagination Controls */}
+      {employees?.pagination && employees.pagination.pages > 1 && (
+        <div className="flex items-center justify-between border-t border-gray-200 pt-4 mt-6">
+          <p className="text-sm text-gray-500">
+            Showing page <span className="font-medium text-gray-900">{employees.pagination.page}</span> of <span className="font-medium text-gray-900">{employees.pagination.pages}</span> ({employees.pagination.total} total)
+          </p>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setPage(p => Math.max(1, p - 1))} 
+              disabled={employees.pagination.page === 1}
+              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 disabled:opacity-50 hover:bg-gray-50"
+            >
+              Previous
+            </button>
+            <button 
+              onClick={() => setPage(p => p + 1)} 
+              disabled={employees.pagination.page >= employees.pagination.pages}
+              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 disabled:opacity-50 hover:bg-gray-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Pay Salary Modal */}
       {salaryModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

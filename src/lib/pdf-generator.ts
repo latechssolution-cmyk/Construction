@@ -22,11 +22,13 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    const appName = process.env.NEXT_PUBLIC_APP_NAME || "Construction LAtech";
+    // Issue #99: Remove hardcoded brand/company names — resolve dynamically
+    const appName = process.env.NEXT_PUBLIC_APP_NAME || "Construction Management ERP";
     const primaryColor = "#1d4ed8";
     const grayColor = "#6b7280";
     const lightGray = "#f3f4f6";
 
+    // Draw header band on page 1
     doc.rect(0, 0, doc.page.width, 100).fill(primaryColor);
     doc.fillColor("white").fontSize(24).font("Helvetica-Bold").text(appName, 50, 30);
     doc.fontSize(10).font("Helvetica").text("Construction Management Portal", 50, 60);
@@ -50,7 +52,6 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
     }
     if (inv.project?.name) {
       doc.font("Helvetica-Bold").fillColor("#111827").text("Project:", metaX, 160);
-      // Constrain project name to remaining page width so it never wraps into Status row
       doc.font("Helvetica").fillColor("#374151").text(
         inv.project.name,
         metaX + 80, 160,
@@ -60,29 +61,40 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
     doc.font("Helvetica-Bold").fillColor("#111827").text("Status:", metaX, 180);
     doc.font("Helvetica").fillColor("#374151").text(inv.status.toUpperCase(), metaX + 80, 180, { lineBreak: false });
 
-    // Wider description column so long names fit without awkward wrapping
+    // Table settings
     const tableTop = 220;
     const colWidths = [230, 55, 65, 85, 75];
     const colX = [50, 280, 335, 400, 485];
-    const ROW_V_PAD = 6; // vertical padding inside each row
+    const ROW_V_PAD = 6;
 
-    doc.rect(50, tableTop, 510, 22).fill(primaryColor);
-    ["Description", "Qty", "Unit", "Unit Price", "Total"].forEach((h, i) => {
-      doc.fillColor("white").font("Helvetica-Bold").fontSize(9)
-        .text(h, colX[i], tableTop + 6, { width: colWidths[i], align: i > 1 ? "right" : "left" });
-    });
+    const drawTableHeaders = (yPos: number) => {
+      doc.rect(50, yPos, 510, 22).fill(primaryColor);
+      ["Description", "Qty", "Unit", "Unit Price", "Total"].forEach((h, i) => {
+        doc.fillColor("white").font("Helvetica-Bold").fontSize(9)
+          .text(h, colX[i], yPos + 6, { width: colWidths[i], align: i > 1 ? "right" : "left" });
+      });
+    };
 
+    drawTableHeaders(tableTop);
     let y = tableTop + 22;
+
     (inv.items || []).forEach((item: any, idx: number) => {
-      // Calculate height needed for this description so nothing gets clipped
       doc.font("Helvetica").fontSize(9);
       const descH = doc.heightOfString(item.description || "", { width: colWidths[0] - 4 });
       const rowH = Math.max(22, descH + ROW_V_PAD * 2);
 
+      // Issue #98: Page overflow guard inside item loop
+      if (y + rowH > 730) {
+        doc.addPage();
+        y = 50; // reset y on the new page
+        drawTableHeaders(y);
+        y += 22;
+      }
+
       doc.rect(50, y, 510, rowH).fill(idx % 2 === 0 ? "white" : lightGray);
       doc.fillColor("#111827").font("Helvetica").fontSize(9);
       doc.text(item.description, colX[0], y + ROW_V_PAD, { width: colWidths[0] - 4 });
-      // Numeric columns vertically centred on first text line
+      
       const numY = y + ROW_V_PAD;
       doc.text(String(item.quantity), colX[1], numY, { width: colWidths[1], align: "right" });
       doc.text(item.unit || "—", colX[2], numY, { width: colWidths[2], align: "right" });
@@ -90,6 +102,12 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
       doc.text(`PKR ${(item.total || 0).toLocaleString()}`, colX[4], numY, { width: colWidths[4], align: "right" });
       y += rowH;
     });
+
+    // Check if totals section fits, if not, push to next page
+    if (y + 160 > 750) {
+      doc.addPage();
+      y = 50;
+    }
 
     doc.rect(50, y, 510, 1).fill(primaryColor);
     y += 10;
@@ -106,6 +124,19 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
       y += 20;
     }
 
+    // Deduct Retention & WHT if present in view logic
+    if ((inv.retentionPercent || 0) > 0) {
+      doc.text(`Retention (${inv.retentionPercent}%):`, totalsX, y + 5, { width: 100 })
+        .text(`PKR ${(inv.retentionAmount || 0).toLocaleString()}`, totalsX + 100, y + 5, { width: 110, align: "right" });
+      y += 20;
+    }
+
+    if ((inv.whtDeducted || 0) > 0) {
+      doc.text("WHT Deducted:", totalsX, y + 5, { width: 100 })
+        .text(`PKR ${(inv.whtDeducted || 0).toLocaleString()}`, totalsX + 100, y + 5, { width: 110, align: "right" });
+      y += 20;
+    }
+
     doc.rect(totalsX - 5, y, 220, 26).fill(primaryColor);
     doc.fillColor("white").font("Helvetica-Bold").fontSize(12)
       .text("Grand Total:", totalsX, y + 7, { width: 100 })
@@ -118,13 +149,12 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
       y += 50;
     }
 
-    // Signature — drawn relative to content, no forced minimum that causes overflow
     y += 30;
     doc.moveTo(350, y).lineTo(560, y).stroke("#9ca3af");
     doc.fillColor("#111827").font("Helvetica").fontSize(9).text("Authorized Signature", 350, y + 5);
     doc.text(appName, 350, y + 18);
 
-    // Footer — pinned to bottom of the same page using absolute positioning
+    // Footer - pinned to the bottom of the current active page
     const footerY = doc.page.height - 40;
     doc.rect(0, footerY, doc.page.width, 40).fill(primaryColor);
     doc.fillColor("white").fontSize(8).font("Helvetica")
@@ -153,9 +183,17 @@ export async function generateProjectReportPDF(projectId: string): Promise<Buffe
 
   const p = project.toJSON() as any;
   const totalIncome = (p.ledgerEntries || []).filter((e: any) => e.type === "income").reduce((s: number, e: any) => s + e.amount, 0);
-  const totalExpense = (p.ledgerEntries || []).filter((e: any) => e.type === "expense").reduce((s: number, e: any) => s + e.amount, 0);
+  const totalExpense = (p.ledgerEntries || []).filter((e: any) => e.type === "expense" && e.category !== "inventory_asset").reduce((s: number, e: any) => s + e.amount, 0);
   const completedTasks = (p.tasks || []).filter((t: any) => t.status === "completed").length;
   const completedMilestones = (p.milestones || []).filter((m: any) => m.completedAt).length;
+
+  const totalTasks = (p.tasks || []).length;
+  let weightedProgress = p.completionPercent || 0;
+  if (totalTasks > 0) {
+    const totalWeight = p.tasks.reduce((sum: number, t: any) => sum + (t.weight || 1), 0);
+    const completedWeight = p.tasks.filter((t: any) => t.status === "completed").reduce((sum: number, t: any) => sum + (t.weight || 1), 0);
+    weightedProgress = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
+  }
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: "A4" });
@@ -164,7 +202,7 @@ export async function generateProjectReportPDF(projectId: string): Promise<Buffe
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    const appName = process.env.NEXT_PUBLIC_APP_NAME || "Construction LAtech";
+    const appName = process.env.NEXT_PUBLIC_APP_NAME || "Construction Management ERP";
     const primaryColor = "#1d4ed8";
 
     doc.rect(0, 0, doc.page.width, 90).fill(primaryColor);
@@ -183,7 +221,8 @@ export async function generateProjectReportPDF(projectId: string): Promise<Buffe
       ["Total Income", `PKR ${totalIncome.toLocaleString()}`],
       ["Total Expense", `PKR ${totalExpense.toLocaleString()}`],
       ["Net Profit", `PKR ${(totalIncome - totalExpense).toLocaleString()}`],
-      ["Tasks", `${completedTasks}/${(p.tasks || []).length} completed`],
+      ["Task Progress (Weighted)", `${weightedProgress}%`],
+      ["Tasks Completed", `${completedTasks}/${totalTasks} completed`],
       ["Milestones", `${completedMilestones}/${(p.milestones || []).length} completed`],
     ];
 

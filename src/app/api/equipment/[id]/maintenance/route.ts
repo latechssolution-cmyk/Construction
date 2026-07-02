@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
 import { checkBudgetAlert } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
+import { auditLog } from "@/lib/audit";
 import Equipment from "@/models/Equipment";
 import EquipmentMaintenance from "@/models/EquipmentMaintenance";
 import LedgerEntry from "@/models/LedgerEntry";
@@ -40,6 +41,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
     const maintBankId = toId(data.bankAccountId);
     if (cost > 0 && maintBankId) {
+      const bankAccount = await BankAccount.findById(maintBankId);
+      if (!bankAccount) throw new Error("Bank account not found");
+      if (bankAccount.balance < cost) {
+        throw new Error(`Insufficient funds: bank account balance is PKR ${bankAccount.balance.toLocaleString()}, but maintenance requires PKR ${cost.toLocaleString()}`);
+      }
+      bankAccount.balance -= cost;
+      await bankAccount.save();
+
       await LedgerEntry.create({
         date: record.date,
         type: "expense",
@@ -50,9 +59,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         bankAccountId: maintBankId,
         createdById: session.user.id,
       });
-      await BankAccount.findByIdAndUpdate(maintBankId, { $inc: { balance: -cost } });
       void checkBudgetAlert(data.projectId, cost);
     }
+    const eq = await Equipment.findById(id, { name: 1 });
+    await auditLog(session.user.id, "CREATE", "EquipmentMaintenance", record.id, `Logged maintenance for ${eq?.name || id} costing PKR ${cost}`);
     return created(record);
   } catch (e) {
     return handleApiError(e);

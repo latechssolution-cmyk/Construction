@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardList, Trash2, Pencil } from "lucide-react";
+import { ClipboardList, Trash2, Pencil, AlertTriangle } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -28,13 +28,17 @@ export default function TasksPage() {
   const [view, setView] = useState<"kanban" | "list">("kanban");
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<any>({ status: "todo", priority: "medium" });
+  // Initial weight defaults to 1 (Issue #44)
+  const [form, setForm] = useState<any>({ status: "todo", priority: "medium", weight: 1 });
   const [loading, setLoading] = useState(false);
 
   // Edit states
   const [editingTask, setEditingTask] = useState<any>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [editLoading, setEditLoading] = useState(false);
+
+  // Confirm delete dialog state (Issue #45)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const canCreate = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
   const canDelete = ["admin", "manager"].includes(session?.user?.role || "");
@@ -65,7 +69,7 @@ export default function TasksPage() {
       toast({ title: "Task created" });
       mutate();
       setShowForm(false);
-      setForm({ status: "todo", priority: "medium" });
+      setForm({ status: "todo", priority: "medium", weight: 1 });
     } finally {
       setLoading(false);
     }
@@ -97,6 +101,7 @@ export default function TasksPage() {
       dueDate: t.dueDate ? new Date(t.dueDate).toISOString().slice(0, 10) : "",
       estimatedHours: t.estimatedHours || "",
       notes: t.notes || "",
+      weight: t.weight || 1, // Store weight in editForm
     });
   }
 
@@ -123,8 +128,7 @@ export default function TasksPage() {
     }
   }
 
-  async function deleteTask(id: string) {
-    if (!confirm("Delete this task?")) return;
+  async function executeDelete(id: string) {
     const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
@@ -133,6 +137,7 @@ export default function TasksPage() {
     }
     toast({ title: "Task deleted" });
     mutate();
+    setDeleteConfirmId(null);
   }
 
   const byStatus = (s: string) => filtered.filter((t: any) => t.status === s);
@@ -197,6 +202,12 @@ export default function TasksPage() {
             </select>
             <input type="date" value={form.dueDate || ""} onChange={e => setForm({ ...form, dueDate: e.target.value })} placeholder="Due Date" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <input type="number" step="0.5" value={form.estimatedHours || ""} onChange={e => setForm({ ...form, estimatedHours: e.target.value })} placeholder="Estimated Hours" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            
+            {/* Weight input field (Issue #44) */}
+            <div className="flex flex-col sm:col-span-2">
+              <label className="text-xs text-gray-500 font-medium mb-1">Task Weight (for project progress completion calculation)</label>
+              <input type="number" min="1" step="1" required value={form.weight ?? 1} onChange={e => setForm({ ...form, weight: parseInt(e.target.value) || 1 })} placeholder="Task Weight" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            </div>
           </div>
           <div className="flex gap-2">
             <button type="submit" disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50 hover:bg-blue-700 transition-colors">{loading ? "Saving..." : "Create Task"}</button>
@@ -228,6 +239,13 @@ export default function TasksPage() {
             </select>
             <input type="date" value={editForm.dueDate || ""} onChange={e => setEditForm({ ...editForm, dueDate: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <input type="number" step="0.5" value={editForm.estimatedHours || ""} onChange={e => setEditForm({ ...editForm, estimatedHours: e.target.value })} placeholder="Estimated Hours" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            
+            {/* Weight input field (Issue #44) */}
+            <div className="flex flex-col sm:col-span-2">
+              <label className="text-xs text-blue-900 font-medium mb-1">Task Weight (for progress calculation)</label>
+              <input type="number" min="1" step="1" required value={editForm.weight ?? 1} onChange={e => setEditForm({ ...editForm, weight: parseInt(e.target.value) || 1 })} placeholder="Task Weight" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            </div>
+
             <input type="text" value={editForm.notes || ""} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} placeholder="Activity Notes / Progress Report" className="border border-gray-300 rounded-lg px-3 py-2 text-sm sm:col-span-2 focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
           </div>
           <div className="flex gap-2">
@@ -259,14 +277,19 @@ export default function TasksPage() {
                         </button>
                       )}
                       {canDelete && (
-                        <button onClick={() => deleteTask(t.id)} className="text-gray-400 hover:text-red-600 p-0.5" title="Delete task">
+                        <button onClick={() => setDeleteConfirmId(t.id)} className="text-gray-400 hover:text-red-600 p-0.5" title="Delete task">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
                   </div>
                   {t.description && <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">{t.description}</p>}
-                  {t.project && <p className="text-xs text-blue-600 font-semibold">{t.project.name}</p>}
+                  {t.project && (
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="text-xs text-blue-600 font-semibold">{t.project.name}</p>
+                      {t.weight && <span className="text-[10px] bg-blue-50 text-blue-600 px-1 py-0.2 rounded">Wt: {t.weight}</span>}
+                    </div>
+                  )}
                   <div className="flex items-center justify-between mt-1 pt-1">
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${PRIORITY_COLORS[t.priority || "medium"]}`}>{t.priority || "medium"}</span>
                     {t.dueDate && <span className={`text-xs ${new Date(t.dueDate) < new Date() && t.status !== "completed" ? "text-red-500 font-medium" : "text-gray-400"}`}>{new Date(t.dueDate).toLocaleDateString()}</span>}
@@ -289,7 +312,7 @@ export default function TasksPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  {["Title", "Project", "Assigned To", "Priority", "Status", "Due Date", "Actions"].map(h => (
+                  {["Title", "Project", "Weight", "Assigned To", "Priority", "Status", "Due Date", "Actions"].map(h => (
                     <th key={h} className="text-left py-3 px-4 text-xs text-gray-500 font-semibold uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -299,6 +322,7 @@ export default function TasksPage() {
                   <tr key={t.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
                     <td className="py-3 px-4 font-semibold text-gray-900">{t.title}</td>
                     <td className="py-3 px-4 text-gray-600 font-medium">{t.project?.name || "—"}</td>
+                    <td className="py-3 px-4 text-gray-600">{t.weight || 1}</td>
                     <td className="py-3 px-4 text-gray-500">{t.assignedTo?.name || "Unassigned"}</td>
                     <td className="py-3 px-4"><span className={`text-xs px-2 py-0.5 rounded-full ${PRIORITY_COLORS[t.priority || "medium"]}`}>{t.priority || "medium"}</span></td>
                     <td className="py-3 px-4">
@@ -314,7 +338,7 @@ export default function TasksPage() {
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
                         {canCreate && <button onClick={() => startEdit(t)} className="text-xs text-blue-500 hover:text-blue-700 hover:underline">Edit</button>}
-                        {canDelete && <button onClick={() => deleteTask(t.id)} className="text-xs text-red-400 hover:text-red-600 hover:underline">Delete</button>}
+                        {canDelete && <button onClick={() => setDeleteConfirmId(t.id)} className="text-xs text-red-400 hover:text-red-600 hover:underline">Delete</button>}
                       </div>
                     </td>
                   </tr>
@@ -330,7 +354,7 @@ export default function TasksPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-semibold text-gray-900 truncate">{t.title}</p>
-                    <p className="text-xs text-gray-500">{t.project?.name || "—"}</p>
+                    <p className="text-xs text-gray-500">{t.project?.name || "—"} (Weight: {t.weight || 1})</p>
                   </div>
                   <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${PRIORITY_COLORS[t.priority || "medium"]}`}>{t.priority || "medium"}</span>
                 </div>
@@ -348,13 +372,46 @@ export default function TasksPage() {
                   )}
                   <div className="flex gap-2">
                     {canCreate && <button onClick={() => startEdit(t)} className="text-xs text-blue-500 hover:text-blue-700 hover:underline">Edit</button>}
-                    {canDelete && <button onClick={() => deleteTask(t.id)} className="text-xs text-red-400 hover:text-red-600 hover:underline">Delete</button>}
+                    {canDelete && <button onClick={() => setDeleteConfirmId(t.id)} className="text-xs text-red-400 hover:text-red-600 hover:underline">Delete</button>}
                   </div>
                 </div>
               </div>
             ))}
           </div>
         </>
+      )}
+
+      {/* React Confirm Dialog Overlay (Issue #45) */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-gray-100">
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="bg-red-100 p-2 rounded-full">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold">Delete Task?</h3>
+            </div>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Are you sure you want to permanently delete this task? This action cannot be undone and will affect project progress calculations.
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmId(null)}
+                className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => executeDelete(deleteConfirmId)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition-colors"
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

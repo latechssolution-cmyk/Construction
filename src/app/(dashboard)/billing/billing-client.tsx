@@ -29,7 +29,7 @@ export function BillingClient({ bills, projects, clients, role }: any) {
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { description: "", quantity: "1", unit: "lump sum", unitPrice: "0" },
   ]);
-  const [formData, setFormData] = useState({ clientId: "", projectId: "", paymentTerms: "30 days", notes: "", taxRate: "0", dueDate: "" });
+  const [formData, setFormData] = useState({ clientId: "", projectId: "", paymentTerms: "30 days", notes: "", taxRate: "0", retentionPercent: "0", whtDeducted: "0", dueDate: "" });
   const { toast } = useToast();
   const router = useRouter();
 
@@ -42,6 +42,9 @@ export function BillingClient({ bills, projects, clients, role }: any) {
   const subtotal = lineItems.reduce((s, i) => s + (parseFloat(i.quantity) || 0) * (parseFloat(i.unitPrice) || 0), 0);
   const taxAmount = subtotal * (parseFloat(formData.taxRate) / 100 || 0);
   const grandTotal = subtotal + taxAmount;
+  const retentionAmount = subtotal * (parseFloat(formData.retentionPercent) / 100 || 0);
+  const whtAmount = parseFloat(formData.whtDeducted) || 0;
+  const netTotal = grandTotal - retentionAmount - whtAmount;
 
   const onSubmit = async () => {
     if (!formData.clientId) { toast({ title: "Select a client", variant: "destructive" }); return; }
@@ -50,7 +53,14 @@ export function BillingClient({ bills, projects, clients, role }: any) {
       const res = await fetch("/api/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, taxPercent: formData.taxRate, items: lineItems, status: "draft" }),
+        body: JSON.stringify({
+          ...formData,
+          taxPercent: formData.taxRate,
+          retentionPercent: formData.retentionPercent,
+          whtDeducted: formData.whtDeducted,
+          items: lineItems,
+          status: "draft"
+        }),
       });
       if (!res.ok) throw new Error();
       toast({ title: "Invoice created" });
@@ -106,6 +116,14 @@ export function BillingClient({ bills, projects, clients, role }: any) {
                     <Label>Tax Rate (%)</Label>
                     <Input type="number" value={formData.taxRate} onChange={e => setFormData(f => ({ ...f, taxRate: e.target.value }))} />
                   </div>
+                  <div className="space-y-1">
+                    <Label>Retention Rate (%)</Label>
+                    <Input type="number" value={formData.retentionPercent} onChange={e => setFormData(f => ({ ...f, retentionPercent: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Withholding Tax Deducted (PKR)</Label>
+                    <Input type="number" value={formData.whtDeducted} onChange={e => setFormData(f => ({ ...f, whtDeducted: e.target.value }))} />
+                  </div>
                 </div>
 
                 {/* Line Items */}
@@ -132,7 +150,10 @@ export function BillingClient({ bills, projects, clients, role }: any) {
                 <div className="border-t pt-3 space-y-1 text-sm text-right">
                   <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(subtotal)}</span></div>
                   <div className="flex justify-between"><span>Tax ({formData.taxRate}%):</span><span>{formatCurrency(taxAmount)}</span></div>
-                  <div className="flex justify-between font-bold text-base"><span>Grand Total:</span><span>{formatCurrency(grandTotal)}</span></div>
+                  <div className="flex justify-between"><span>Grand Total:</span><span>{formatCurrency(grandTotal)}</span></div>
+                  <div className="flex justify-between"><span>Retention ({formData.retentionPercent}%):</span><span>-{formatCurrency(retentionAmount)}</span></div>
+                  <div className="flex justify-between"><span>Withholding Tax (WHT):</span><span>-{formatCurrency(whtAmount)}</span></div>
+                  <div className="flex justify-between font-bold text-base border-t pt-1"><span>Net Expected Payment:</span><span>{formatCurrency(netTotal)}</span></div>
                 </div>
 
                 <div className="space-y-1">
@@ -246,10 +267,16 @@ export function BillingClient({ bills, projects, clients, role }: any) {
                 ))}
               </tbody>
             </table>
-            <div className="text-right space-y-1">
+            <div className="text-right space-y-1 border-t border-gray-300 pt-2">
               <div className="flex justify-end gap-8"><span>Subtotal:</span><span>{formatCurrency(Number(viewBill.subtotal))}</span></div>
               {Number(viewBill.taxAmount) > 0 && <div className="flex justify-end gap-8"><span>Tax ({viewBill.taxPercent}%):</span><span>{formatCurrency(Number(viewBill.taxAmount))}</span></div>}
-              <div className="flex justify-end gap-8 font-bold text-lg border-t border-gray-300 pt-1"><span>Grand Total:</span><span>{formatCurrency(Number(viewBill.grandTotal))}</span></div>
+              <div className="flex justify-end gap-8"><span>Grand Total:</span><span>{formatCurrency(Number(viewBill.grandTotal))}</span></div>
+              {Number(viewBill.retentionAmount) > 0 && <div className="flex justify-end gap-8 text-gray-600"><span>Retention ({viewBill.retentionPercent}%):</span><span>-{formatCurrency(Number(viewBill.retentionAmount))}</span></div>}
+              {Number(viewBill.whtDeducted) > 0 && <div className="flex justify-end gap-8 text-gray-600"><span>Withholding Tax:</span><span>-{formatCurrency(Number(viewBill.whtDeducted))}</span></div>}
+              <div className="flex justify-end gap-8 font-bold text-lg border-t border-gray-300 pt-1">
+                <span>Net Payment Expected:</span>
+                <span>{formatCurrency(Number(viewBill.grandTotal) - Number(viewBill.retentionAmount || 0) - Number(viewBill.whtDeducted || 0))}</span>
+              </div>
             </div>
             {viewBill.paymentTerms && <p className="mt-4 text-sm text-gray-600">Payment Terms: {viewBill.paymentTerms}</p>}
             {viewBill.notes && <p className="mt-2 text-sm text-gray-600">{viewBill.notes}</p>}

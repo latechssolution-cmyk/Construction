@@ -8,6 +8,7 @@ import LedgerEntry from "@/models/LedgerEntry";
 import AuditLog from "@/models/AuditLog";
 import Task from "@/models/Task";
 import Invoice from "@/models/Invoice";
+import { runEquipmentJobCosting } from "@/lib/equipment-job-costing";
 
 export async function GET() {
   try {
@@ -80,25 +81,36 @@ export async function GET() {
     const [taskGroups, ledgerGroups] = await Promise.all([
       Task.aggregate([
         { $match: { projectId: { $in: projectIds } } },
-        { $group: { _id: "$projectId", statuses: { $push: "$status" } } },
+        { $group: { _id: "$projectId", tasks: { $push: { status: "$status", weight: "$weight" } } } },
       ]),
       LedgerEntry.aggregate([
-        { $match: { projectId: { $in: projectIds }, type: "expense" } },
+        { $match: { projectId: { $in: projectIds }, type: "expense", category: { $ne: "inventory_asset" } } },
         { $group: { _id: "$projectId", total: { $sum: "$amount" } } },
       ]),
     ]);
 
-    const taskMap = Object.fromEntries(taskGroups.map((r: any) => [r._id.toString(), r.statuses]));
+    const taskMap = Object.fromEntries(taskGroups.map((r: any) => [r._id.toString(), r.tasks]));
     const expMap = Object.fromEntries(ledgerGroups.map((r: any) => [r._id.toString(), r.total]));
 
     const portfolio = (portfolioProjects as any[]).map((p: any) => {
-      const statuses: string[] = taskMap[p._id.toString()] || [];
-      const total = statuses.length;
-      const done = statuses.filter((s) => s === "completed").length;
-      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      const tasksList: { status: string; weight?: number }[] = taskMap[p._id.toString()] || [];
+      const total = tasksList.length;
+      const done = tasksList.filter((t) => t.status === "completed").length;
+      
+      const totalWeight = tasksList.reduce((sum, t) => sum + (t.weight || 1), 0);
+      const completedWeight = tasksList.filter(t => t.status === "completed").reduce((sum, t) => sum + (t.weight || 1), 0);
+      const pct = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
+      
       const spent = expMap[p._id.toString()] || 0;
       const budgetPct = p.budget ? Math.round((spent / p.budget) * 100) : 0;
-      const rag = budgetPct > 100 ? "red" : budgetPct > 80 ? "amber" : "green";
+      
+      let rag = "green";
+      if (budgetPct > 100 || (budgetPct > 50 && pct < budgetPct - 35)) {
+        rag = "red";
+      } else if (budgetPct > 80 || budgetPct > pct + 20) {
+        rag = "amber";
+      }
+      
       return { id: p._id.toString(), name: p.name, status: p.status, budget: p.budget, spent, pct, budgetPct, rag, tasksDone: done, tasksTotal: total };
     });
 

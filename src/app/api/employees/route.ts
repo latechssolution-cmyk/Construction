@@ -6,11 +6,17 @@ import Employee from "@/models/Employee";
 import ProjectEmployee from "@/models/ProjectEmployee";
 import Attendance from "@/models/Attendance";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     await requireAuth();
     await connectDB();
-    const employees = await Employee.find({}).sort({ name: 1 }).limit(500).lean({ virtuals: true });
+    const { searchParams } = new URL(req.url);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+    const limit = Math.max(1, parseInt(searchParams.get("limit") || "50"));
+    const skip = (page - 1) * limit;
+
+    const total = await Employee.countDocuments({});
+    const employees = await Employee.find({}).sort({ name: 1 }).skip(skip).limit(limit).lean({ virtuals: true });
     const ids = (employees as any[]).map((e: any) => e._id);
     const [assignments, attCounts] = await Promise.all([
       ProjectEmployee.find({ employeeId: { $in: ids } }, { employeeId: 1, projectId: 1, role: 1, joinedAt: 1 })
@@ -24,11 +30,20 @@ export async function GET() {
       assignMap[key].push(a);
     });
     const attMap = Object.fromEntries(attCounts.map((r: any) => [r._id.toString(), r.count]));
-    const result = (employees as any[]).map((e: any) => {
+    const entries = (employees as any[]).map((e: any) => {
       const id = e._id?.toString() || e.id;
       return { ...e, id, projectAssignments: assignMap[id] || [], _count: { attendanceRecords: attMap[id] || 0 } };
     });
-    return ok(result);
+
+    return ok({
+      data: entries,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      }
+    });
   } catch (e) {
     return handleApiError(e);
   }
@@ -41,6 +56,13 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
     if (!data.name || !data.role) throw new Error("Name and role are required");
     await connectDB();
+    // Issue #72: Block ghost employees with duplicate CNIC
+    if (data.cnic && data.cnic.trim()) {
+      const existingCnic = await Employee.findOne({ cnic: data.cnic.trim() });
+      if (existingCnic) {
+        throw new Error(`An employee with CNIC ${data.cnic} already exists: ${existingCnic.name}`);
+      }
+    }
     const employee = await Employee.create({
       name: data.name,
       role: data.role,

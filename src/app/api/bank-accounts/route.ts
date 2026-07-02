@@ -30,16 +30,28 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
     if (!data.name) throw new Error("Account name is required");
     await connectDB();
+    const initialBalance = parseFloat(data.balance || "0");
     const account = await BankAccount.create({
       name: data.name,
       bankName: data.bankName || null,
       accountNumber: data.accountNumber || null,
       accountType: data.accountType || "current",
-      balance: parseFloat(data.balance || "0"),
+      balance: initialBalance,
       currency: data.currency || "PKR",
       notes: data.notes || null,
     });
-    await auditLog(session.user.id, "CREATE", "BankAccount", account.id, `Created: ${account.name}`);
+    if (initialBalance > 0) {
+      await LedgerEntry.create({
+        date: new Date(),
+        type: "income",
+        amount: initialBalance,
+        category: "opening_balance",
+        description: `Opening balance for bank account ${account.name}`,
+        bankAccountId: account._id,
+        createdById: session.user.id,
+      });
+    }
+    await auditLog(session.user.id, "CREATE", "BankAccount", account.id, `Created: ${account.name} with starting balance PKR ${initialBalance}`);
     return created(account);
   } catch (e) {
     return handleApiError(e);

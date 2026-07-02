@@ -46,16 +46,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.dueDate !== undefined) update.dueDate = data.dueDate ? new Date(data.dueDate) : null;
     if (data.estimatedHours !== undefined) { const parsedHours = parseFloat(data.estimatedHours); if (!isNaN(parsedHours)) update.estimatedHours = parsedHours; }
     if (data.notes !== undefined) update.notes = data.notes;
-    if (data.status === "completed") update.completedAt = new Date();
+    if (data.weight !== undefined) { const parsedWeight = parseFloat(data.weight); if (!isNaN(parsedWeight)) update.weight = parsedWeight; }
+    if (data.status !== undefined) {
+      update.completedAt = data.status === "completed" ? new Date() : null;
+    }
 
     const task = await Task.findByIdAndUpdate(id, update, { new: true }).populate("assignedTo", "name");
     if (!task) throw new ApiError(404, "Task not found");
     await auditLog(session.user.id, "UPDATE", "Task", id, `Updated task: ${task.title} → ${task.status}`);
 
-    if (data.status !== undefined && task.projectId) {
-      const allTasks = await Task.find({ projectId: task.projectId }, { status: 1 });
-      const done = allTasks.filter((t) => t.status === "completed").length;
-      const pct = allTasks.length > 0 ? Math.round((done / allTasks.length) * 100) : 0;
+    if ((data.status !== undefined || data.weight !== undefined) && task.projectId) {
+      const allTasks = await Task.find({ projectId: task.projectId }, { status: 1, weight: 1 });
+      const totalWeight = allTasks.reduce((sum, t) => sum + (t.weight || 1), 0);
+      const completedWeight = allTasks.filter(t => t.status === "completed").reduce((sum, t) => sum + (t.weight || 1), 0);
+      const pct = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
       await Project.findByIdAndUpdate(task.projectId, { completionPercent: pct });
     }
     return ok(task);
@@ -72,9 +76,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     await connectDB();
     const task = await Task.findByIdAndDelete(id);
     if (task?.projectId) {
-      const allTasks = await Task.find({ projectId: task.projectId }, { status: 1 });
-      const done = allTasks.filter((t) => t.status === "completed").length;
-      const pct = allTasks.length > 0 ? Math.round((done / allTasks.length) * 100) : 0;
+      const allTasks = await Task.find({ projectId: task.projectId }, { status: 1, weight: 1 });
+      const totalWeight = allTasks.reduce((sum, t) => sum + (t.weight || 1), 0);
+      const completedWeight = allTasks.filter(t => t.status === "completed").reduce((sum, t) => sum + (t.weight || 1), 0);
+      const pct = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
       await Project.findByIdAndUpdate(task.projectId, { completionPercent: pct });
     }
     await auditLog(session.user.id, "DELETE", "Task", id, "Deleted task");

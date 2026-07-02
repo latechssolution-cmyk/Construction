@@ -33,6 +33,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const eq = await Equipment.findById(id);
     if (!eq) throw new ApiError(404, "Equipment not found");
     const fields = ["name","type","model","condition","status","location","notes"] as const;
+    if (data.status !== undefined && data.status !== eq.status) {
+      if (data.status === "available") {
+        const activeAssign = await ProjectEquipment.findOne({ equipmentId: id, returnedAt: null }).populate("project", "name");
+        if (activeAssign) {
+          throw new ApiError(400, `Cannot change status to available. This equipment is currently assigned to project "${((activeAssign as any).project)?.name || activeAssign.projectId}". Please return it first.`);
+        }
+      } else if (data.status === "in_use") {
+        const activeAssign = await ProjectEquipment.findOne({ equipmentId: id, returnedAt: null });
+        if (!activeAssign) {
+          throw new ApiError(400, "Cannot set status to in_use directly without a project assignment. Please use the assignment interface.");
+        }
+      }
+    }
     fields.forEach((f) => { if (data[f] !== undefined) (eq as any)[f] = data[f]; });
     await eq.save();
     await auditLog(session.user.id, "UPDATE", "Equipment", id, `Updated: ${eq.name}`);
@@ -48,7 +61,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     requireRole(session, "admin");
     const { id } = await params;
     await connectDB();
+    
+    // Decommission equipment and close any active project assignments
     const eq = await Equipment.findByIdAndUpdate(id, { status: "decommissioned" }, { new: true });
+    await ProjectEquipment.updateMany({ equipmentId: id, returnedAt: null }, { returnedAt: new Date() });
+    
     await auditLog(session.user.id, "DELETE", "Equipment", id, `Decommissioned: ${eq?.name}`);
     return ok({ success: true });
   } catch (e) {

@@ -51,6 +51,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     await connectDB();
     const employee = await Employee.findByIdAndUpdate(id, { isActive: false }, { new: true });
+    await ProjectEmployee.updateMany({ employeeId: id, endDate: null }, { endDate: new Date() });
     await auditLog(session.user.id, "DELETE", "Employee", id, `Deactivated: ${employee?.name}`);
     return ok({ success: true });
   } catch (e) {

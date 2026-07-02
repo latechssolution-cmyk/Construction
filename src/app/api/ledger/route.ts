@@ -28,14 +28,29 @@ export async function GET(req: NextRequest) {
       if (to) filter.date.$lte = new Date(to);
     }
     await connectDB();
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+    const limit = Math.max(1, parseInt(searchParams.get("limit") || "50"));
+    const skip = (page - 1) * limit;
+
+    const total = await LedgerEntry.countDocuments(filter);
     const entries = await LedgerEntry.find(filter)
       .populate("project", "id name")
       .populate("bankAccount", "id name")
       .populate("vendor", "id name")
       .populate("createdBy", "id name")
       .sort({ date: -1 })
-      .limit(500);
-    return ok(entries);
+      .skip(skip)
+      .limit(limit);
+
+    return ok({
+      data: entries,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      }
+    });
   } catch (e) {
     return handleApiError(e);
   }

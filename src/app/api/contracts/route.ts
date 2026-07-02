@@ -4,10 +4,21 @@ import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Contract from "@/models/Contract";
 import Project from "@/models/Project";
+import Counter from "@/models/Counter";
 
-function generateContractNumber() {
+/**
+ * Issue #64 / #85: Sequential, collision-free contract number generation.
+ * Uses Counter model to ensure uniqueness.
+ */
+async function generateContractNumber(): Promise<string> {
   const now = new Date();
-  return `CON-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${Math.floor(Math.random() * 9000 + 1000)}`;
+  const prefix = `CNT-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const counter = await Counter.findByIdAndUpdate(
+    prefix,
+    { $inc: { seq: 1 } },
+    { upsert: true, new: true }
+  );
+  return `${prefix}-${String(counter!.seq).padStart(4, "0")}`;
 }
 
 export async function GET() {
@@ -36,13 +47,13 @@ export async function POST(req: NextRequest) {
     if (!data.title || !data.clientId) throw new Error("Title and client are required");
     await connectDB();
     const contract = await Contract.create({
-      contractNumber: data.contractNumber || generateContractNumber(),
+      contractNumber: data.contractNumber || await generateContractNumber(),
       title: data.title,
       scope: data.scope || null,
       contractValue: parseFloat(data.contractValue || data.value || "0"),
       startDate: data.startDate ? new Date(data.startDate) : null,
       endDate: data.endDate ? new Date(data.endDate) : null,
-      status: data.status || "active",
+      status: data.status || "draft",
       clientId: toId(data.clientId),
       paymentTerms: data.paymentTerms || null,
       documentPath: data.documentPath || null,

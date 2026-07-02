@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/mongoose";
 import Attendance from "@/models/Attendance";
 
@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
         const hoursWorked = item.hoursWorked !== undefined && item.hoursWorked !== ""
           ? Math.max(0, Number(item.hoursWorked) || 0)
           : defaultHours(status);
+        if (hoursWorked > 24) throw new ApiError(400, "Hours worked cannot exceed 24 hours in a single day.");
         const notes = item.notes?.trim() ? item.notes.trim() : null;
 
         const date = new Date(item.date);
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
     const hoursWorked = data.hoursWorked !== undefined && data.hoursWorked !== ""
       ? Math.max(0, Number(data.hoursWorked) || 0)
       : defaultHours(status);
+    if (hoursWorked > 24) throw new ApiError(400, "Hours worked cannot exceed 24 hours in a single day.");
     const notes = data.notes?.trim() ? data.notes.trim() : null;
     const date = new Date(data.date);
     const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);

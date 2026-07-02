@@ -5,16 +5,57 @@ import { useSession } from "next-auth/react";
 import { ExportButton } from "@/components/export-button";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Package, Pencil, Trash2, Plus, MinusCircle, ChevronDown, ChevronUp, X } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Package, Pencil, Trash2, Plus, MinusCircle, ChevronDown, ChevronUp, X, History } from "lucide-react";
+import { formatDate } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 const fmt = (n: number) => `PKR ${(n || 0).toLocaleString()}`;
 
 type ModalType = "edit" | "restock" | "use" | "delete" | "history" | null;
 
+// Child component for Usage History to isolate useSWR hooks dynamically (Issue #46)
+function UsageHistoryContent({ materialId, unit }: { materialId: string; unit: string }) {
+  const { data: logs, isLoading } = useSWR(`/api/material-usage?materialId=${materialId}`, fetcher);
+
+  if (isLoading) return <div className="text-center py-8 text-gray-500 text-sm">Loading usage logs...</div>;
+  if (!Array.isArray(logs) || logs.length === 0) {
+    return <div className="text-center py-8 text-gray-400 text-sm">No usage history logged for this material.</div>;
+  }
+
+  return (
+    <div className="max-h-60 overflow-y-auto border border-gray-100 rounded-lg">
+      <table className="w-full text-xs">
+        <thead className="bg-gray-50 sticky top-0 border-b border-gray-100">
+          <tr>
+            <th className="text-left py-2 px-3 text-gray-500 font-medium">Date</th>
+            <th className="text-right py-2 px-3 text-gray-500 font-medium">Quantity</th>
+            <th className="text-left py-2 px-3 text-gray-500 font-medium">User</th>
+            <th className="text-left py-2 px-3 text-gray-500 font-medium">Purpose</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-50">
+          {logs.map((log: any) => (
+            <tr key={log._id || log.id} className="hover:bg-gray-50/50">
+              <td className="py-2 px-3 text-gray-600 font-medium">{formatDate(log.date)}</td>
+              <td className="py-2 px-3 text-right text-gray-900 font-bold">{(log.quantityUsed || 0).toLocaleString()} {unit}</td>
+              <td className="py-2 px-3 text-gray-500">{log.usedBy?.name || "—"}</td>
+              <td className="py-2 px-3 text-gray-500 truncate max-w-[120px]" title={log.purpose || log.notes || ""}>
+                {log.purpose || log.notes || "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function MaterialsPage() {
   const { data: session } = useSession();
-  const { data: materials, mutate, isLoading } = useSWR("/api/materials", fetcher);
+  const { toast } = useToast();
+  const [page, setPage] = useState(1);
+  const { data: materials, mutate, isLoading } = useSWR(`/api/materials?page=${page}&limit=50`, fetcher);
   const { data: vendors } = useSWR("/api/vendors", fetcher);
   const { data: projects } = useSWR("/api/projects", fetcher);
   const { data: bankAccounts } = useSWR("/api/bank-accounts", fetcher);
@@ -40,7 +81,7 @@ export default function MaterialsPage() {
     return <div className="p-6 text-center text-gray-500"><p className="text-4xl mb-2">🔒</p><p className="font-medium">Access Restricted</p></div>;
   }
 
-  const list: any[] = Array.isArray(materials) ? materials : [];
+  const list: any[] = materials?.data ? materials.data : (Array.isArray(materials) ? materials : []);
   const filtered = list.filter((m: any) => {
     if (search && !m.itemName?.toLowerCase().includes(search.toLowerCase()) && !m.category?.toLowerCase().includes(search.toLowerCase())) return false;
     if (lowStockOnly && m.stockQuantity > m.minStockLevel) return false;
@@ -56,6 +97,7 @@ export default function MaterialsPage() {
         itemName: material.itemName,
         category: material.category || "",
         unit: material.unit || "bags",
+        unitPrice: material.unitPrice ?? 0, // Include unitPrice in edit state (Issue #47)
         minStockLevel: material.minStockLevel ?? 5,
         vendorId: material.vendor?._id?.toString() || material.vendor?.id || "",
         notes: material.notes || "",
@@ -100,6 +142,7 @@ export default function MaterialsPage() {
         }),
       });
       if (!res.ok) { const e = await res.json(); setAddError(e.error || "Failed to save"); return; }
+      toast({ title: "Material created" });
       mutate();
       setShowAddForm(false);
       setAddForm({ unit: "bags", quantity: 0, minStockLevel: 5, unitPrice: 0 });
@@ -116,12 +159,14 @@ export default function MaterialsPage() {
           itemName: modalForm.itemName,
           category: modalForm.category,
           unit: modalForm.unit,
+          unitPrice: parseFloat(modalForm.unitPrice) || 0, // Include unitPrice in PUT payload (Issue #47)
           minStockLevel: parseFloat(modalForm.minStockLevel),
           vendorId: modalForm.vendorId || null,
           notes: modalForm.notes,
         }),
       });
       if (!res.ok) { const e = await res.json(); setModalError(e.error || "Failed to update"); return; }
+      toast({ title: "Material updated" });
       mutate(); closeModal();
     } catch { setModalError("Network error"); } finally { setModalLoading(false); }
   }
@@ -143,6 +188,7 @@ export default function MaterialsPage() {
         }),
       });
       if (!res.ok) { const e = await res.json(); setModalError(e.error || "Failed to restock"); return; }
+      toast({ title: "Stock replenished" });
       mutate(); closeModal();
     } catch { setModalError("Network error"); } finally { setModalLoading(false); }
   }
@@ -163,6 +209,7 @@ export default function MaterialsPage() {
         }),
       });
       if (!res.ok) { const e = await res.json(); setModalError(e.error || "Failed to log usage"); return; }
+      toast({ title: "Material consumption logged" });
       mutate(); closeModal();
     } catch { setModalError("Network error"); } finally { setModalLoading(false); }
   }
@@ -172,6 +219,7 @@ export default function MaterialsPage() {
     try {
       const res = await fetch(`/api/materials/${selected.id}`, { method: "DELETE" });
       if (!res.ok) { const e = await res.json().catch(() => ({})); setModalError(e.error || "Failed to delete material"); return; }
+      toast({ title: "Material deleted" });
       mutate(); closeModal();
     } finally { setModalLoading(false); }
   }
@@ -338,6 +386,10 @@ export default function MaterialsPage() {
                               className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors">
                               <MinusCircle className="w-4 h-4" />
                             </button>
+                            <button title="View Log History" onClick={() => openModal("history", m)}
+                              className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+                              <History className="w-4 h-4" />
+                            </button>
                             <button title="Edit" onClick={() => openModal("edit", m)}
                               className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                               <Pencil className="w-4 h-4" />
@@ -383,19 +435,23 @@ export default function MaterialsPage() {
                     <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
                       <button onClick={() => openModal("restock", m)}
                         className="flex-1 py-1.5 text-xs bg-green-50 text-green-700 rounded-lg font-medium hover:bg-green-100 transition-colors">
-                        + Add Stock
+                        + Stock
                       </button>
                       <button onClick={() => openModal("use", m)}
                         className="flex-1 py-1.5 text-xs bg-orange-50 text-orange-700 rounded-lg font-medium hover:bg-orange-100 transition-colors">
-                        Log Usage
+                        Consume
+                      </button>
+                      <button onClick={() => openModal("history", m)}
+                        className="px-2.5 py-1.5 text-xs bg-purple-50 text-purple-700 rounded-lg font-medium hover:bg-purple-100 transition-colors">
+                        <History className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => openModal("edit", m)}
-                        className="px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg font-medium hover:bg-blue-100 transition-colors">
-                        <Pencil className="w-3 h-3" />
+                        className="px-2.5 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg font-medium hover:bg-blue-100 transition-colors">
+                        <Pencil className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => openModal("delete", m)}
-                        className="px-3 py-1.5 text-xs bg-red-50 text-red-600 rounded-lg font-medium hover:bg-red-100 transition-colors">
-                        <Trash2 className="w-3 h-3" />
+                        className="px-2.5 py-1.5 text-xs bg-red-50 text-red-600 rounded-lg font-medium hover:bg-red-100 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
@@ -404,6 +460,31 @@ export default function MaterialsPage() {
             })}
           </div>
         </>
+      )}
+
+      {/* Pagination Controls */}
+      {materials?.pagination && materials.pagination.pages > 1 && (
+        <div className="flex items-center justify-between border-t border-gray-200 pt-4 mt-6">
+          <p className="text-sm text-gray-500">
+            Showing page <span className="font-medium text-gray-900">{materials.pagination.page}</span> of <span className="font-medium text-gray-900">{materials.pagination.pages}</span> ({materials.pagination.total} total)
+          </p>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setPage(p => Math.max(1, p - 1))} 
+              disabled={materials.pagination.page === 1}
+              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 disabled:opacity-50 hover:bg-gray-50"
+            >
+              Previous
+            </button>
+            <button 
+              onClick={() => setPage(p => p + 1)} 
+              disabled={materials.pagination.page >= materials.pagination.pages}
+              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 disabled:opacity-50 hover:bg-gray-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── MODALS ── */}
@@ -417,7 +498,7 @@ export default function MaterialsPage() {
                   <h2 className="font-semibold text-lg">Edit Material</h2>
                   <button onClick={closeModal} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
                 </div>
-                <p className="text-sm text-gray-500">Update the details for <strong>{selected?.itemName}</strong>. To add more stock, use the &quot;Add Stock&quot; button instead.</p>
+                <p className="text-sm text-gray-500">Update details for <strong>{selected?.itemName}</strong>.</p>
                 {modalError && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{modalError}</div>}
                 <div className="space-y-3">
                   <div>
@@ -436,12 +517,20 @@ export default function MaterialsPage() {
                       <input value={modalForm.unit || ""} onChange={e => setModalForm({ ...modalForm, unit: e.target.value })}
                         placeholder="bags, kg, pcs..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
                     </div>
+                    
+                    {/* Unit Price input added in Edit Modal (Issue #47) */}
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Unit Price (PKR) *</label>
+                      <input type="number" step="0.01" min="0" value={modalForm.unitPrice ?? 0} onChange={e => setModalForm({ ...modalForm, unitPrice: e.target.value })}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+                    </div>
+
                     <div>
                       <label className="text-xs text-gray-500 block mb-1">Min Stock Level</label>
                       <input type="number" step="0.01" min="0" value={modalForm.minStockLevel ?? ""} onChange={e => setModalForm({ ...modalForm, minStockLevel: e.target.value })}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
                     </div>
-                    <div>
+                    <div className="col-span-2">
                       <label className="text-xs text-gray-500 block mb-1">Supplier</label>
                       <select value={modalForm.vendorId || ""} onChange={e => setModalForm({ ...modalForm, vendorId: e.target.value })}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
@@ -591,6 +680,26 @@ export default function MaterialsPage() {
                     {modalLoading ? "Logging…" : "Log Usage"}
                   </button>
                   <button onClick={closeModal} className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {/* History Modal (Issue #46) */}
+            {modal === "history" && (
+              <div className="p-6 space-y-4">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                  <div>
+                    <h2 className="font-semibold text-lg text-gray-900 flex items-center gap-1.5">
+                      <History className="w-5 h-5 text-purple-600" />
+                      Usage History
+                    </h2>
+                    <p className="text-xs text-gray-400 font-medium">{selected?.itemName}</p>
+                  </div>
+                  <button onClick={closeModal} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+                </div>
+                <UsageHistoryContent materialId={selected?.id} unit={selected?.unit || "units"} />
+                <div className="flex justify-end pt-2 border-t border-gray-100">
+                  <button onClick={closeModal} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">Close</button>
                 </div>
               </div>
             )}

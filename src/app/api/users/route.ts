@@ -45,6 +45,10 @@ export async function POST(req: NextRequest) {
     requireRole(session, "admin");
     const data = await req.json();
     if (!data.name || !data.email || !data.password) throw new Error("name, email and password are required");
+    // Issue #77: Enforce password strength — minimum 8 chars, 1 uppercase, 1 number
+    if (data.password.length < 8) throw new Error("Password must be at least 8 characters long");
+    if (!/[A-Z]/.test(data.password)) throw new Error("Password must contain at least one uppercase letter");
+    if (!/[0-9]/.test(data.password)) throw new Error("Password must contain at least one number");
     await connectDB();
     const passwordHash = await bcrypt.hash(data.password, 12);
     const user = await User.create({

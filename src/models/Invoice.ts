@@ -1,4 +1,4 @@
-﻿import mongoose, { Schema, Document, Model, Types } from "mongoose";
+import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface IInvoiceItem {
   _id?: Types.ObjectId;
@@ -17,10 +17,15 @@ export interface IInvoice extends Document {
   issueDate: Date;
   dueDate?: Date | null;
   paidAt?: Date | null;
+  paidAmount?: number;
+  deletedAt?: Date | null;
   status: "draft" | "sent" | "issued" | "paid" | "partially_paid" | "overdue" | "cancelled";
   subtotal: number;
   taxPercent: number;
   taxAmount: number;
+  retentionPercent: number;
+  retentionAmount: number;
+  whtDeducted: number;
   grandTotal: number;
   notes?: string;
   paymentTerms?: string;
@@ -66,11 +71,16 @@ const invoiceSchema = new Schema<IInvoice>(
     subtotal: { type: Number, default: 0 },
     taxPercent: { type: Number, default: 0 },
     taxAmount: { type: Number, default: 0 },
+    retentionPercent: { type: Number, default: 0 },
+    retentionAmount: { type: Number, default: 0 },
+    whtDeducted: { type: Number, default: 0 },
     grandTotal: { type: Number, default: 0 },
+    paidAmount: { type: Number, default: 0 },
     notes: { type: String },
     paymentTerms: { type: String },
     createdById: { type: Schema.Types.ObjectId, ref: "User" },
     items: [invoiceItemSchema],
+    deletedAt: { type: Date, default: null },
   },
   {
     timestamps: true,

@@ -93,6 +93,8 @@ ledgerEntrySchema.index({ projectId: 1, type: 1 });
 ledgerEntrySchema.index({ bankAccountId: 1, date: -1 });
 ledgerEntrySchema.index({ date: -1 });
 ledgerEntrySchema.index({ createdAt: -1 });
+// Index for idempotency checks (duplicate salary, invoice payment lookups) — Issue #82
+ledgerEntrySchema.index({ referenceNumber: 1, category: 1 });
 
 const LedgerEntry: Model<ILedgerEntry> =
   mongoose.models.LedgerEntry || mongoose.model<ILedgerEntry>("LedgerEntry", ledgerEntrySchema);

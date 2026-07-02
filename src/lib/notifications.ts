@@ -27,7 +27,7 @@ export async function checkBudgetAlert(projectId: string | null | undefined, new
     const project = await Project.findById(projectId, { budget: 1, name: 1 });
     if (!project || !project.budget || project.budget <= 0) return;
     const agg = await LedgerEntry.aggregate([
-      { $match: { projectId: project._id, type: "expense" } },
+      { $match: { projectId: project._id, type: "expense", category: { $ne: "inventory_asset" } } },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
     const totalExpense = (agg[0]?.total || 0) + newExpenseAmount;

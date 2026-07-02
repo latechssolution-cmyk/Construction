@@ -1,4 +1,4 @@
-﻿import mongoose, { Schema, Document, Model, Types } from "mongoose";
+import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface IContract extends Document {
   contractNumber: string;
@@ -54,6 +54,20 @@ contractSchema.virtual("client", {
   localField: "clientId",
   foreignField: "_id",
   justOne: true,
+});
+
+contractSchema.virtual("variations", {
+  ref: "ContractVariation",
+  localField: "_id",
+  foreignField: "contractId",
+});
+
+contractSchema.virtual("totalValue").get(function(this: any) {
+  const base = this.contractValue || 0;
+  if (!this.variations || !Array.isArray(this.variations)) return base;
+  return base + this.variations
+    .filter((v: any) => v.status === "approved")
+    .reduce((sum: number, v: any) => sum + (v.valueChange || 0), 0);
 });
 
 contractSchema.index({ clientId: 1 });

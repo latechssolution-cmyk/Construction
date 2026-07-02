@@ -10,20 +10,34 @@ import Contract from "@/models/Contract";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const q = new URL(req.url).searchParams.get("q")?.trim() || "";
     if (q.length < 2) return ok([]);
     await connectDB();
     const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = { $regex: escaped, $options: "i" };
 
+    let projectFilter: any = { $or: [{ name: re }, { description: re }] };
+    let taskFilter: any = { $or: [{ title: re }, { description: re }] };
+    let contractFilter: any = { $or: [{ title: re }, { contractNumber: re }] };
+
+    if (session.user.role === "manager") {
+      const myProjects = await Project.find({ assignedManagerId: session.user.id }, { _id: 1, contractId: 1 });
+      const myIds = myProjects.map((p) => p._id);
+      const contractIds = myProjects.map((p) => p.contractId).filter(Boolean);
+
+      projectFilter.assignedManagerId = session.user.id;
+      taskFilter.projectId = { $in: myIds };
+      contractFilter._id = { $in: contractIds };
+    }
+
     const [projects, clients, vendors, employees, tasks, contracts] = await Promise.all([
-      Project.find({ $or: [{ name: re }, { description: re }] }, { name: 1, status: 1 }).limit(5),
+      Project.find(projectFilter, { name: 1, status: 1 }).limit(5),
       Client.find({ $or: [{ name: re }, { email: re }, { phone: re }] }, { name: 1, email: 1 }).limit(5),
       Vendor.find({ $or: [{ name: re }, { category: re }] }, { name: 1, category: 1 }).limit(5),
       Employee.find({ $or: [{ name: re }, { email: re }, { role: re }, { department: re }] }, { name: 1, role: 1 }).limit(5),
-      Task.find({ $or: [{ title: re }, { description: re }] }, { title: 1, status: 1, projectId: 1 }).limit(5),
-      Contract.find({ $or: [{ title: re }, { contractNumber: re }] }, { title: 1, contractNumber: 1 }).limit(5),
+      Task.find(taskFilter, { title: 1, status: 1, projectId: 1 }).limit(5),
+      Contract.find(contractFilter, { title: 1, contractNumber: 1 }).limit(5),
     ]);
 
     const results = [

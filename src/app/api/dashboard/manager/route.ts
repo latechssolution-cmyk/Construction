@@ -4,6 +4,7 @@ import Project from "@/models/Project";
 import Task from "@/models/Task";
 import Milestone from "@/models/Milestone";
 import Material from "@/models/Material";
+import { runEquipmentJobCosting } from "@/lib/equipment-job-costing";
 
 export async function GET() {
   try {
@@ -22,18 +23,18 @@ export async function GET() {
     const [taskGroups, milestoneGroups, dueSoonTasks, upcomingMilestones, lowStockItems] = await Promise.all([
       Task.aggregate([
         { $match: { projectId: { $in: projectIds } } },
-        { $group: { _id: "$projectId", statuses: { $push: "$status" } } },
+        { $group: { _id: "$projectId", tasks: { $push: { status: "$status", weight: "$weight" } } } },
       ]),
       Milestone.aggregate([
         { $match: { projectId: { $in: projectIds } } },
         { $group: { _id: "$projectId", completedAts: { $push: "$completedAt" } } },
       ]),
       Task.find(
-        { projectId: { $in: projectIds }, status: { $ne: "completed" }, dueDate: { $lte: new Date(Date.now() + 7 * 86400000), $gte: now } },
+        { projectId: { $in: projectIds }, status: { $ne: "completed" }, dueDate: { $lte: new Date(Date.now() + 7 * 86400000) } },
         { title: 1, dueDate: 1, projectId: 1, priority: 1 }
       ).populate("project", "name").sort({ dueDate: 1 }).limit(10).lean({ virtuals: true }),
       Milestone.find(
-        { projectId: { $in: projectIds }, completedAt: null, dueDate: { $lte: new Date(Date.now() + 30 * 86400000), $gte: now } },
+        { projectId: { $in: projectIds }, completedAt: null, dueDate: { $lte: new Date(Date.now() + 30 * 86400000) } },
         { name: 1, dueDate: 1, projectId: 1 }
       ).populate("project", "name").sort({ dueDate: 1 }).limit(10).lean({ virtuals: true }),
       // Filter low-stock in MongoDB — $expr compares two fields in same document
@@ -43,13 +44,17 @@ export async function GET() {
       ).populate("project", "name").limit(10).lean({ virtuals: true }),
     ]);
 
-    const taskMap = Object.fromEntries(taskGroups.map((r: any) => [r._id.toString(), r.statuses]));
+    const taskMap = Object.fromEntries(taskGroups.map((r: any) => [r._id.toString(), r.tasks]));
 
     const projectProgress = (projects as any[]).map((p: any) => {
-      const statuses: string[] = taskMap[p._id.toString()] || [];
-      const total = statuses.length;
-      const done = statuses.filter((s: string) => s === "completed").length;
-      const taskProgress = total > 0 ? Math.round((done / total) * 100) : 0;
+      const tasksList: { status: string; weight?: number }[] = taskMap[p._id.toString()] || [];
+      const total = tasksList.length;
+      const done = tasksList.filter((t) => t.status === "completed").length;
+      
+      const totalWeight = tasksList.reduce((sum, t) => sum + (t.weight || 1), 0);
+      const completedWeight = tasksList.filter(t => t.status === "completed").reduce((sum, t) => sum + (t.weight || 1), 0);
+      const taskProgress = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
+
       return {
         id: p._id.toString(),
         name: p.name,

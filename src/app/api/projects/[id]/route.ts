@@ -97,6 +97,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     await connectDB();
     if (!await Project.exists({ _id: id })) throw new ApiError(404, "Project not found");
+    const [hasInvoices, hasLedger] = await Promise.all([
+      Invoice.exists({ projectId: id }),
+      LedgerEntry.exists({ projectId: id }),
+    ]);
+    if (hasInvoices || hasLedger) {
+      throw new ApiError(400, "Cannot delete project with associated financial records (invoices or ledger entries).");
+    }
     await Promise.all([
       Task.deleteMany({ projectId: id }),
       Milestone.deleteMany({ projectId: id }),

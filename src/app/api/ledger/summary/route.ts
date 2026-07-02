@@ -13,18 +13,25 @@ export async function GET(req: NextRequest) {
 
     const yearStart = new Date(year, 0, 1);
     const yearEnd = new Date(year + 1, 0, 1);
-    const yearMatch = { date: { $gte: yearStart, $lt: yearEnd } };
+    const baseMatch = { date: { $gte: yearStart, $lt: yearEnd } };
+    const plMatch = {
+      date: { $gte: yearStart, $lt: yearEnd },
+      $or: [
+        { type: "income" },
+        { type: "expense", category: { $ne: "inventory_asset" } },
+      ],
+    };
 
     const [totalIncomeAgg, totalExpenseAgg, byCategoryAgg, monthlyAgg] = await Promise.all([
-      LedgerEntry.aggregate([{ $match: { ...yearMatch, type: "income" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
-      LedgerEntry.aggregate([{ $match: { ...yearMatch, type: "expense" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      LedgerEntry.aggregate([{ $match: { ...baseMatch, type: "income" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      LedgerEntry.aggregate([{ $match: { ...baseMatch, type: "expense", category: { $ne: "inventory_asset" } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       LedgerEntry.aggregate([
-        { $match: yearMatch },
+        { $match: plMatch },
         { $group: { _id: { category: "$category", type: "$type" }, total: { $sum: "$amount" } } },
         { $sort: { total: -1 } },
       ]),
       LedgerEntry.aggregate([
-        { $match: yearMatch },
+        { $match: plMatch },
         {
           $group: {
             _id: { $month: "$date" },

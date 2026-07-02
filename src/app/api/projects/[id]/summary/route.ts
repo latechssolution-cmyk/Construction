@@ -16,11 +16,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     if (!project) throw new ApiError(404, "Project not found");
 
     const [tasks, milestones, materials, incomeAgg, expenseAgg] = await Promise.all([
-      Task.find({ projectId: id }, { status: 1 }),
+      Task.find({ projectId: id }, { status: 1, weight: 1 }),
       Milestone.find({ projectId: id }, { completedAt: 1 }),
       Material.find({ projectId: id }, { stockQuantity: 1, minStockLevel: 1 }),
       LedgerEntry.aggregate([{ $match: { projectId: project._id, type: "income" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
-      LedgerEntry.aggregate([{ $match: { projectId: project._id, type: "expense" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      LedgerEntry.aggregate([{ $match: { projectId: project._id, type: "expense", category: { $ne: "inventory_asset" } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
     ]);
 
     const totalIncome = incomeAgg[0]?.total || 0;
@@ -29,6 +29,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const completedMilestones = milestones.filter((m) => m.completedAt).length;
     const lowStockCount = materials.filter((m) => m.stockQuantity <= m.minStockLevel).length;
 
+    const totalWeight = tasks.reduce((sum, t) => sum + (t.weight || 1), 0);
+    const completedWeight = tasks.filter(t => t.status === "completed").reduce((sum, t) => sum + (t.weight || 1), 0);
+    const taskProgress = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
+
     return ok({
       budget: project.budget,
       budgetUsed: totalExpense,
@@ -36,7 +40,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       income: totalIncome,
       expense: totalExpense,
       profit: totalIncome - totalExpense,
-      taskProgress: tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0,
+      taskProgress,
       milestoneProgress: milestones.length > 0 ? Math.round((completedMilestones / milestones.length) * 100) : 0,
       lowStockCount,
       totalTasks: tasks.length,

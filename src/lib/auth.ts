@@ -6,6 +6,14 @@ import { connectDB } from "@/lib/mongoose";
 import { rateLimit } from "@/lib/rate-limit";
 import User from "@/models/User";
 
+// Issue #58: Fail-fast if AUTH_SECRET is not configured — prevents insecure fallback
+if (!process.env.AUTH_SECRET && !process.env.NEXTAUTH_SECRET) {
+  console.error(
+    "[Auth] CRITICAL: AUTH_SECRET environment variable is not set. " +
+    "JWT authentication is insecure. Set AUTH_SECRET in your .env file."
+  );
+}
+
 const providers: any[] = [
   CredentialsProvider({
     name: "credentials",
@@ -55,6 +63,7 @@ const providers: any[] = [
           name: user.name,
           image: user.image,
           role: user.role,
+          passwordChangedAt: user.passwordChangedAt?.toISOString() || null,
         };
       } catch (err) {
         console.error("[Auth Authorize Exception]", err);
@@ -86,21 +95,41 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id;
         token.role = (user as any).role;
+        // Store passwordChangedAt so we can invalidate stale sessions (Issue #89)
+        token.passwordChangedAt = (user as any).passwordChangedAt || null;
       }
+
+      // Issue #89: Invalidate token if password was changed after it was issued
+      if (token.passwordChangedAt && token.iat) {
+        const changedAtMs = new Date(token.passwordChangedAt as string).getTime();
+        const issuedAtMs = (token.iat as number) * 1000;
+        if (issuedAtMs < changedAtMs) {
+          // Token issued before password change — force re-authentication
+          return {} as any;
+        }
+      }
+
       // For OAuth sign-ins, fetch role from DB
       if (account && account.type !== "credentials" && token.email) {
         await connectDB();
         const dbUser = await User.findOne({ email: token.email });
         if (dbUser) {
+          if (!dbUser.isActive) {
+            // Deactivated account — block access
+            (token as any).blocked = true;
+            token.role = null;
+            return token;
+          }
           token.id = dbUser._id.toString();
-          token.role = dbUser.role || "manager";
+          token.role = dbUser.role;
+          token.passwordChangedAt = dbUser.passwordChangedAt?.toISOString() || null;
         } else {
-          // New OAuth user not yet in DB — assign default role
-          token.role = "manager";
+          // Issue #59: New OAuth user not in DB — block until admin creates their account
+          (token as any).blocked = true;
+          token.role = null;
         }
       }
-      // Ensure role always has a fallback
-      if (!token.role) token.role = "manager";
+
       return token;
     },
     async session({ session, token }) {
@@ -111,7 +140,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "construction-erp-secret-key-2026",
+  // Issue #58: No hardcoded fallback — secret must be set via environment variable
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
 });
 
 // Augment NextAuth types

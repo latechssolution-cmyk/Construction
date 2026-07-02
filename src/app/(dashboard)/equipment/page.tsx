@@ -29,7 +29,7 @@ export default function EquipmentPage() {
   const { data: bankAccounts } = useSWR("/api/bank-accounts", fetcher);
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<any>({});
+  const [form, setForm] = useState<any>({ condition: "good", dailyRate: 0 });
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -60,7 +60,11 @@ export default function EquipmentPage() {
       const res = await fetch("/api/equipment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          dailyRate: parseFloat(form.dailyRate) || 0,
+          purchasePrice: form.purchasePrice ? parseFloat(form.purchasePrice) : undefined,
+        }),
       });
       if (!res.ok) {
         const e = await res.json();
@@ -70,7 +74,7 @@ export default function EquipmentPage() {
       toast({ title: "Equipment added", description: `${form.name} has been added successfully.` });
       mutate();
       setShowForm(false);
-      setForm({});
+      setForm({ condition: "good", dailyRate: 0 });
     } finally {
       setLoading(false);
     }
@@ -87,6 +91,7 @@ export default function EquipmentPage() {
       location: eq.location || "",
       notes: eq.notes || "",
       status: eq.status,
+      dailyRate: eq.dailyRate ?? 0, // Load dailyRate in edit state (Issue #101)
     });
   }
 
@@ -97,7 +102,10 @@ export default function EquipmentPage() {
       const res = await fetch(`/api/equipment/${editingEquipment.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify({
+          ...editForm,
+          dailyRate: parseFloat(editForm.dailyRate) || 0,
+        }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -220,10 +228,14 @@ export default function EquipmentPage() {
             <input value={form.serialNumber || ""} onChange={e => setForm({ ...form, serialNumber: e.target.value })} placeholder="Serial Number" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <input type="date" value={form.purchaseDate || ""} onChange={e => setForm({ ...form, purchaseDate: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <input type="number" value={form.purchasePrice || ""} onChange={e => setForm({ ...form, purchasePrice: e.target.value })} placeholder="Purchase Price (PKR)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            
+            {/* Daily rate field for costing job costing (Issue #101) */}
+            <input type="number" step="1" required value={form.dailyRate ?? 0} onChange={e => setForm({ ...form, dailyRate: e.target.value })} placeholder="Daily Rate (PKR) *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            
             <select value={form.condition || "good"} onChange={e => setForm({ ...form, condition: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
               <option value="excellent">Excellent</option><option value="good">Good</option><option value="fair">Fair</option><option value="poor">Poor</option>
             </select>
-            <input value={form.location || ""} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Location/Site" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            <input value={form.location || ""} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Location/Site" className="border border-gray-200 rounded-lg px-3 py-2 text-sm sm:col-span-2 focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
           </div>
           <div className="flex gap-2">
             <button type="submit" disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50 hover:bg-blue-700 transition-colors">{loading ? "Saving..." : "Add"}</button>
@@ -243,11 +255,15 @@ export default function EquipmentPage() {
             </select>
             <input value={editForm.model || ""} onChange={e => setEditForm({ ...editForm, model: e.target.value })} placeholder="Model" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <input value={editForm.serialNumber || ""} onChange={e => setEditForm({ ...editForm, serialNumber: e.target.value })} placeholder="Serial Number" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            
+            {/* Daily rate field for costing job costing (Issue #101) */}
+            <input type="number" step="1" required value={editForm.dailyRate ?? 0} onChange={e => setEditForm({ ...editForm, dailyRate: e.target.value })} placeholder="Daily Rate (PKR) *" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            
             <select value={editForm.condition || "good"} onChange={e => setEditForm({ ...editForm, condition: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
               <option value="excellent">Excellent</option><option value="good">Good</option><option value="fair">Fair</option><option value="poor">Poor</option>
             </select>
             <input value={editForm.location || ""} onChange={e => setEditForm({ ...editForm, location: e.target.value })} placeholder="Location/Site" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
-            <select value={editForm.status || "available"} onChange={e => setEditForm({ ...editForm, status: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+            <select value={editForm.status || "available"} onChange={e => setEditForm({ ...editForm, status: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:col-span-2">
               <option value="available">Available</option>
               <option value="in_use">In Use</option>
               <option value="maintenance">Maintenance</option>
@@ -283,8 +299,9 @@ export default function EquipmentPage() {
                     <span className={`text-xs px-2 py-0.5 rounded-full capitalize shrink-0 ${STATUS_COLORS[eq.status] || "bg-gray-100 text-gray-600"}`}>{eq.status?.replace("_", " ")}</span>
                   </div>
                   {eq.serialNumber && <p className="text-xs text-gray-400">S/N: {eq.serialNumber}</p>}
-                  <div className="flex gap-3 text-sm">
-                    <span>Condition: <strong className={COND_COLORS[eq.condition] || ""}>{eq.condition}</strong></span>
+                  <div className="flex flex-col gap-1.5 text-xs text-gray-600">
+                    <div>Condition: <strong className={COND_COLORS[eq.condition] || ""}>{eq.condition}</strong></div>
+                    <div>Daily rate: <strong className="text-gray-900">PKR {(eq.dailyRate || 0).toLocaleString()}/day</strong></div>
                   </div>
                   {eq.purchasePrice && <p className="text-xs text-gray-500 font-medium">Value: PKR {eq.purchasePrice.toLocaleString()}</p>}
                   {activeAssignment && <span className="flex items-center gap-1 text-xs text-blue-600"><MapPin className="w-3 h-3 shrink-0" />{activeAssignment.project?.name}</span>}

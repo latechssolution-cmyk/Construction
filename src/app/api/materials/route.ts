@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { notifyAdminsAndManagers, checkBudgetAlert } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
@@ -7,6 +7,7 @@ import Material from "@/models/Material";
 import MaterialUsage from "@/models/MaterialUsage";
 import LedgerEntry from "@/models/LedgerEntry";
 import BankAccount from "@/models/BankAccount";
+import Vendor from "@/models/Vendor";
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,11 +17,17 @@ export async function GET(req: NextRequest) {
     const filter: any = {};
     if (projectId) filter.projectId = projectId;
     await connectDB();
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+    const limit = Math.max(1, parseInt(searchParams.get("limit") || "50"));
+    const skip = (page - 1) * limit;
+
+    const total = await Material.countDocuments(filter);
     const materials = await Material.find(filter)
       .populate("project", "id name")
       .populate("vendor", "id name")
       .sort({ itemName: 1 })
-      .limit(1000)
+      .skip(skip)
+      .limit(limit)
       .lean({ virtuals: true });
     const ids = (materials as any[]).map((m: any) => m._id);
     // Cap usage log fetch — at most 5 per material, hard limit avoids over-fetching on large data
@@ -34,11 +41,20 @@ export async function GET(req: NextRequest) {
       if (!usageMap[key]) usageMap[key] = [];
       if (usageMap[key].length < 5) usageMap[key].push(u);
     });
-    const result = (materials as any[]).map((m: any) => {
+    const entries = (materials as any[]).map((m: any) => {
       const id = m._id?.toString() || m.id;
       return { ...m, id, usageLogs: usageMap[id] || [] };
     });
-    return ok(result);
+
+    return ok({
+      data: entries,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      }
+    });
   } catch (e) {
     return handleApiError(e);
   }
@@ -51,6 +67,15 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
     if (!data.itemName || !data.projectId) throw new Error("Item name and project are required");
     await connectDB();
+
+    // Check deactivated vendor status
+    const vId = toId(data.vendorId);
+    if (vId) {
+      const vendor = await Vendor.findById(vId);
+      if (!vendor) throw new ApiError(404, "Vendor not found");
+      if (vendor.isActive === false) throw new ApiError(400, "Vendor is deactivated and cannot be used.");
+    }
+
     const qty = parseFloat(data.quantity || "0");
     const price = parseFloat(data.unitPrice || "0");
     const totalPrice = qty * price;
@@ -67,24 +92,31 @@ export async function POST(req: NextRequest) {
       totalPrice,
       receivedDate,
       projectId: toId(data.projectId),
-      vendorId: toId(data.vendorId),
+      vendorId: vId,
       notes: data.notes || null,
     });
     if (totalPrice > 0) {
+      if (data.bankAccountId) {
+        const bankAccount = await BankAccount.findById(data.bankAccountId);
+        if (!bankAccount) throw new Error("Bank account not found");
+        if (bankAccount.balance < totalPrice) {
+          throw new Error(`Insufficient funds: bank account balance is PKR ${bankAccount.balance.toLocaleString()}, but purchase requires PKR ${totalPrice.toLocaleString()}`);
+        }
+        bankAccount.balance -= totalPrice;
+        await bankAccount.save();
+      }
       await LedgerEntry.create({
         date: receivedDate,
         type: "expense",
         amount: totalPrice,
-        category: "material_purchase",
-        description: `${data.itemName} × ${qty} ${material.unit}`,
+        category: data.bankAccountId ? "inventory_asset" : "accounts_payable",
+        description: `${data.itemName} × ${qty} ${material.unit} (${data.bankAccountId ? "Paid" : "On Credit"})`,
         projectId: toId(data.projectId),
-        vendorId: toId(data.vendorId),
+        vendorId: vId,
         bankAccountId: toId(data.bankAccountId),
         createdById: session.user.id,
+        referenceNumber: material.id,
       });
-      if (data.bankAccountId) {
-        await BankAccount.findByIdAndUpdate(data.bankAccountId, { $inc: { balance: -totalPrice } });
-      }
     }
     if (qty <= minStock) {
       void notifyAdminsAndManagers("Low Stock Alert", `${material.itemName} stock is low (${qty} ${material.unit} remaining)`, "warning");

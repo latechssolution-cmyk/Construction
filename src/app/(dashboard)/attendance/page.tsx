@@ -168,16 +168,40 @@ export default function AttendancePage() {
   }
 
   async function updateRecord(id: string, patch: any) {
-    const res = await fetch(`/api/attendance/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); setError(e.error || "Failed to update record"); return; }
-    mutate();
+    setError("");
+    try {
+      const res = await fetch(`/api/attendance/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        toast({ title: "Error", description: e.error || "Failed to update record", variant: "destructive" });
+        setError(e.error || "Failed to update record");
+      } else {
+        toast({ title: "Record updated successfully" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Network error. Failed to update record.", variant: "destructive" });
+    } finally {
+      mutate();
+    }
   }
 
   async function deleteRecord(id: string) {
-    const res = await fetch(`/api/attendance/${id}`, { method: "DELETE" });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); setError(e.error || "Failed to delete record"); setConfirmDelete(null); return; }
-    setConfirmDelete(null);
-    mutate();
+    setError("");
+    try {
+      const res = await fetch(`/api/attendance/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        toast({ title: "Error", description: e.error || "Failed to delete record", variant: "destructive" });
+        setError(e.error || "Failed to delete record");
+      } else {
+        toast({ title: "Record deleted successfully" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Network error. Failed to delete record.", variant: "destructive" });
+    } finally {
+      setConfirmDelete(null);
+      mutate();
+    }
   }
 
   const allSelected = bulkRows.length > 0 && bulkRows.every(r => r.selected);

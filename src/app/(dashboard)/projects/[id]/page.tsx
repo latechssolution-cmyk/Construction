@@ -42,6 +42,11 @@ export default function ProjectDetailPage() {
   const [editTaskForm, setEditTaskForm] = useState<any>({});
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
 
+  // Project employee assignment states
+  const [showEmployeeForm, setShowEmployeeForm] = useState(false);
+  const [employeeForm, setEmployeeForm] = useState<any>({});
+  const [deletingEmployeeId, setDeletingEmployeeId] = useState<string | null>(null);
+
   // Inline editing of project details
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -52,6 +57,7 @@ export default function ProjectDetailPage() {
   const { data: vendors } = useSWR("/api/vendors", fetcher);
   const { data: clients } = useSWR(canManage ? "/api/clients" : null, fetcher);
   const { data: managers } = useSWR(canManage ? "/api/users/assignable" : null, fetcher);
+  const { data: allEmployees } = useSWR(canManage ? "/api/employees" : null, fetcher);
 
   // Seed the edit form whenever we enter edit mode / project loads
   useEffect(() => {
@@ -222,6 +228,38 @@ export default function ProjectDetailPage() {
     a.href = url;
     a.download = `project-report-${project.name}.pdf`;
     a.click();
+  }
+
+  async function assignEmployee(e: React.FormEvent) {
+    e.preventDefault();
+    const res = await fetch(`/api/projects/${id}/employees`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(employeeForm),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || "Failed to assign employee", variant: "destructive" });
+      return;
+    }
+    mutate();
+    setShowEmployeeForm(false);
+    setEmployeeForm({});
+    toast({ title: "Employee assigned" });
+  }
+
+  async function removeEmployee(employeeId: string) {
+    const res = await fetch(`/api/projects/${id}/employees?employeeId=${employeeId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || "Failed to remove employee", variant: "destructive" });
+      return;
+    }
+    mutate();
+    setDeletingEmployeeId(null);
+    toast({ title: "Employee assignment removed" });
   }
 
   return (
@@ -454,6 +492,7 @@ export default function ProjectDetailPage() {
                   <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option>
                 </select>
                 <input type="date" value={taskForm.dueDate || ""} onChange={(e) => setTaskForm({...taskForm, dueDate: e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                <input type="number" min="1" value={taskForm.weight || "1"} onChange={(e) => setTaskForm({...taskForm, weight: e.target.value})} placeholder="Weight (default 1)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm col-span-2" />
                 <div className="col-span-2"><textarea value={taskForm.description || ""} onChange={(e) => setTaskForm({...taskForm, description: e.target.value})} placeholder="Description" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" /></div>
               </div>
               <div className="flex gap-2">
@@ -479,6 +518,7 @@ export default function ProjectDetailPage() {
                           status: editTaskForm.status,
                           assignedToId: editTaskForm.assignedToId || null,
                           dueDate: editTaskForm.dueDate || null,
+                          weight: editTaskForm.weight,
                         }),
                       });
                       if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to update task", variant: "destructive" }); return; }
@@ -504,6 +544,7 @@ export default function ProjectDetailPage() {
                         {(Array.isArray(managers) ? managers : []).map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
                       </select>
                       <input type="date" value={editTaskForm.dueDate || ""} onChange={e => setEditTaskForm({ ...editTaskForm, dueDate: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs" />
+                      <input type="number" min="1" placeholder="Weight (default 1)" value={editTaskForm.weight || "1"} onChange={e => setEditTaskForm({ ...editTaskForm, weight: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs sm:col-span-2" />
                     </div>
                     <div className="flex gap-2">
                       <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold">Save</button>
@@ -523,6 +564,11 @@ export default function ProjectDetailPage() {
                       {task.dueDate && <span className="text-xs text-gray-400 font-medium">{new Date(task.dueDate).toLocaleDateString()}</span>}
                       <span className={`text-xs px-2 py-0.5 rounded-full uppercase font-bold text-[9px] ${STATUS_COLORS[task.status] || ""}`}>{task.status?.replace("_", " ")}</span>
                       <span className={`text-xs px-2 py-0.5 rounded-full uppercase font-bold text-[9px] ${task.priority === "high" ? "bg-red-100 text-red-700" : task.priority === "medium" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>{task.priority}</span>
+                      {task.weight && task.weight !== 1 && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold text-[9px]">
+                          Wt: {task.weight}
+                        </span>
+                      )}
                       {canManage && (
                         <div className="flex items-center gap-1">
                           <button
@@ -535,6 +581,7 @@ export default function ProjectDetailPage() {
                                 status: task.status,
                                 assignedToId: task.assignedToId || "",
                                 dueDate: task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : "",
+                                weight: task.weight || "1",
                               });
                             }}
                             className="p-1 text-blue-600 hover:bg-blue-50 rounded"
@@ -1009,19 +1056,103 @@ export default function ProjectDetailPage() {
       )}
 
       {tab === "Team" && (
-        <div className="space-y-3">
-          <h3 className="font-semibold text-gray-900">Assigned Team</h3>
-          {(project.employees || []).map((pe: any) => (
-            <div key={pe.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-medium">{pe.employee?.name?.[0]}</div>
-              <div>
-                <p className="font-medium text-sm text-gray-900">{pe.employee?.name}</p>
-                <p className="text-xs text-gray-500">{pe.role}</p>
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold text-gray-900">Assigned Team</h3>
+            {canManage && (
+              <button
+                onClick={() => setShowEmployeeForm(!showEmployeeForm)}
+                className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg"
+              >
+                + Assign Employee
+              </button>
+            )}
+          </div>
+
+          {showEmployeeForm && canManage && (
+            <form onSubmit={assignEmployee} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+              <h4 className="text-sm font-semibold text-gray-700">Assign Employee to Team</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <select
+                  required
+                  value={employeeForm.employeeId || ""}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, employeeId: e.target.value })}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">Select Employee *</option>
+                  {(Array.isArray(allEmployees) ? allEmployees : [])
+                    .filter((emp: any) => emp.isActive !== false)
+                    .map((emp: any) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name} ({emp.role || emp.designation || "Employee"})
+                      </option>
+                    ))}
+                </select>
+                <input
+                  value={employeeForm.role || ""}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, role: e.target.value })}
+                  placeholder="Project Role (e.g. Site Engineer)"
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                />
+                <input
+                  type="date"
+                  value={employeeForm.startDate || ""}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, startDate: e.target.value })}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm col-span-2"
+                />
               </div>
-              <p className="ml-auto text-xs text-gray-400">Since {pe.startDate ? new Date(pe.startDate).toLocaleDateString() : "—"}</p>
-            </div>
-          ))}
-          {(project.employees || []).length === 0 && (
+              <div className="flex gap-2">
+                <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Assign</button>
+                <button type="button" onClick={() => { setShowEmployeeForm(false); setEmployeeForm({}); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
+              </div>
+            </form>
+          )}
+
+          <div className="space-y-2">
+            {(project.employees || []).map((pe: any) => (
+              <div key={pe.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-medium">
+                  {pe.employee?.name?.[0] || "U"}
+                </div>
+                <div>
+                  <p className="font-medium text-sm text-gray-900">{pe.employee?.name || "Unknown Employee"}</p>
+                  <p className="text-xs text-gray-500">{pe.role || "Team Member"}</p>
+                </div>
+                <div className="ml-auto flex items-center gap-3">
+                  <span className="text-xs text-gray-400">Since {pe.startDate ? new Date(pe.startDate).toLocaleDateString() : "—"}</span>
+                  {canManage && (
+                    <>
+                      {deletingEmployeeId === pe.employeeId ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => removeEmployee(pe.employeeId)}
+                            className="text-xs px-2 py-1 bg-red-600 text-white rounded-md font-medium hover:bg-red-700"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => setDeletingEmployeeId(null)}
+                            className="p-1 text-gray-400 hover:text-gray-600"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeletingEmployeeId(pe.employeeId)}
+                          className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remove assignment"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {(project.employees || []).length === 0 && !showEmployeeForm && (
             <div className="bg-white border border-gray-200 rounded-xl">
               <EmptyState icon={<Users className="w-10 h-10" />} title="No team members assigned" hint="Assign employees to this project to track who's working on what." />
             </div>

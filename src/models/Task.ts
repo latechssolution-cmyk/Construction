@@ -1,4 +1,4 @@
-﻿import mongoose, { Schema, Document, Model, Types } from "mongoose";
+import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface ITask extends Document {
   projectId: Types.ObjectId;
@@ -13,6 +13,7 @@ export interface ITask extends Document {
   actualHours?: number;
   completedAt?: Date | null;
   notes?: string;
+  weight?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,7 +25,7 @@ const taskSchema = new Schema<ITask>(
     title: { type: String, required: true },
     description: { type: String },
     assignedToId: { type: Schema.Types.ObjectId, ref: "User" },
-    priority: { type: String, default: "medium" },
+    priority: { type: String, enum: ["low", "medium", "high", "critical"], default: "medium" },
     dueDate: { type: Date },
     status: {
       type: String,
@@ -35,6 +36,7 @@ const taskSchema = new Schema<ITask>(
     actualHours: { type: Number },
     completedAt: { type: Date },
     notes: { type: String },
+    weight: { type: Number, default: 1 },
   },
   {
     timestamps: true,

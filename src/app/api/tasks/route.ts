@@ -53,9 +53,17 @@ export async function POST(req: NextRequest) {
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
       estimatedHours: data.estimatedHours ? parseFloat(data.estimatedHours) : null,
       notes: data.notes || null,
+      weight: data.weight !== undefined ? parseFloat(data.weight) || 1 : 1,
     });
     await task.populate("project", "id name");
     await task.populate("assignedTo", "id name");
+
+    const allTasks = await Task.find({ projectId: task.projectId }, { status: 1, weight: 1 });
+    const totalWeight = allTasks.reduce((sum, t) => sum + (t.weight || 1), 0);
+    const completedWeight = allTasks.filter(t => t.status === "completed").reduce((sum, t) => sum + (t.weight || 1), 0);
+    const pct = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
+    await Project.findByIdAndUpdate(task.projectId, { completionPercent: pct });
+
     await auditLog(session.user.id, "CREATE", "Task", task.id, `Created task: ${task.title}`);
     return created(task);
   } catch (e) {

@@ -1,4 +1,4 @@
-﻿import mongoose, { Schema, Document, Model, Types } from "mongoose";
+import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface IAuditLog extends Document {
   userId?: Types.ObjectId;
@@ -6,6 +6,7 @@ export interface IAuditLog extends Document {
   module: string;
   recordId?: string;
   details?: string;
+  ipAddress?: string;
   createdAt: Date;
 }
 
@@ -16,6 +17,7 @@ const auditLogSchema = new Schema<IAuditLog>(
     module: { type: String, required: true },
     recordId: { type: String },
     details: { type: String },
+    ipAddress: { type: String },
   },
   {
     timestamps: { createdAt: true, updatedAt: false },

@@ -9,6 +9,10 @@ export interface IUser extends Document {
   role: "admin" | "ceo" | "manager" | "accountant";
   isActive: boolean;
   lastLoginAt?: Date | null;
+  passwordChangedAt?: Date | null;
+  isEmailVerified: boolean;
+  resetPasswordToken?: string | null;
+  resetPasswordExpires?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,6 +31,10 @@ const userSchema = new Schema<IUser>(
     },
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
+    passwordChangedAt: { type: Date, default: null },
+    isEmailVerified: { type: Boolean, default: false },
+    resetPasswordToken: { type: String, default: null },
+    resetPasswordExpires: { type: Date, default: null },
   },
   {
     timestamps: true,

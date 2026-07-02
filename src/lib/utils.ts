@@ -8,6 +8,8 @@ export function cn(...inputs: ClassValue[]) {
 export function formatCurrency(amount: number | string | null | undefined): string {
   if (amount === null || amount === undefined) return "PKR 0";
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
+  // Guard against NaN — e.g. parseFloat('abc') returns NaN (Issue #100)
+  if (isNaN(num)) return "PKR 0";
   return new Intl.NumberFormat("en-PK", {
     style: "currency",
     currency: "PKR",
@@ -18,34 +20,47 @@ export function formatCurrency(amount: number | string | null | undefined): stri
 
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "—";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "—";
   return new Intl.DateTimeFormat("en-PK", {
     year: "numeric",
     month: "short",
     day: "numeric",
-  }).format(new Date(date));
+  }).format(d);
 }
 
 export function formatDateTime(date: Date | string | null | undefined): string {
   if (!date) return "—";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "—";
   return new Intl.DateTimeFormat("en-PK", {
     year: "numeric",
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(date));
+  }).format(d);
 }
 
+/**
+ * @deprecated Use generateSequentialBillNumber() from the API layer (Counter model) instead.
+ * This sync version remains for backwards compatibility with any callers that cannot be async.
+ * The API routes use the async Counter-based version which is collision-free.
+ */
 export function generateBillNumber(): string {
-  const year = new Date().getFullYear();
-  const random = Math.floor(Math.random() * 9000) + 1000;
-  return `INV-${year}-${random}`;
+  const now = new Date();
+  const prefix = `INV-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  // Fallback: timestamp-based suffix is far less likely to collide than 4-digit random
+  return `${prefix}-${Date.now().toString().slice(-6)}`;
 }
 
+/**
+ * @deprecated Use generateSequentialContractNumber() from the API layer (Counter model) instead.
+ */
 export function generateContractNumber(): string {
-  const year = new Date().getFullYear();
-  const random = Math.floor(Math.random() * 9000) + 1000;
-  return `CNT-${year}-${random}`;
+  const now = new Date();
+  const prefix = `CNT-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return `${prefix}-${Date.now().toString().slice(-6)}`;
 }
 
 export function getRoleBadgeColor(role: string): string {

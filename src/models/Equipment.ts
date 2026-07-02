@@ -1,4 +1,4 @@
-﻿import mongoose, { Schema, Document, Model } from "mongoose";
+import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IEquipment extends Omit<Document, "model"> {
   name: string;
@@ -10,6 +10,8 @@ export interface IEquipment extends Omit<Document, "model"> {
   condition: "excellent" | "good" | "fair" | "poor";
   status: "available" | "in_use" | "maintenance" | "decommissioned";
   location?: string;
+  dailyRate: number;
+  hourlyRate: number;
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -34,6 +36,8 @@ const equipmentSchema = new Schema<IEquipment>(
       default: "available",
     },
     location: { type: String },
+    dailyRate: { type: Number, default: 0 },
+    hourlyRate: { type: Number, default: 0 },
     notes: { type: String },
   },
   {

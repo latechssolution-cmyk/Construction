@@ -10,7 +10,10 @@ function toCSV(rows: Record<string, unknown>[]): string {
   if (!rows.length) return "";
   const headers = Object.keys(rows[0]);
   const escape = (v: unknown) => {
-    const s = v === null || v === undefined ? "" : String(v).replace(/"/g, '""').replace(/[\r\n]+/g, " ");
+    let s = v === null || v === undefined ? "" : String(v).replace(/"/g, '""').replace(/[\r\n]+/g, " ");
+    if (s.startsWith("=") || s.startsWith("+") || s.startsWith("-") || s.startsWith("@")) {
+      s = `'${s}`;
+    }
     return `"${s}"`;
   };
   const lines = [headers.map((h) => escape(h)).join(",")];
@@ -32,12 +35,34 @@ const today = () => new Date().toISOString().split("T")[0];
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth();
-    const exportModule = new URL(req.url).searchParams.get("module") || "";
+    const { searchParams } = new URL(req.url);
+    const exportModule = searchParams.get("module") || "";
+    const projectId = searchParams.get("projectId") || "";
+    const fromDate = searchParams.get("from") || "";
+    const toDate = searchParams.get("to") || "";
+    
     await connectDB();
+
+    // Build reusable filter objects (Issue #83)
+    const dateFilter: any = {};
+    if (fromDate) dateFilter.$gte = new Date(fromDate);
+    if (toDate) dateFilter.$lte = new Date(toDate);
+
+    const hasDateFilter = fromDate || toDate;
 
     if (exportModule === "invoices") {
       requireRole(session, "admin", "ceo", "accountant");
-      const rows = await Invoice.find({}).populate("client", "name").populate("project", "name").sort({ createdAt: -1 });
+      
+      const filter: any = { deletedAt: null };
+      if (projectId) filter.projectId = projectId;
+      if (hasDateFilter) filter.issueDate = dateFilter;
+
+      const rows = await Invoice.find(filter)
+        .populate("client", "name")
+        .populate("project", "name")
+        .sort({ createdAt: -1 })
+        .limit(10000); // Guard limit
+
       const csv = toCSV(rows.map((r) => ({
         "Invoice #": r.invoiceNumber,
         Client: (r as any).client?.name || "",
@@ -55,7 +80,17 @@ export async function GET(req: NextRequest) {
 
     if (exportModule === "ledger") {
       requireRole(session, "admin", "ceo", "accountant");
-      const rows = await LedgerEntry.find({}).populate("project", "name").populate("vendor", "name").sort({ date: -1 });
+
+      const filter: any = {};
+      if (projectId) filter.projectId = projectId;
+      if (hasDateFilter) filter.date = dateFilter;
+
+      const rows = await LedgerEntry.find(filter)
+        .populate("project", "name")
+        .populate("vendor", "name")
+        .sort({ date: -1 })
+        .limit(10000); // Guard limit
+
       const csv = toCSV(rows.map((r) => ({
         Date: new Date(r.date).toLocaleDateString(),
         Type: r.type,
@@ -72,7 +107,16 @@ export async function GET(req: NextRequest) {
 
     if (exportModule === "attendance") {
       requireRole(session, "admin", "ceo", "manager");
-      const rows = await Attendance.find({}).populate("employee", "name").sort({ date: -1 });
+
+      const filter: any = {};
+      if (hasDateFilter) filter.date = dateFilter;
+      // Filter by projects if project assignment info is matched (or simply fetch target employee subset)
+
+      const rows = await Attendance.find(filter)
+        .populate("employee", "name")
+        .sort({ date: -1 })
+        .limit(10000); // Guard limit
+
       const csv = toCSV(rows.map((r) => ({
         Date: new Date(r.date).toLocaleDateString(),
         Employee: (r as any).employee?.name || "",
@@ -85,7 +129,17 @@ export async function GET(req: NextRequest) {
 
     if (exportModule === "materials") {
       requireRole(session, "admin", "ceo", "manager");
-      const rows = await Material.find({}).populate("project", "name").populate("vendor", "name").sort({ createdAt: -1 });
+
+      const filter: any = {};
+      if (projectId) filter.projectId = projectId;
+      if (hasDateFilter) filter.createdAt = dateFilter;
+
+      const rows = await Material.find(filter)
+        .populate("project", "name")
+        .populate("vendor", "name")
+        .sort({ createdAt: -1 })
+        .limit(10000); // Guard limit
+
       const csv = toCSV(rows.map((r) => ({
         Name: r.itemName,
         Category: r.category || "",
@@ -102,8 +156,17 @@ export async function GET(req: NextRequest) {
 
     if (exportModule === "payments") {
       requireRole(session, "admin", "ceo", "accountant");
-      const rows = await LedgerEntry.find({ category: { $in: ["client_payment", "vendor_payment", "invoice_payment"] } })
-        .populate("project", "name").populate("vendor", "name").sort({ date: -1 });
+
+      const filter: any = { category: { $in: ["client_payment", "vendor_payment", "invoice_payment"] } };
+      if (projectId) filter.projectId = projectId;
+      if (hasDateFilter) filter.date = dateFilter;
+
+      const rows = await LedgerEntry.find(filter)
+        .populate("project", "name")
+        .populate("vendor", "name")
+        .sort({ date: -1 })
+        .limit(10000); // Guard limit
+
       const csv = toCSV(rows.map((r) => ({
         Date: new Date(r.date).toLocaleDateString(),
         Type: r.type,

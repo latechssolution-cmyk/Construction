@@ -1,4 +1,4 @@
-﻿import mongoose, { Schema, Document, Model, Types } from "mongoose";
+import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface IMaterial extends Document {
   projectId: Types.ObjectId;
@@ -10,6 +10,7 @@ export interface IMaterial extends Document {
   minStockLevel: number;
   unit: string;
   unitPrice: number;
+  /** Computed virtual: quantity × unitPrice */
   totalPrice: number;
   receivedDate: Date;
   receiptPath?: string;
@@ -29,7 +30,7 @@ const materialSchema = new Schema<IMaterial>(
     minStockLevel: { type: Number, default: 5 },
     unit: { type: String, required: true },
     unitPrice: { type: Number, required: true },
-    totalPrice: { type: Number, required: true },
+    // totalPrice is a virtual — not stored — to prevent quantity×unitPrice mismatches
     receivedDate: { type: Date, default: Date.now },
     receiptPath: { type: String },
     notes: { type: String },
@@ -69,6 +70,20 @@ materialSchema.virtual("usageLogs", {
 
 materialSchema.index({ projectId: 1, stockQuantity: 1 });
 materialSchema.index({ itemName: 1 });
+
+// Virtual: totalPrice computed from quantity × unitPrice (Issue #79)
+materialSchema.virtual("totalPrice").get(function (this: IMaterial) {
+  return (this.quantity || 0) * (this.unitPrice || 0);
+});
+
+// Pre-save: initialize stockQuantity from quantity when creating (Issue #80)
+materialSchema.pre("save", function (next) {
+  // Only set stockQuantity on new documents where it has not been manually set
+  if (this.isNew && (this.stockQuantity === undefined || this.stockQuantity === 0)) {
+    this.stockQuantity = this.quantity;
+  }
+  next();
+});
 
 const Material: Model<IMaterial> =
   mongoose.models.Material || mongoose.model<IMaterial>("Material", materialSchema);

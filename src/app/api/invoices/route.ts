@@ -1,12 +1,25 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Invoice from "@/models/Invoice";
+import Project from "@/models/Project";
+import Contract from "@/models/Contract";
+import Counter from "@/models/Counter";
 
-function generateInvoiceNumber() {
+/**
+ * Issue #64 / #85: Sequential, collision-free invoice number generation.
+ * Uses MongoDB Counter collection with upsert+increment — thread-safe on a replica set.
+ */
+async function generateInvoiceNumber(): Promise<string> {
   const now = new Date();
-  return `INV-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${Math.floor(Math.random() * 9000 + 1000)}`;
+  const prefix = `INV-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const counter = await Counter.findByIdAndUpdate(
+    prefix,
+    { $inc: { seq: 1 } },
+    { upsert: true, new: true }
+  );
+  return `${prefix}-${String(counter!.seq).padStart(4, "0")}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -16,16 +29,13 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status");
     const clientId = searchParams.get("clientId");
     const projectId = searchParams.get("projectId");
-    const filter: any = {};
+    // Issue #66: Exclude soft-deleted invoices from all list results
+    const filter: any = { deletedAt: null };
     if (status) filter.status = status;
     if (clientId) filter.clientId = clientId;
     if (projectId) filter.projectId = projectId;
     await connectDB();
-    // Mark overdue without blocking the read response (fire-and-forget)
-    void Invoice.updateMany(
-      { status: "sent", dueDate: { $lt: new Date() } },
-      { $set: { status: "overdue" } }
-    );
+    // Issue #63: Overdue flagging moved to /api/cron — removed fire-and-forget here
     const invoices = await Invoice.find(filter)
       .populate("client", "id name")
       .populate("project", "id name")
@@ -47,31 +57,68 @@ export async function POST(req: NextRequest) {
     if (!data.clientId) throw new Error("Client is required");
     if (!Array.isArray(data.items) || data.items.length === 0) throw new Error("At least one line item is required");
     await connectDB();
+
+    // Issue #65: Validate each line item before processing
     const items = (data.items || []).map((item: any) => {
       if (!item.description?.trim()) throw new Error("Each item must have a description");
+      const qty = parseFloat(String(item.quantity ?? "0"));
+      const price = parseFloat(String(item.unitPrice ?? "0"));
+      if (qty <= 0) throw new Error(`Item '${item.description}': quantity must be greater than 0`);
+      if (price < 0) throw new Error(`Item '${item.description}': unit price cannot be negative`);
       return {
-        description: item.description,
-        quantity: parseFloat(item.quantity || "1"),
+        description: item.description.trim(),
+        quantity: qty,
         unit: item.unit || null,
-        unitPrice: parseFloat(item.unitPrice || "0"),
-        total: parseFloat(item.quantity || "1") * parseFloat(item.unitPrice || "0"),
+        unitPrice: price,
+        total: qty * price,
       };
     });
+
     const subtotal = items.reduce((s: number, i: any) => s + i.total, 0);
     const rawTax = parseFloat(data.taxPercent || "0");
     const taxPercent = isNaN(rawTax) ? 0 : Math.max(0, Math.min(100, rawTax));
     const taxAmount = (subtotal * taxPercent) / 100;
-    const grandTotal = subtotal + taxAmount;
+
+    const rawRetention = parseFloat(data.retentionPercent || "0");
+    const retentionPercent = isNaN(rawRetention) ? 0 : Math.max(0, Math.min(100, rawRetention));
+    const retentionAmount = (subtotal * retentionPercent) / 100;
+
+    const whtDeducted = parseFloat(data.whtDeducted || "0") || 0;
+
+    // Issue #60: CRITICAL FIX — grandTotal must deduct retention and WHT
+    // Previously was: subtotal + taxAmount (inflating every invoice by retention + WHT amount)
+    const grandTotal = subtotal + taxAmount - retentionAmount - whtDeducted;
+
+    // Validate invoice totals against contract limit
+    const projId = toId(data.projectId);
+    if (projId) {
+      const project = await Project.findById(projId);
+      if (project && project.contractId) {
+        const contract = await Contract.findById(project.contractId).populate("variations");
+        if (contract) {
+          const pastInvoices = await Invoice.find({ projectId: projId, status: { $ne: "cancelled" }, deletedAt: null });
+          const pastSum = pastInvoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
+          const contractLimit = (contract as any).totalValue || contract.contractValue || 0;
+          if (pastSum + grandTotal > contractLimit) {
+            throw new Error(`Invoicing limit exceeded. Total invoiced including this invoice will be PKR ${(pastSum + grandTotal).toLocaleString()}, which exceeds the contract limit of PKR ${contractLimit.toLocaleString()}.`);
+          }
+        }
+      }
+    }
+
     const invoice = await Invoice.create({
-      invoiceNumber: data.invoiceNumber || generateInvoiceNumber(),
+      invoiceNumber: data.invoiceNumber || await generateInvoiceNumber(),
       clientId: toId(data.clientId),
-      projectId: toId(data.projectId),
+      projectId: projId,
       issueDate: data.issueDate ? new Date(data.issueDate) : new Date(),
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
       status: data.status || "draft",
       subtotal,
       taxPercent,
       taxAmount,
+      retentionPercent,
+      retentionAmount,
+      whtDeducted,
       grandTotal,
       notes: data.notes || null,
       paymentTerms: data.paymentTerms || null,

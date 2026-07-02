@@ -148,19 +148,32 @@ export default function ProfitSheetsPage() {
               <th className="text-left py-2 px-4 text-xs text-gray-500">Type</th>
               <th className="text-left py-2 px-4 text-xs text-gray-500">Status</th>
               <th className="text-right py-2 px-4 text-xs text-gray-500">Budget (PKR)</th>
+              <th className="text-right py-2 px-4 text-xs text-gray-500">Actual Revenue</th>
+              <th className="text-right py-2 px-4 text-xs text-gray-500">Actual Expense</th>
+              <th className="text-right py-2 px-4 text-xs text-gray-500">Actual Profit</th>
               <th className="text-right py-2 px-4 text-xs text-gray-500">Task Progress</th>
             </tr></thead>
             <tbody>
               {projects.map((p:any)=>{
                 const totalTasks = p.tasks?.length||0;
-                const doneTasks = (p.tasks||[]).filter((t:any)=>t.status==="completed").length;
-                const pct = totalTasks>0?Math.round(doneTasks/totalTasks*100):p.completionPercent||0;
+                let pct = p.completionPercent || 0;
+                if (totalTasks > 0) {
+                  const totalWeight = p.tasks.reduce((sum: number, t: any) => sum + (t.weight || 1), 0);
+                  const completedWeight = p.tasks.filter((t: any) => t.status === "completed").reduce((sum: number, t: any) => sum + (t.weight || 1), 0);
+                  pct = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
+                }
+                const actualProfit = (p.actualRevenue || 0) - (p.actualExpense || 0);
                 return (
                   <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-2 px-4 font-medium text-gray-900">{p.name}</td>
                     <td className="py-2 px-4 text-gray-500 capitalize">{p.type?.replace("_"," ")||"—"}</td>
                     <td className="py-2 px-4"><span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">{p.status?.replace("_"," ")}</span></td>
                     <td className="py-2 px-4 text-right font-medium text-gray-800">{(p.budget||0).toLocaleString()}</td>
+                    <td className="py-2 px-4 text-right text-green-600 font-medium">PKR {(p.actualRevenue||0).toLocaleString()}</td>
+                    <td className="py-2 px-4 text-right text-red-500 font-medium">PKR {(p.actualExpense||0).toLocaleString()}</td>
+                    <td className={`py-2 px-4 text-right font-bold ${actualProfit >= 0 ? "text-green-600" : "text-red-500"}`}>
+                      PKR {actualProfit.toLocaleString()}
+                    </td>
                     <td className="py-2 px-4">
                       <div className="flex items-center gap-2 justify-end">
                         <div className="w-24 bg-gray-100 rounded-full h-2"><div className="bg-blue-500 h-2 rounded-full" style={{width:`${pct}%`}}></div></div>

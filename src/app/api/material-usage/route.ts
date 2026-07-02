@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created, ApiError } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, ApiError, toId } from "@/lib/api-helpers";
 import { notifyAdminsAndManagers } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
 import Material from "@/models/Material";
 import MaterialUsage from "@/models/MaterialUsage";
+import LedgerEntry from "@/models/LedgerEntry";
 import mongoose from "mongoose";
 
 export async function GET(req: NextRequest) {
@@ -15,6 +16,7 @@ export async function GET(req: NextRequest) {
     const logs = await MaterialUsage.find(materialId ? { materialId } : {})
       .populate("material", "itemName unit")
       .populate("usedBy", "name")
+      .populate("project", "name")
       .sort({ date: -1 })
       .limit(500);
     return ok(logs);
@@ -48,13 +50,29 @@ export async function POST(req: NextRequest) {
           const current = await Material.findById(data.materialId, { stockQuantity: 1, unit: 1 }, { session: dbSession });
           throw new ApiError(400, `Insufficient stock. Available: ${current?.stockQuantity ?? 0} ${material.unit}`);
         }
+        
+        const destProjectId = toId(data.projectId) || material.projectId;
+
         [usage] = await MaterialUsage.create([{
           materialId: data.materialId,
+          projectId: destProjectId,
           quantityUsed: qty,
           date: data.date ? new Date(data.date) : new Date(),
           purpose: data.purpose || null,
           notes: data.notes || null,
           usedById: session.user.id,
+        }], { session: dbSession });
+
+        const cost = qty * material.unitPrice;
+        await LedgerEntry.create([{
+          date: data.date ? new Date(data.date) : new Date(),
+          type: "expense",
+          amount: cost,
+          category: "material_usage",
+          description: `Usage of ${qty} ${material.unit} of ${material.itemName}`,
+          projectId: destProjectId,
+          createdById: session.user.id,
+          referenceNumber: usage._id?.toString() || usage.id,
         }], { session: dbSession });
       });
     } finally {

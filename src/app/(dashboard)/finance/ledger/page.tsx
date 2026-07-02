@@ -13,9 +13,11 @@ const CATEGORIES = ["material_purchase","salary","maintenance","invoice_payment"
 
 export default function LedgerPage() {
   const { data: session } = useSession();
-  const { data: entries, mutate, isLoading } = useSWR("/api/ledger", fetcher);
+  const [page, setPage] = useState(1);
+  const { data: entries, mutate, isLoading } = useSWR(`/api/ledger?page=${page}&limit=50`, fetcher);
   const { data: projects } = useSWR("/api/projects", fetcher);
   const { data: bankAccounts } = useSWR("/api/bank-accounts", fetcher);
+  const { data: vendors } = useSWR("/api/vendors", fetcher);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>({ type:"expense", category:"" });
   const [loading, setLoading] = useState(false);
@@ -27,7 +29,7 @@ export default function LedgerPage() {
   }
 
   const canManage = ["admin","ceo","accountant"].includes(session?.user?.role||"");
-  const list: any[] = Array.isArray(entries) ? entries : [];
+  const list: any[] = entries?.data ? entries.data : (Array.isArray(entries) ? entries : []);
   const filtered = list.filter((e:any)=>!typeFilter||e.type===typeFilter);
 
   const totalIncome = list.filter((e:any)=>e.type==="income").reduce((s:number,e:any)=>s+e.amount,0);
@@ -122,6 +124,14 @@ export default function LedgerPage() {
               <option value="">Bank Account (optional)</option>
               {(Array.isArray(bankAccounts)?bankAccounts:[]).map((b:any)=><option key={b.id} value={b.id}>{b.name} — PKR {(b.balance||0).toLocaleString()}</option>)}
             </select>
+            
+            <select value={form.vendorId||""} onChange={e=>setForm({...form,vendorId:e.target.value||undefined})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+              <option value="">Vendor (optional)</option>
+              {(Array.isArray(vendors)?vendors:[]).map((v:any)=><option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+            
+            <input type="text" value={form.partyName||""} onChange={e=>setForm({...form,partyName:e.target.value})} placeholder="Other Party Name (optional)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+
             <input type="text" value={form.referenceNumber||""} onChange={e=>setForm({...form,referenceNumber:e.target.value})} placeholder="Reference / Voucher # (optional)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
           </div>
           <div className="flex gap-2">
@@ -144,7 +154,7 @@ export default function LedgerPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  {["Date","Type","Description","Category","Project","Reference #","Amount"].map(h=><th key={h} className="text-left py-3 px-3 text-xs text-gray-500 font-medium whitespace-nowrap">{h}</th>)}
+                  {["Date","Type","Description","Category","Party / Vendor","Project","Reference #","Amount"].map(h=><th key={h} className="text-left py-3 px-3 text-xs text-gray-500 font-medium whitespace-nowrap">{h}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -152,8 +162,9 @@ export default function LedgerPage() {
                   <tr key={e.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
                     <td className="py-3 px-3 text-gray-500 whitespace-nowrap">{e.date?new Date(e.date).toLocaleDateString():"-"}</td>
                     <td className="py-3 px-3"><span className={"text-xs px-2 py-0.5 rounded-full capitalize "+(TYPE_COLORS[e.type]||"bg-gray-100 text-gray-600")}>{e.type}</span></td>
-                    <td className="py-3 px-3 text-gray-900">{e.description||"—"}</td>
+                    <td className="py-3 px-3 text-gray-900" title={e.description}>{e.description||"—"}</td>
                     <td className="py-3 px-3 text-gray-500 capitalize">{e.category||"—"}</td>
+                    <td className="py-3 px-3 text-gray-500">{e.vendor?.name || e.partyName || "—"}</td>
                     <td className="py-3 px-3 text-gray-500">{e.project?.name||"General"}</td>
                     <td className="py-3 px-3 text-gray-400 text-xs font-mono">{e.referenceNumber||"—"}</td>
                     <td className={"py-3 px-3 font-bold whitespace-nowrap "+(e.type==="income"?"text-green-700":"text-red-700")}>PKR {(e.amount||0).toLocaleString()}</td>
@@ -177,6 +188,7 @@ export default function LedgerPage() {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-3 text-xs">
                   <div><span className="text-gray-400">Category: </span><span className="text-gray-700 capitalize">{e.category||"—"}</span></div>
                   <div><span className="text-gray-400">Project: </span><span className="text-gray-700">{e.project?.name||"General"}</span></div>
+                  <div><span className="text-gray-400">Party: </span><span className="text-gray-700">{e.vendor?.name || e.partyName || "—"}</span></div>
                   <div><span className="text-gray-400">Reference: </span><span className="text-gray-700 font-mono">{e.referenceNumber||"—"}</span></div>
                 </div>
                 <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
@@ -186,6 +198,31 @@ export default function LedgerPage() {
             ))}
           </div>
         </>
+      )}
+
+      {/* Pagination Controls */}
+      {entries?.pagination && entries.pagination.pages > 1 && (
+        <div className="flex items-center justify-between border-t border-gray-200 pt-4 mt-6">
+          <p className="text-sm text-gray-500">
+            Showing page <span className="font-medium text-gray-900">{entries.pagination.page}</span> of <span className="font-medium text-gray-900">{entries.pagination.pages}</span> ({entries.pagination.total} total)
+          </p>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setPage(p => Math.max(1, p - 1))} 
+              disabled={entries.pagination.page === 1}
+              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 disabled:opacity-50 hover:bg-gray-50"
+            >
+              Previous
+            </button>
+            <button 
+              onClick={() => setPage(p => p + 1)} 
+              disabled={entries.pagination.page >= entries.pagination.pages}
+              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 disabled:opacity-50 hover:bg-gray-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

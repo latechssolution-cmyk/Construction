@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, ApiError } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/mongoose";
+import { auditLog } from "@/lib/audit";
 import Milestone from "@/models/Milestone";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -19,6 +20,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       milestone.completedAt = data.completed ? (milestone.completedAt ?? new Date()) : null;
     }
     await milestone.save();
+    await auditLog(session.user.id, "UPDATE", "Milestone", id, `Updated milestone: ${milestone.name}`);
     return ok(milestone);
   } catch (e) {
     return handleApiError(e);
@@ -31,7 +33,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     requireRole(session, "admin", "ceo", "manager");
     const { id } = await params;
     await connectDB();
-    await Milestone.findByIdAndDelete(id);
+    const milestone = await Milestone.findByIdAndDelete(id);
+    await auditLog(session.user.id, "DELETE", "Milestone", id, `Deleted milestone: ${milestone?.name || id}`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

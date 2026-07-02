@@ -1,4 +1,4 @@
-﻿import mongoose, { Schema, Document, Model } from "mongoose";
+import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IEmployee extends Document {
   name: string;
@@ -10,7 +10,7 @@ export interface IEmployee extends Document {
   address?: string;
   joiningDate?: Date | null;
   salary: number;
-  salaryType: string;
+  salaryType: "monthly" | "daily" | "hourly";
   bankAccount?: string;
   emergencyContact?: string;
   notes?: string;
@@ -30,7 +30,7 @@ const employeeSchema = new Schema<IEmployee>(
     address: { type: String },
     joiningDate: { type: Date },
     salary: { type: Number, default: 0 },
-    salaryType: { type: String, default: "monthly" },
+    salaryType: { type: String, enum: ["monthly", "daily", "hourly"], default: "monthly" },
     bankAccount: { type: String },
     emergencyContact: { type: String },
     notes: { type: String },
@@ -63,6 +63,8 @@ employeeSchema.virtual("attendanceRecords", {
 
 employeeSchema.index({ name: 1 });
 employeeSchema.index({ isActive: 1 });
+// Sparse unique index: allows multiple employees without a CNIC but blocks duplicates when CNIC is set
+employeeSchema.index({ cnic: 1 }, { unique: true, sparse: true });
 
 const Employee: Model<IEmployee> =
   mongoose.models.Employee || mongoose.model<IEmployee>("Employee", employeeSchema);

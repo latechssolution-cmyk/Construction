@@ -146,9 +146,10 @@ export default function ProjectsPage() {
       {/* Projects Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {filtered.map((project: any) => {
-          const completedTasks = (project.tasks || []).filter((t: any) => t.status === "completed").length;
+          const totalWeight = (project.tasks || []).reduce((sum: number, t: any) => sum + (t.weight || 1), 0);
+          const completedWeight = (project.tasks || []).filter((t: any) => t.status === "completed").reduce((sum: number, t: any) => sum + (t.weight || 1), 0);
+          const progress = totalWeight ? Math.round((completedWeight / totalWeight) * 100) : (project.completionPercent || 0);
           const totalTasks = (project.tasks || []).length;
-          const progress = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : (project.completionPercent || 0);
 
           return (
             <div

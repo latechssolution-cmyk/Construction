@@ -70,7 +70,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     try {
       // 1. Reverse the bank account balance change
       if (entry.bankAccountId) {
-        const bank = await BankAccount.findById(entry.bankAccountId);
+        const bank = await BankAccount.findById(entry.bankAccountId).session(dbSession);
         if (bank) {
           // If original was income, we subtract it. If original was expense, we add it back.
           const delta = entry.type === "income" ? -entry.amount : entry.amount;

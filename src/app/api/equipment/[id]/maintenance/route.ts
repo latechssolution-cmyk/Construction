@@ -40,23 +40,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await Equipment.findByIdAndUpdate(id, { condition: data.condition, status: "maintenance" });
     }
     const maintBankId = toId(data.bankAccountId);
-    if (cost > 0 && maintBankId) {
-      const bankAccount = await BankAccount.findById(maintBankId);
-      if (!bankAccount) throw new Error("Bank account not found");
-      if (bankAccount.balance < cost) {
-        throw new Error(`Insufficient funds: bank account balance is PKR ${bankAccount.balance.toLocaleString()}, but maintenance requires PKR ${cost.toLocaleString()}`);
+    if (cost > 0) {
+      if (maintBankId) {
+        const bankAccount = await BankAccount.findById(maintBankId);
+        if (!bankAccount) throw new Error("Bank account not found");
+        if (bankAccount.balance < cost) {
+          throw new Error(`Insufficient funds: bank account balance is PKR ${bankAccount.balance.toLocaleString()}, but maintenance requires PKR ${cost.toLocaleString()}`);
+        }
+        bankAccount.balance -= cost;
+        await bankAccount.save();
       }
-      bankAccount.balance -= cost;
-      await bankAccount.save();
 
       await LedgerEntry.create({
         date: record.date,
         type: "expense",
         amount: cost,
-        category: "maintenance",
+        category: "equipment_maintenance",
         description: data.description || "Equipment maintenance",
         projectId: toId(data.projectId),
-        bankAccountId: maintBankId,
+        bankAccountId: maintBankId ?? null,
         createdById: session.user.id,
       });
       void checkBudgetAlert(data.projectId, cost);

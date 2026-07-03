@@ -3,8 +3,8 @@ import { requireAuth, requireRole, handleApiError, ok, ApiError } from "@/lib/ap
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import LedgerEntry from "@/models/LedgerEntry";
-
 import BankAccount from "@/models/BankAccount";
+import mongoose from "mongoose";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -46,18 +46,26 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.bankAccountId !== undefined) update.bankAccountId = data.bankAccountId;
     if (data.vendorId !== undefined) update.vendorId = data.vendorId;
 
-    // Reconcile bank balance if amount or account changed
-    if (existing.bankAccountId) {
-      const oldDelta = existing.type === "income" ? -existing.amount : existing.amount;
-      await BankAccount.findByIdAndUpdate(existing.bankAccountId, { $inc: { balance: oldDelta } });
-    }
+    const dbSession = await mongoose.startSession();
+    let entry: any;
+    try {
+      await dbSession.withTransaction(async () => {
+        // Reconcile bank balance if amount or account changed
+        if (existing.bankAccountId) {
+          const oldDelta = existing.type === "income" ? -existing.amount : existing.amount;
+          await BankAccount.findByIdAndUpdate(existing.bankAccountId, { $inc: { balance: oldDelta } }, { session: dbSession });
+        }
 
-    const entry = await LedgerEntry.findByIdAndUpdate(id, update, { new: true });
-    if (!entry) throw new ApiError(404, "Ledger entry not found");
+        entry = await LedgerEntry.findByIdAndUpdate(id, update, { new: true, session: dbSession });
+        if (!entry) throw new ApiError(404, "Ledger entry not found");
 
-    if (entry.bankAccountId) {
-      const newDelta = entry.type === "income" ? entry.amount : -entry.amount;
-      await BankAccount.findByIdAndUpdate(entry.bankAccountId, { $inc: { balance: newDelta } });
+        if (entry.bankAccountId) {
+          const newDelta = entry.type === "income" ? entry.amount : -entry.amount;
+          await BankAccount.findByIdAndUpdate(entry.bankAccountId, { $inc: { balance: newDelta } }, { session: dbSession });
+        }
+      });
+    } finally {
+      await dbSession.endSession();
     }
 
     await auditLog(session.user.id, "UPDATE", "LedgerEntry", id, "Updated ledger entry");
@@ -72,13 +80,19 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const session = await requireAuth();
     requireRole(session, "admin");
     const { id } = await params;
-    await connectDB();
-    const existing = await LedgerEntry.findById(id);
-    if (existing && existing.bankAccountId) {
-      const delta = existing.type === "income" ? -existing.amount : existing.amount;
-      await BankAccount.findByIdAndUpdate(existing.bankAccountId, { $inc: { balance: delta } });
+    const dbSession = await mongoose.startSession();
+    try {
+      await dbSession.withTransaction(async () => {
+        const existing = await LedgerEntry.findById(id).session(dbSession);
+        if (existing && existing.bankAccountId) {
+          const delta = existing.type === "income" ? -existing.amount : existing.amount;
+          await BankAccount.findByIdAndUpdate(existing.bankAccountId, { $inc: { balance: delta } }, { session: dbSession });
+        }
+        await LedgerEntry.findByIdAndDelete(id, { session: dbSession });
+      });
+    } finally {
+      await dbSession.endSession();
     }
-    await LedgerEntry.findByIdAndDelete(id);
     await auditLog(session.user.id, "DELETE", "LedgerEntry", id, "Deleted ledger entry");
     return ok({ success: true });
   } catch (e) {

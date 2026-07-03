@@ -136,6 +136,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+        session.user.blocked = (token as any).blocked || false;
       }
       return session;
     },
@@ -150,6 +151,7 @@ declare module "next-auth" {
     user: {
       id: string;
       role: string;
+      blocked?: boolean;
       name?: string | null;
       email?: string | null;
       image?: string | null;

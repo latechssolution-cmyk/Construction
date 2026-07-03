@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, ShieldAlert, CheckCircle, Save } from "lucide-react";
+import { Settings, ShieldAlert, CheckCircle, Save, KeyRound } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -16,6 +16,48 @@ export default function SettingsPage() {
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [pwError, setPwError] = useState("");
+
+  async function handlePasswordChange(e: React.FormEvent) {
+    e.preventDefault();
+    if (!session?.user?.id) return;
+    if (newPassword.length < 8) {
+      toast({ title: "Error", description: "New password must be at least 8 characters", variant: "destructive" });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ title: "Error", description: "Passwords do not match", variant: "destructive" });
+      return;
+    }
+    setChangingPassword(true);
+    setPwError("");
+    try {
+      const res = await fetch(`/api/users/${session.user.id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPwError(data.error || "Failed to update password");
+        toast({ title: "Error", description: data.error || "Failed to update password", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Password changed", description: "Your password has been changed successfully. Please log in again on all devices." });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch {
+      setPwError("Network error");
+    } finally {
+      setChangingPassword(false);
+    }
+  }
 
   const isAdmin = ["admin", "ceo"].includes(session?.user?.role || "");
 
@@ -218,6 +260,71 @@ export default function SettingsPage() {
             </button>
           </div>
         )}
+      </form>
+
+      <form onSubmit={handlePasswordChange} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden divide-y divide-gray-100">
+        {/* Security Settings Section */}
+        <div className="p-6 space-y-4">
+          <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+            <KeyRound className="w-5 h-5 text-blue-600" />
+            Security & Password Settings
+          </h2>
+          <p className="text-xs text-gray-400">Change your system dashboard login password. Updating your password will sign you out of all devices.</p>
+          
+          {pwError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
+              {pwError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Current Password *</label>
+              <input
+                type="password"
+                required
+                value={currentPassword}
+                onChange={e => setCurrentPassword(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                placeholder="••••••••"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">New Password *</label>
+              <input
+                type="password"
+                required
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                placeholder="Min 8 characters"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Confirm New Password *</label>
+              <input
+                type="password"
+                required
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                placeholder="••••••••"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Submit Actions */}
+        <div className="p-6 bg-gray-50 flex justify-end">
+          <button
+            type="submit"
+            disabled={changingPassword}
+            className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50 hover:bg-blue-700 transition-colors flex items-center gap-1.5 shadow-sm"
+          >
+            <Save className="w-4 h-4" />
+            {changingPassword ? "Updating Password..." : "Change Password"}
+          </button>
+        </div>
       </form>
     </div>
   );

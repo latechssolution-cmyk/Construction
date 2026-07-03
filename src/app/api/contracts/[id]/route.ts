@@ -58,6 +58,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         }
       }
       contract.status = data.status;
+      if (["terminated", "cancelled"].includes(data.status)) {
+        await Project.updateMany({ contractId: id }, { status: "on_hold" });
+      }
     }
     if (data.paymentTerms !== undefined) contract.paymentTerms = data.paymentTerms;
     if (data.documentPath !== undefined) contract.documentPath = data.documentPath;
@@ -95,6 +98,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       }
     }
     await Contract.findByIdAndUpdate(id, { status: "terminated" });
+    await Project.updateMany({ contractId: id }, { status: "on_hold" });
     await auditLog(session.user.id, "DELETE", "Contract", id, "Terminated contract");
     return ok({ success: true });
   } catch (e) {

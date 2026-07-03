@@ -16,6 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const employee = await Employee.findById(data.employeeId);
     if (!employee) throw new ApiError(404, "Employee not found");
+    if (!employee.isActive) throw new ApiError(400, "Cannot assign deactivated employee to a project");
 
     let assignment = await ProjectEmployee.findOne({ projectId, employeeId: data.employeeId });
     if (assignment) {
@@ -58,8 +59,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (!employeeId) throw new ApiError(400, "employeeId is required");
     await connectDB();
 
-    const assignment = await ProjectEmployee.findOneAndDelete({ projectId, employeeId });
+    const assignment = await ProjectEmployee.findOne({ projectId, employeeId });
     if (!assignment) throw new ApiError(404, "Assignment not found");
+    if (assignment.endDate) throw new ApiError(400, "Employee is already inactive on this project");
+    assignment.endDate = new Date();
+    await assignment.save();
 
     await auditLog(
       session.user.id,

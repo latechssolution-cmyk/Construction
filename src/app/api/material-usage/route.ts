@@ -73,6 +73,15 @@ export async function POST(req: NextRequest) {
           projectId: destProjectId,
           createdById: session.user.id,
           referenceNumber: usage._id?.toString() || usage.id,
+        }, {
+          date: data.date ? new Date(data.date) : new Date(),
+          type: "income",
+          amount: cost,
+          category: "inventory_asset",
+          description: `Inventory offset: Consumption of ${qty} ${material.unit} of ${material.itemName}`,
+          projectId: material.projectId,
+          createdById: session.user.id,
+          referenceNumber: usage._id?.toString() || usage.id,
         }], { session: dbSession });
       });
     } finally {

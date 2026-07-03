@@ -73,10 +73,11 @@ export function getRoleBadgeColor(role: string): string {
   return colors[role?.toLowerCase()] || "bg-gray-100 text-gray-800";
 }
 
-export function getProjectProgress(tasks: Array<{ status: string }>): number {
+export function getProjectProgress(tasks: Array<{ status: string; weight?: number }>): number {
   if (!tasks || tasks.length === 0) return 0;
-  const completed = tasks.filter((t) => t.status === "completed").length;
-  return Math.round((completed / tasks.length) * 100);
+  const totalWeight = tasks.reduce((sum, t) => sum + (t.weight || 1), 0);
+  const completedWeight = tasks.filter((t) => t.status === "completed").reduce((sum, t) => sum + (t.weight || 1), 0);
+  return totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
 }
 
 export function getStatusColor(status: string): string {

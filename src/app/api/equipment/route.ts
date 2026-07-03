@@ -55,6 +55,8 @@ export async function POST(req: NextRequest) {
       purchasePrice: data.purchasePrice ? parseFloat(data.purchasePrice) : null,
       condition: data.condition || "good",
       status: data.status || "available",
+      dailyRate: data.dailyRate ? parseFloat(data.dailyRate) : 0,
+      hourlyRate: data.hourlyRate ? parseFloat(data.hourlyRate) : 0,
       location: data.location || null,
       notes: data.notes || null,
     });

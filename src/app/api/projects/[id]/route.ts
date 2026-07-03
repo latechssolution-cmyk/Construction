@@ -12,6 +12,8 @@ import ProjectEquipment from "@/models/ProjectEquipment";
 import LedgerEntry from "@/models/LedgerEntry";
 import Invoice from "@/models/Invoice";
 import Doc from "@/models/Document";
+import Equipment from "@/models/Equipment";
+import Attendance from "@/models/Attendance";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -81,6 +83,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.endDate !== undefined) update.endDate = data.endDate ? new Date(data.endDate) : null;
     if (data.clientId !== undefined) update.clientId = toId(data.clientId);
     if (data.assignedManagerId !== undefined) update.assignedManagerId = toId(data.assignedManagerId);
+    if (data.contractId !== undefined) update.contractId = toId(data.contractId);
     if (data.type !== undefined) update.type = data.type;
     const project = await Project.findByIdAndUpdate(id, update, { new: true });
     await auditLog(session.user.id, "UPDATE", "Project", id, `Updated project: ${project!.name}`);
@@ -104,6 +107,17 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     if (hasInvoices || hasLedger) {
       throw new ApiError(400, "Cannot delete project with associated financial records (invoices or ledger entries).");
     }
+
+    // Update equipment statuses to available for active assignments before deleting them
+    const activeAssignments = await ProjectEquipment.find({ projectId: id, returnedAt: null });
+    const equipmentIds = activeAssignments.map((a) => a.equipmentId);
+    if (equipmentIds.length > 0) {
+      await Equipment.updateMany({ _id: { $in: equipmentIds } }, { $set: { status: "available" } });
+    }
+
+    // Nullify attendance records to represent general overhead
+    await Attendance.updateMany({ projectId: id }, { $set: { projectId: null } });
+
     await Promise.all([
       Task.deleteMany({ projectId: id }),
       Milestone.deleteMany({ projectId: id }),

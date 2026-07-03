@@ -166,6 +166,12 @@ function isModelNotFoundError(error: unknown): boolean {
   return false;
 }
 
+function parseDataUrl(dataUrl: string): { mimeType: string; data: string } | null {
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+  return { mimeType: match[1], data: match[2] };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();
@@ -230,10 +236,19 @@ export async function POST(req: NextRequest) {
         });
 
         const chat = model.startChat({
-          history: history.map((msg: { role: string; content: string }) => ({
-            role: msg.role === "user" ? "user" : "model",
-            parts: [{ text: msg.content }],
-          })),
+          history: history.map((msg: { role: string; content: string; image?: string }) => {
+            const parts: any[] = [{ text: msg.content }];
+            if (msg.image) {
+              const parsed = parseDataUrl(msg.image);
+              if (parsed) {
+                parts.push({ inlineData: parsed });
+              }
+            }
+            return {
+              role: msg.role === "user" ? "user" : "model",
+              parts,
+            };
+          }),
         });
 
         const result = await chat.sendMessage(parts);

@@ -52,7 +52,7 @@ export async function notifyAdminsAndManagers(
   try {
     await connectDB();
     const targets = await User.find(
-      { isActive: true, role: { $in: ["admin", "manager"] } },
+      { isActive: true, role: { $in: ["admin", "ceo", "manager"] } },
       { _id: 1 }
     ).lean();
     if (targets.length > 0) {

@@ -5,6 +5,8 @@ import { connectDB } from "@/lib/mongoose";
 import Employee from "@/models/Employee";
 import ProjectEmployee from "@/models/ProjectEmployee";
 import Attendance from "@/models/Attendance";
+import User from "@/models/User";
+import mongoose from "mongoose";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -32,7 +34,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await connectDB();
     const employee = await Employee.findById(id);
     if (!employee) throw new ApiError(404, "Employee not found");
-    const fields = ["name","role","department","phone","email","isActive","bankAccount","emergencyContact","notes"] as const;
+    const fields = ["name","role","department","phone","email","isActive","bankAccount","emergencyContact","notes","cnic","address","joiningDate"] as const;
     fields.forEach((f) => { if (data[f] !== undefined) (employee as any)[f] = data[f]; });
     if (data.salary !== undefined) { const parsedSalary = parseFloat(data.salary); if (!isNaN(parsedSalary)) employee.salary = parsedSalary; }
     if (data.salaryType !== undefined) employee.salaryType = data.salaryType;
@@ -50,9 +52,27 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     requireRole(session, "admin");
     const { id } = await params;
     await connectDB();
-    const employee = await Employee.findByIdAndUpdate(id, { isActive: false }, { new: true });
-    await ProjectEmployee.updateMany({ employeeId: id, endDate: null }, { endDate: new Date() });
-    await auditLog(session.user.id, "DELETE", "Employee", id, `Deactivated: ${employee?.name}`);
+    const dbSession = await mongoose.startSession();
+    let empName = "";
+    try {
+      await dbSession.withTransaction(async () => {
+        const employee = await Employee.findByIdAndUpdate(id, { isActive: false }, { new: true, session: dbSession });
+        if (employee) {
+          empName = employee.name;
+          await ProjectEmployee.updateMany({ employeeId: id, endDate: null }, { endDate: new Date() }, { session: dbSession });
+          if (employee.email) {
+            await User.findOneAndUpdate(
+              { email: employee.email.toLowerCase().trim() },
+              { isActive: false },
+              { session: dbSession }
+            );
+          }
+        }
+      });
+    } finally {
+      await dbSession.endSession();
+    }
+    await auditLog(session.user.id, "DELETE", "Employee", id, `Deactivated: ${empName}`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/mongoose";
 import Attendance from "@/models/Attendance";
+import Employee from "@/models/Employee";
+import mongoose from "mongoose";
 
 function defaultHours(status: string): number {
   if (status === "present") return 8;
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     if (Array.isArray(data)) {
-      const results = [];
+      // Validation pass
       for (const item of data) {
         if (!item.employeeId || !item.date) continue;
         const status = item.status || "present";
@@ -46,31 +48,51 @@ export async function POST(req: NextRequest) {
           ? Math.max(0, Number(item.hoursWorked) || 0)
           : defaultHours(status);
         if (hoursWorked > 24) throw new ApiError(400, "Hours worked cannot exceed 24 hours in a single day.");
-        const notes = item.notes?.trim() ? item.notes.trim() : null;
 
-        const date = new Date(item.date);
-        const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
-        const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
+        const emp = await Employee.findById(item.employeeId);
+        if (!emp) throw new ApiError(404, `Employee with ID ${item.employeeId} not found.`);
+        if (!emp.isActive) throw new ApiError(400, `Employee ${emp.name} is deactivated. Cannot record attendance.`);
+      }
 
-        let existing = await Attendance.findOne({ employeeId: item.employeeId, date: { $gte: dayStart, $lte: dayEnd } });
-        if (existing) {
-          existing.status = status;
-          existing.hoursWorked = hoursWorked;
-          existing.notes = notes;
-          if (item.projectId !== undefined) existing.projectId = toId(item.projectId) as any;
-          await existing.save();
-          results.push(existing);
-        } else {
-          const record = await Attendance.create({
-            employeeId: item.employeeId,
-            date: new Date(item.date),
-            status,
-            hoursWorked,
-            notes,
-            projectId: toId(item.projectId),
-          });
-          results.push(record);
-        }
+      const dbSession = await mongoose.startSession();
+      const results = [];
+      try {
+        await dbSession.withTransaction(async () => {
+          for (const item of data) {
+            if (!item.employeeId || !item.date) continue;
+            const status = item.status || "present";
+            const hoursWorked = item.hoursWorked !== undefined && item.hoursWorked !== ""
+              ? Math.max(0, Number(item.hoursWorked) || 0)
+              : defaultHours(status);
+            const notes = item.notes?.trim() ? item.notes.trim() : null;
+
+            const date = new Date(item.date);
+            const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
+            const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
+
+            let existing = await Attendance.findOne({ employeeId: item.employeeId, date: { $gte: dayStart, $lte: dayEnd } }).session(dbSession);
+            if (existing) {
+              existing.status = status;
+              existing.hoursWorked = hoursWorked;
+              existing.notes = notes;
+              if (item.projectId !== undefined) existing.projectId = toId(item.projectId) as any;
+              await existing.save({ session: dbSession });
+              results.push(existing);
+            } else {
+              const [record] = await Attendance.create([{
+                employeeId: item.employeeId,
+                date: new Date(item.date),
+                status,
+                hoursWorked,
+                notes,
+                projectId: toId(item.projectId),
+              }], { session: dbSession });
+              results.push(record);
+            }
+          }
+        });
+      } finally {
+        await dbSession.endSession();
       }
       return ok({ success: true, count: results.length });
     }
@@ -82,6 +104,11 @@ export async function POST(req: NextRequest) {
       ? Math.max(0, Number(data.hoursWorked) || 0)
       : defaultHours(status);
     if (hoursWorked > 24) throw new ApiError(400, "Hours worked cannot exceed 24 hours in a single day.");
+
+    const emp = await Employee.findById(data.employeeId);
+    if (!emp) throw new ApiError(404, `Employee with ID ${data.employeeId} not found.`);
+    if (!emp.isActive) throw new ApiError(400, `Employee ${emp.name} is deactivated. Cannot record attendance.`);
+
     const notes = data.notes?.trim() ? data.notes.trim() : null;
     const date = new Date(data.date);
     const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);

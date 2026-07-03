@@ -4,8 +4,12 @@ import { runEquipmentJobCosting } from "@/lib/equipment-job-costing";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await requireAuth();
-    requireRole(session, "admin", "ceo");
+    const authHeader = req.headers.get("Authorization");
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+      const session = await requireAuth();
+      requireRole(session, "admin", "ceo");
+    }
     const data = await req.json().catch(() => ({}));
     const date = data.date ? new Date(data.date) : new Date();
     const count = await runEquipmentJobCosting(date);

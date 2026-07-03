@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/mongoose";
 import Invoice from "@/models/Invoice";
 import LedgerEntry from "@/models/LedgerEntry";
 import BankAccount from "@/models/BankAccount";
+import mongoose from "mongoose";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -53,34 +54,45 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.notes !== undefined) update.notes = data.notes;
     if (data.paymentTerms !== undefined) update.paymentTerms = data.paymentTerms;
     if (data.status === "paid" && existing.status !== "paid") update.paidAt = new Date();
-    const invoice = await Invoice.findByIdAndUpdate(id, update, { new: true });
-    if (data.status === "paid" && existing.status !== "paid") {
-      const existingPayment = await LedgerEntry.findOne({ referenceNumber: existing.invoiceNumber, category: "invoice_payment" });
-      if (!existingPayment) {
-        let bankAccountId = toId(data.bankAccountId);
-        if (!bankAccountId) {
-          const defaultAccount = await BankAccount.findOne({ isActive: true });
-          if (defaultAccount) bankAccountId = defaultAccount._id.toString();
+
+    const dbSession = await mongoose.startSession();
+    let invoice: any;
+    try {
+      await dbSession.withTransaction(async () => {
+        invoice = await Invoice.findByIdAndUpdate(id, update, { new: true, session: dbSession });
+        if (!invoice) throw new ApiError(404, "Invoice not found");
+
+        if (data.status === "paid" && existing.status !== "paid") {
+          const existingPayment = await LedgerEntry.findOne({ referenceNumber: existing.invoiceNumber, category: "invoice_payment" }).session(dbSession);
+          if (!existingPayment) {
+            let bankAccountId = toId(data.bankAccountId);
+            if (!bankAccountId) {
+              const defaultAccount = await BankAccount.findOne({ isActive: true }).session(dbSession);
+              if (defaultAccount) bankAccountId = defaultAccount._id.toString();
+            }
+            const netAmount = existing.grandTotal;
+            await LedgerEntry.create([{
+              date: new Date(),
+              type: "income",
+              amount: netAmount,
+              category: "invoice_payment",
+              description: `Payment received for ${existing.invoiceNumber} (Net of Retention & WHT)`,
+              bankAccountId: bankAccountId,
+              projectId: toId(existing.projectId),
+              createdById: session.user.id,
+              referenceNumber: existing.invoiceNumber,
+              partyType: "client",
+            }], { session: dbSession });
+            if (bankAccountId) {
+              await BankAccount.findByIdAndUpdate(bankAccountId, {
+                $inc: { balance: netAmount },
+              }, { session: dbSession });
+            }
+          }
         }
-        const netAmount = existing.grandTotal - (existing.retentionAmount || 0) - (existing.whtDeducted || 0);
-        await LedgerEntry.create({
-          date: new Date(),
-          type: "income",
-          amount: netAmount,
-          category: "invoice_payment",
-          description: `Payment received for ${existing.invoiceNumber} (Net of Retention & WHT)`,
-          bankAccountId: bankAccountId,
-          projectId: toId(existing.projectId),
-          createdById: session.user.id,
-          referenceNumber: existing.invoiceNumber,
-          partyType: "client",
-        });
-        if (bankAccountId) {
-          await BankAccount.findByIdAndUpdate(bankAccountId, {
-            $inc: { balance: netAmount },
-          });
-        }
-      }
+      });
+    } finally {
+      await dbSession.endSession();
     }
     await auditLog(session.user.id, "UPDATE", "Invoice", id, `Updated invoice ${invoice!.invoiceNumber} → ${invoice!.status}`);
     return ok(invoice);

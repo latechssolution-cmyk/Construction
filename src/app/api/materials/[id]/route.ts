@@ -62,7 +62,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       material.stockQuantity += addQty;
       material.quantity += addQty;
       material.unitPrice = newPrice;
-      material.totalPrice += restockCost;
       if (data.vendorId !== undefined) material.vendorId = toId(data.vendorId) as any;
       if (data.notes !== undefined) material.notes = data.notes;
       await material.save();
@@ -141,7 +140,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         }
         await entry.save();
       }
-      material.totalPrice = newTotalPrice;
     }
 
     if (data.vendorId !== undefined) material.vendorId = toId(data.vendorId) as any;

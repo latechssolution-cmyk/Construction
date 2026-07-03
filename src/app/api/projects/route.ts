@@ -88,6 +88,7 @@ export async function POST(req: NextRequest) {
       startDate: data.startDate ? new Date(data.startDate) : null,
       endDate: data.endDate ? new Date(data.endDate) : null,
       clientId: toId(data.clientId),
+      contractId: toId(data.contractId),
       assignedManagerId: toId(data.assignedManagerId) || session.user.id,
       createdById: session.user.id,
     });

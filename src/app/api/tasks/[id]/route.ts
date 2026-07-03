@@ -27,11 +27,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const data = await req.json();
     await connectDB();
-    const isPrivileged = ["admin", "ceo", "manager"].includes(session.user.role);
-    if (!isPrivileged) {
-      const task = await Task.findById(id, { assignedToId: 1 });
-      if (!task) throw new ApiError(404, "Task not found");
-      if (task.assignedToId?.toString() !== session.user.id) throw new ApiError(403, "You can only update tasks assigned to you");
+
+    const taskExist = await Task.findById(id);
+    if (!taskExist) throw new ApiError(404, "Task not found");
+
+    if (session.user.role === "manager") {
+      const project = await Project.findById(taskExist.projectId, { assignedManagerId: 1 });
+      if (project && project.assignedManagerId?.toString() !== session.user.id) {
+        throw new ApiError(403, "You can only manage tasks on your assigned projects");
+      }
+    } else if (!["admin", "ceo"].includes(session.user.role)) {
+      if (taskExist.assignedToId?.toString() !== session.user.id) throw new ApiError(403, "You can only update tasks assigned to you");
       const allowedKeys = ["status", "notes"];
       if (Object.keys(data).some((k) => !allowedKeys.includes(k))) throw new ApiError(403, "Insufficient permissions to modify task details");
     }
@@ -71,10 +77,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAuth();
-    requireRole(session, "admin", "manager");
+    requireRole(session, "admin", "ceo", "manager");
     const { id } = await params;
     await connectDB();
-    const task = await Task.findByIdAndDelete(id);
+    const task = await Task.findById(id);
+    if (!task) throw new ApiError(404, "Task not found");
+    if (session.user.role === "manager") {
+      const project = await Project.findById(task.projectId, { assignedManagerId: 1 });
+      if (project && project.assignedManagerId?.toString() !== session.user.id) {
+        throw new ApiError(403, "You can only manage tasks on your assigned projects");
+      }
+    }
+    await Task.findByIdAndDelete(id);
     if (task?.projectId) {
       const allTasks = await Task.find({ projectId: task.projectId }, { status: 1, weight: 1 });
       const totalWeight = allTasks.reduce((sum, t) => sum + (t.weight || 1), 0);

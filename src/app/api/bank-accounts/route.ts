@@ -5,6 +5,8 @@ import { connectDB } from "@/lib/mongoose";
 import BankAccount from "@/models/BankAccount";
 import LedgerEntry from "@/models/LedgerEntry";
 
+import mongoose from "mongoose";
+
 export async function GET() {
   try {
     await requireAuth();
@@ -31,25 +33,35 @@ export async function POST(req: NextRequest) {
     if (!data.name) throw new Error("Account name is required");
     await connectDB();
     const initialBalance = parseFloat(data.balance || "0");
-    const account = await BankAccount.create({
-      name: data.name,
-      bankName: data.bankName || null,
-      accountNumber: data.accountNumber || null,
-      accountType: data.accountType || "current",
-      balance: initialBalance,
-      currency: data.currency || "PKR",
-      notes: data.notes || null,
-    });
-    if (initialBalance > 0) {
-      await LedgerEntry.create({
-        date: new Date(),
-        type: "income",
-        amount: initialBalance,
-        category: "opening_balance",
-        description: `Opening balance for bank account ${account.name}`,
-        bankAccountId: account._id,
-        createdById: session.user.id,
+    const dbSession = await mongoose.startSession();
+    let account: any;
+    try {
+      await dbSession.withTransaction(async () => {
+        const [createdAccount] = await BankAccount.create([{
+          name: data.name,
+          bankName: data.bankName || null,
+          accountNumber: data.accountNumber || null,
+          accountType: data.accountType || "current",
+          balance: initialBalance,
+          currency: data.currency || "PKR",
+          notes: data.notes || null,
+        }], { session: dbSession });
+        account = createdAccount;
+
+        if (initialBalance > 0) {
+          await LedgerEntry.create([{
+            date: new Date(),
+            type: "income",
+            amount: initialBalance,
+            category: "opening_balance",
+            description: `Opening balance for bank account ${account.name}`,
+            bankAccountId: account._id,
+            createdById: session.user.id,
+          }], { session: dbSession });
+        }
       });
+    } finally {
+      await dbSession.endSession();
     }
     await auditLog(session.user.id, "CREATE", "BankAccount", account.id, `Created: ${account.name} with starting balance PKR ${initialBalance}`);
     return created(account);

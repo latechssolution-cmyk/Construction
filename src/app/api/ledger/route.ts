@@ -7,6 +7,9 @@ import LedgerEntry from "@/models/LedgerEntry";
 import BankAccount from "@/models/BankAccount";
 import Project from "@/models/Project";
 
+import mongoose from "mongoose";
+import Subcontract from "@/models/Subcontract";
+
 export async function GET(req: NextRequest) {
   try {
     await requireAuth();
@@ -66,25 +69,52 @@ export async function POST(req: NextRequest) {
     }
     await connectDB();
     const amount = parseFloat(data.amount);
-    const entry = await LedgerEntry.create({
-      date: new Date(data.date),
-      type: data.type,
-      amount,
-      category: data.category,
-      description: data.description || null,
-      referenceNumber: data.referenceNumber || null,
-      projectId: toId(data.projectId),
-      bankAccountId: toId(data.bankAccountId),
-      vendorId: toId(data.vendorId),
-      partyName: data.partyName || null,
-      partyType: data.partyType || "other",
-      receiptPath: data.receiptPath || null,
-      createdById: session.user.id,
-    });
-    if (data.bankAccountId) {
-      const delta = data.type === "income" ? amount : -amount;
-      await BankAccount.findByIdAndUpdate(data.bankAccountId, { $inc: { balance: delta } });
+    const dbSession = await mongoose.startSession();
+    let entry: any;
+    try {
+      await dbSession.withTransaction(async () => {
+        if (data.category === "subcontractor_payment" && data.projectId && data.vendorId) {
+          const subcontract = await Subcontract.findOne({ projectId: data.projectId, vendorId: data.vendorId }).session(dbSession);
+          if (subcontract) {
+            const pastExpenses = await LedgerEntry.find({
+              projectId: data.projectId,
+              vendorId: data.vendorId,
+              category: "subcontractor_payment",
+              type: "expense"
+            }).session(dbSession);
+            const pastSum = pastExpenses.reduce((sum, e) => sum + e.amount, 0);
+            if (pastSum + amount > subcontract.contractValue) {
+              throw new Error(`Payment limit exceeded. Total subcontractor payments including this payment will be PKR ${(pastSum + amount).toLocaleString()}, which exceeds the subcontract value of PKR ${subcontract.contractValue.toLocaleString()}.`);
+            }
+          }
+        }
+
+        const [createdEntry] = await LedgerEntry.create([{
+          date: new Date(data.date),
+          type: data.type,
+          amount,
+          category: data.category,
+          description: data.description || null,
+          referenceNumber: data.referenceNumber || null,
+          projectId: toId(data.projectId),
+          bankAccountId: toId(data.bankAccountId),
+          vendorId: toId(data.vendorId),
+          partyName: data.partyName || null,
+          partyType: data.partyType || "other",
+          receiptPath: data.receiptPath || null,
+          createdById: session.user.id,
+        }], { session: dbSession });
+        entry = createdEntry;
+
+        if (data.bankAccountId) {
+          const delta = data.type === "income" ? amount : -amount;
+          await BankAccount.findByIdAndUpdate(data.bankAccountId, { $inc: { balance: delta } }, { session: dbSession });
+        }
+      });
+    } finally {
+      await dbSession.endSession();
     }
+
     if (data.projectId && data.type === "expense") {
       const project = await Project.findById(data.projectId, { budget: 1, name: 1 });
       if (project && project.budget > 0) {

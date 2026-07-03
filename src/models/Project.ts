@@ -1,4 +1,4 @@
-﻿import mongoose, { Schema, Document, Model, Types } from "mongoose";
+import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface IProject extends Document {
   name: string;
@@ -126,6 +126,12 @@ projectSchema.virtual("invoices", {
 
 projectSchema.virtual("documents", {
   ref: "Document",
+  localField: "_id",
+  foreignField: "projectId",
+});
+
+projectSchema.virtual("subcontracts", {
+  ref: "Subcontract",
   localField: "_id",
   foreignField: "projectId",
 });

@@ -40,14 +40,6 @@ if (!globalWithMongoose.mongoose) globalWithMongoose.mongoose = cached;
 export async function connectDB(): Promise<typeof mongoose> {
   let MONGODB_URI = process.env.MONGODB_URI;
   if (!MONGODB_URI) throw new Error("MONGODB_URI environment variable is not set");
-  if (!MONGODB_URI.includes("/construction_erp")) {
-    const isSrv = MONGODB_URI.startsWith("mongodb+srv://");
-    const prefix = isSrv ? "mongodb+srv://" : "mongodb://";
-    const cleanUri = MONGODB_URI.substring(prefix.length);
-    const [hostAndPath, query] = cleanUri.split("?");
-    const [host] = hostAndPath.split("/");
-    MONGODB_URI = `${prefix}${host}/construction_erp${query ? "?" + query : ""}`;
-  }
 
   if (cached.conn && cached.conn.connection.readyState === 1) {
     return cached.conn;

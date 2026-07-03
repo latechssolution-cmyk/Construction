@@ -41,7 +41,7 @@ export default function AIAssistantPage() {
     setImagePreview("");
     setLoading(true);
 
-    const history = messages.slice(1).map(m=>({ role:m.role, content:m.content }));
+    const history = messages.slice(1).map(m=>({ role:m.role, content:m.content, image:m.image || null }));
 
     try {
       const formData = new FormData();

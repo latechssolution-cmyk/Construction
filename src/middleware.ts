@@ -20,7 +20,8 @@ const { auth } = NextAuth({
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        (session.user as any).role = token.role as string;
+        session.user.role = token.role as string;
+        session.user.blocked = (token as any).blocked || false;
       }
       return session;
     },
@@ -49,9 +50,10 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl);
   }
 
+  const user = req.auth?.user as any;
+
   // Issue #59: Block OAuth users not yet provisioned in the DB (token.blocked = true)
-  const tokenData = (req.auth as any)?.token;
-  if (tokenData?.blocked) {
+  if (user?.blocked) {
     if (pathname.startsWith("/api/")) {
       return new NextResponse(
         JSON.stringify({ error: "Account not provisioned. Contact your administrator." }),
@@ -65,7 +67,7 @@ export default auth((req) => {
   }
 
   // Issue #57: Enforce role-based page/API access
-  const userRole = tokenData?.role as string | undefined;
+  const userRole = user?.role as string | undefined;
   const restricted = ROLE_RESTRICTED_PATHS.find((r) => pathname.startsWith(r.prefix));
   if (restricted && (!userRole || !restricted.roles.includes(userRole))) {
     if (pathname.startsWith("/api/")) {
@@ -86,3 +88,17 @@ export default auth((req) => {
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|icons|images|uploads|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js)$).*)"],
 };
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      role: string;
+      blocked?: boolean;
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+    };
+  }
+}
+

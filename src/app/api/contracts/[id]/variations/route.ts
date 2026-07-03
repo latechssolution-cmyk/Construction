@@ -54,3 +54,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return handleApiError(e);
   }
 }
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await requireAuth();
+    requireRole(session, "admin", "ceo");
+    const { id } = await params;
+    const data = await req.json();
+    const { variationId, status, notes } = data;
+    if (!variationId || !status) throw new ApiError(400, "variationId and status are required");
+    if (!["pending", "approved", "rejected"].includes(status)) throw new ApiError(400, "Invalid status");
+
+    await connectDB();
+    const variation = await ContractVariation.findOne({ _id: variationId, contractId: id });
+    if (!variation) throw new ApiError(404, "Contract variation not found");
+
+    variation.status = status;
+    if (status === "approved") {
+      variation.approvedById = session.user.id as any;
+    } else {
+      variation.approvedById = undefined;
+    }
+    if (notes !== undefined) variation.notes = notes;
+    await variation.save();
+
+    await auditLog(session.user.id, "UPDATE", "ContractVariation", variation.id, `Updated variation status to ${status}: ${variation.variationNumber}`);
+    return ok(variation);
+  } catch (e) {
+    return handleApiError(e);
+  }
+}

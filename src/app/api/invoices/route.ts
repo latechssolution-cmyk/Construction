@@ -31,7 +31,17 @@ export async function GET(req: NextRequest) {
     const projectId = searchParams.get("projectId");
     // Issue #66: Exclude soft-deleted invoices from all list results
     const filter: any = { deletedAt: null };
-    if (status) filter.status = status;
+    if (status) {
+      if (status === "overdue") {
+        filter.status = "sent";
+        filter.dueDate = { $lt: new Date() };
+      } else if (status === "sent") {
+        filter.status = "sent";
+        filter.$or = [{ dueDate: null }, { dueDate: { $gte: new Date() } }];
+      } else {
+        filter.status = status;
+      }
+    }
     if (clientId) filter.clientId = clientId;
     if (projectId) filter.projectId = projectId;
     await connectDB();
@@ -43,7 +53,14 @@ export async function GET(req: NextRequest) {
       .sort({ createdAt: -1 })
       .limit(200)
       .lean({ virtuals: true });
-    return ok((invoices as any[]).map((inv: any) => ({ ...inv, id: inv._id?.toString() || inv.id })));
+    return ok((invoices as any[]).map((inv: any) => {
+      const isOverdue = inv.status === "sent" && inv.dueDate && new Date(inv.dueDate) < new Date();
+      return {
+        ...inv,
+        id: inv._id?.toString() || inv.id,
+        status: isOverdue ? "overdue" : inv.status,
+      };
+    }));
   } catch (e) {
     return handleApiError(e);
   }

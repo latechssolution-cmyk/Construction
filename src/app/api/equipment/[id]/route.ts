@@ -32,7 +32,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await connectDB();
     const eq = await Equipment.findById(id);
     if (!eq) throw new ApiError(404, "Equipment not found");
-    const fields = ["name","type","model","condition","status","location","notes"] as const;
+    const fields = ["name","type","model","condition","status","location","notes","dailyRate","hourlyRate"] as const;
     if (data.status !== undefined && data.status !== eq.status) {
       if (data.status === "available") {
         const activeAssign = await ProjectEquipment.findOne({ equipmentId: id, returnedAt: null }).populate("project", "name");

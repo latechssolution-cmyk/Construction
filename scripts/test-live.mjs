@@ -3,7 +3,7 @@ import { resolve } from "path";
 config({ path: resolve(process.cwd(), ".env") });
 config({ path: resolve(process.cwd(), ".env.local") });
 
-const BASE = "https://construction00.netlify.app";
+const BASE = process.env.NEXTAUTH_URL || process.env.BASE_URL || "https://construction00.netlify.app";
 let cookies = "";
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────

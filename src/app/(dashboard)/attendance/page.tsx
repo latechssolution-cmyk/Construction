@@ -64,7 +64,7 @@ export default function AttendancePage() {
 
   const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
   const list: any[] = Array.isArray(records) ? records : [];
-  const empList: any[] = Array.isArray(employees) ? employees : [];
+  const empList: any[] = employees?.data ? employees.data : (Array.isArray(employees) ? employees : []);
   const activeEmps = empList.filter((e: any) => e.isActive);
 
   const filtered = list.filter((r: any) => {
@@ -94,6 +94,7 @@ export default function AttendancePage() {
     setError("");
     if (!form.employeeId) { setError("Please select an employee."); return; }
     if (!form.date) { setError("Date is required."); return; }
+    if (new Date(form.date) > new Date()) { setError("Date cannot be in the future."); return; }
     setLoading(true);
     try {
       const res = await fetch("/api/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
@@ -136,6 +137,7 @@ export default function AttendancePage() {
     const selected = bulkRows.filter(r => r.selected);
     if (selected.length === 0) { setBulkError("Select at least one employee."); return; }
     if (!bulkDate) { setBulkError("Date is required."); return; }
+    if (new Date(bulkDate) > new Date()) { setBulkError("Date cannot be in the future."); return; }
     setBulkLoading(true);
     setBulkError("");
     try {
@@ -280,7 +282,7 @@ export default function AttendancePage() {
               <option value="">Select Employee *</option>
               {activeEmps.map((emp: any) => <option key={emp.id} value={emp.id}>{emp.name} — {emp.role || ""}</option>)}
             </select>
-            <input type="date" required value={form.date || ""} onChange={(e) => setForm({ ...form, date: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            <input type="date" required max={new Date().toISOString().slice(0, 10)} value={form.date || ""} onChange={(e) => setForm({ ...form, date: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
             <select value={form.status || "present"} onChange={(e) => setForm({ ...form, status: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
               {STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
             </select>
@@ -423,6 +425,7 @@ export default function AttendancePage() {
                 <label className="text-xs font-medium text-gray-600">Date</label>
                 <input
                   type="date"
+                  max={new Date().toISOString().slice(0, 10)}
                   value={bulkDate}
                   onChange={e => setBulkDate(e.target.value)}
                   className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm"

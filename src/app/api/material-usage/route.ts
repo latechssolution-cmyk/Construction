@@ -36,6 +36,10 @@ export async function POST(req: NextRequest) {
     if (!material) throw new ApiError(404, "Material not found");
     const qty = parseFloat(data.quantityUsed);
     if (qty <= 0) throw new ApiError(400, "quantityUsed must be greater than 0");
+    
+    const usageDate = data.date ? new Date(data.date) : new Date();
+    if (usageDate > new Date()) throw new ApiError(400, "Usage date cannot be in the future");
+
     const dbSession = await mongoose.startSession();
     let usage: any;
     try {
@@ -53,19 +57,21 @@ export async function POST(req: NextRequest) {
         
         const destProjectId = toId(data.projectId) || material.projectId;
 
-        [usage] = await MaterialUsage.create([{
+        const createdUsage = await MaterialUsage.create([{
           materialId: data.materialId,
           projectId: destProjectId,
           quantityUsed: qty,
-          date: data.date ? new Date(data.date) : new Date(),
+          date: usageDate,
           purpose: data.purpose || null,
           notes: data.notes || null,
           usedById: session.user.id,
         }], { session: dbSession });
+        
+        usage = Array.isArray(createdUsage) ? createdUsage[0] : createdUsage;
 
         const cost = qty * material.unitPrice;
         await LedgerEntry.create([{
-          date: data.date ? new Date(data.date) : new Date(),
+          date: usageDate,
           type: "expense",
           amount: cost,
           category: "material_usage",
@@ -73,8 +79,10 @@ export async function POST(req: NextRequest) {
           projectId: destProjectId,
           createdById: session.user.id,
           referenceNumber: usage._id?.toString() || usage.id,
-        }, {
-          date: data.date ? new Date(data.date) : new Date(),
+        }], { session: dbSession });
+
+        await LedgerEntry.create([{
+          date: usageDate,
           type: "income",
           amount: cost,
           category: "inventory_asset",

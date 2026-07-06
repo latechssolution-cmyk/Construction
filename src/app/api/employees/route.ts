@@ -63,6 +63,8 @@ export async function POST(req: NextRequest) {
         throw new Error(`An employee with CNIC ${data.cnic} already exists: ${existingCnic.name}`);
       }
     }
+    const sal = parseFloat(data.salary || "0");
+    if (sal < 0) throw new Error("Salary cannot be negative");
     const employee = await Employee.create({
       name: data.name,
       role: data.role,
@@ -72,7 +74,7 @@ export async function POST(req: NextRequest) {
       cnic: data.cnic || null,
       address: data.address || null,
       joiningDate: data.joiningDate ? new Date(data.joiningDate) : new Date(),
-      salary: parseFloat(data.salary || "0"),
+      salary: sal,
       salaryType: data.salaryType || "monthly",
       bankAccount: data.bankAccount || null,
       emergencyContact: data.emergencyContact || null,

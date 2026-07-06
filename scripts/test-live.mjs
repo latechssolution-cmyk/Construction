@@ -3,7 +3,7 @@ import { resolve } from "path";
 config({ path: resolve(process.cwd(), ".env") });
 config({ path: resolve(process.cwd(), ".env.local") });
 
-const BASE = "http://localhost:3000";
+const BASE = "https://construction00.netlify.app";
 let cookies = "";
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ async function login() {
 // ─────────────────────────────────────────────────────────────────────────────
 async function main() {
   console.log("=".repeat(60));
-  console.log("  Construction ERP — Full System Test (Updated)");
+  console.log("  Construction ERP — Live Netlify System Test (Updated)");
   console.log("=".repeat(60));
 
   // ── Auth ──────────────────────────────────────────────────────────────────

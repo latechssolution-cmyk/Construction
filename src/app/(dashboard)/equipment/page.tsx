@@ -1,6 +1,6 @@
 "use client";
 import useSWR from "swr";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { CardGridSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -33,6 +33,13 @@ export default function EquipmentPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const q = new URLSearchParams(window.location.search).get("q");
+      if (q) setSearch(q);
+    }
+  }, []);
+
   // Edit / Delete states
   const [editingEquipment, setEditingEquipment] = useState<any>(null);
   const [editForm, setEditForm] = useState<any>({});
@@ -55,6 +62,14 @@ export default function EquipmentPage() {
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
+    if (form.purchasePrice && parseFloat(form.purchasePrice) < 0) {
+      toast({ title: "Validation Error", description: "Purchase price cannot be negative.", variant: "destructive" });
+      return;
+    }
+    if (form.dailyRate && parseFloat(form.dailyRate) < 0) {
+      toast({ title: "Validation Error", description: "Daily rate cannot be negative.", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/equipment", {
@@ -91,12 +106,22 @@ export default function EquipmentPage() {
       location: eq.location || "",
       notes: eq.notes || "",
       status: eq.status,
-      dailyRate: eq.dailyRate ?? 0, // Load dailyRate in edit state (Issue #101)
+      dailyRate: eq.dailyRate ?? 0,
+      purchasePrice: eq.purchasePrice !== undefined && eq.purchasePrice !== null ? eq.purchasePrice : "",
+      purchaseDate: eq.purchaseDate ? new Date(eq.purchaseDate).toISOString().slice(0, 10) : "",
     });
   }
 
   async function handleEditSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (editForm.purchasePrice && parseFloat(editForm.purchasePrice) < 0) {
+      toast({ title: "Validation Error", description: "Purchase price cannot be negative.", variant: "destructive" });
+      return;
+    }
+    if (editForm.dailyRate && parseFloat(editForm.dailyRate) < 0) {
+      toast({ title: "Validation Error", description: "Daily rate cannot be negative.", variant: "destructive" });
+      return;
+    }
     setEditLoading(true);
     try {
       const res = await fetch(`/api/equipment/${editingEquipment.id}`, {
@@ -105,6 +130,8 @@ export default function EquipmentPage() {
         body: JSON.stringify({
           ...editForm,
           dailyRate: parseFloat(editForm.dailyRate) || 0,
+          purchasePrice: editForm.purchasePrice !== "" && editForm.purchasePrice !== undefined ? parseFloat(editForm.purchasePrice) : null,
+          purchaseDate: editForm.purchaseDate || null,
         }),
       });
       if (!res.ok) {
@@ -251,10 +278,13 @@ export default function EquipmentPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <input required value={editForm.name || ""} onChange={e => setEditForm({ ...editForm, name: e.target.value })} placeholder="Equipment Name *" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <select required value={editForm.type || ""} onChange={e => setEditForm({ ...editForm, type: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+              <option value="">Select Type *</option>
               {["excavator", "crane", "mixer", "generator", "compactor", "drill", "scaffold", "vehicle", "pump", "other"].map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
             </select>
             <input value={editForm.model || ""} onChange={e => setEditForm({ ...editForm, model: e.target.value })} placeholder="Model" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <input value={editForm.serialNumber || ""} onChange={e => setEditForm({ ...editForm, serialNumber: e.target.value })} placeholder="Serial Number" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            <input type="date" value={editForm.purchaseDate || ""} onChange={e => setEditForm({ ...editForm, purchaseDate: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            <input type="number" value={editForm.purchasePrice || ""} onChange={e => setEditForm({ ...editForm, purchasePrice: e.target.value })} placeholder="Purchase Price (PKR)" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             
             {/* Daily rate field for costing job costing (Issue #101) */}
             <input type="number" step="1" required value={editForm.dailyRate ?? 0} onChange={e => setEditForm({ ...editForm, dailyRate: e.target.value })} placeholder="Daily Rate (PKR) *" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />

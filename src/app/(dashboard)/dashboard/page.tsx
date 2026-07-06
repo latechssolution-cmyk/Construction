@@ -32,10 +32,10 @@ function StatCard({ label, value, sub, color = "blue", urgent = false }: { label
     orange: "bg-orange-50 border-orange-200 text-orange-800",
   };
   return (
-    <div className={`border rounded-xl p-5 ${colors[color] || colors.blue} ${urgent ? "ring-2 ring-red-400" : ""}`}>
-      <p className="text-xs font-medium opacity-70 uppercase tracking-wide">{label}</p>
-      <p className="text-3xl font-bold mt-1">{value}</p>
-      {sub && <p className="text-xs opacity-60 mt-1">{sub}</p>}
+    <div className={`border rounded-xl p-5 min-w-0 ${colors[color] || colors.blue} ${urgent ? "ring-2 ring-red-400" : ""}`}>
+      <p className="text-xs font-medium opacity-70 uppercase tracking-wide truncate" title={label}>{label}</p>
+      <p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1 truncate" title={String(value)}>{value}</p>
+      {sub && <p className="text-xs opacity-60 mt-1 truncate" title={sub}>{sub}</p>}
     </div>
   );
 }
@@ -274,9 +274,9 @@ function AccountantDashboard({ data }: { data: any }) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-5 text-white">
-        <p className="text-sm font-medium opacity-80">Total Cash Position</p>
-        <p className="text-4xl font-bold mt-1">{pkr(totalCash)}</p>
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-5 text-white min-w-0">
+        <p className="text-sm font-medium opacity-80 truncate">Total Cash Position</p>
+        <p className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-1 truncate" title={pkr(totalCash)}>{pkr(totalCash)}</p>
         <p className="text-xs opacity-70 mt-1">Across {bankAccounts.length} bank account{bankAccounts.length !== 1 ? "s" : ""}</p>
       </div>
 

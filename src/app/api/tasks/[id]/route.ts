@@ -50,9 +50,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.assignedToId !== undefined) update.assignedToId = toId(data.assignedToId);
     if (data.phaseId !== undefined) update.phaseId = toId(data.phaseId);
     if (data.dueDate !== undefined) update.dueDate = data.dueDate ? new Date(data.dueDate) : null;
-    if (data.estimatedHours !== undefined) { const parsedHours = parseFloat(data.estimatedHours); if (!isNaN(parsedHours)) update.estimatedHours = parsedHours; }
+    if (data.estimatedHours !== undefined) {
+      const parsedHours = parseFloat(data.estimatedHours);
+      if (!isNaN(parsedHours)) {
+        if (parsedHours < 0) throw new ApiError(400, "Estimated hours cannot be negative");
+        update.estimatedHours = parsedHours;
+      }
+    }
     if (data.notes !== undefined) update.notes = data.notes;
-    if (data.weight !== undefined) { const parsedWeight = parseFloat(data.weight); if (!isNaN(parsedWeight)) update.weight = parsedWeight; }
+    if (data.weight !== undefined) {
+      const parsedWeight = parseFloat(data.weight);
+      if (!isNaN(parsedWeight)) {
+        if (parsedWeight < 0) throw new ApiError(400, "Task weight cannot be negative");
+        update.weight = parsedWeight;
+      }
+    }
     if (data.status !== undefined) {
       update.completedAt = data.status === "completed" ? new Date() : null;
     }

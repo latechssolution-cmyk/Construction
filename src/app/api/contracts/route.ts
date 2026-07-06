@@ -45,14 +45,22 @@ export async function POST(req: NextRequest) {
     requireRole(session, "admin", "ceo", "manager");
     const data = await req.json();
     if (!data.title || !data.clientId) throw new Error("Title and client are required");
+    const val = parseFloat(data.contractValue || data.value || "0");
+    if (val < 0) throw new Error("Contract value cannot be negative");
+    const start = data.startDate ? new Date(data.startDate) : null;
+    const end = data.endDate ? new Date(data.endDate) : null;
+    if (start && end && end < start) {
+      throw new Error("End date cannot be before start date");
+    }
+
     await connectDB();
     const contract = await Contract.create({
       contractNumber: data.contractNumber || await generateContractNumber(),
       title: data.title,
       scope: data.scope || null,
-      contractValue: parseFloat(data.contractValue || data.value || "0"),
-      startDate: data.startDate ? new Date(data.startDate) : null,
-      endDate: data.endDate ? new Date(data.endDate) : null,
+      contractValue: val,
+      startDate: start,
+      endDate: end,
       status: data.status || "draft",
       clientId: toId(data.clientId),
       paymentTerms: data.paymentTerms || null,

@@ -66,7 +66,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const data = await req.json();
     await connectDB();
-    const existing = await Project.findById(id, { assignedManagerId: 1 });
+    const existing = await Project.findById(id, { assignedManagerId: 1, startDate: 1, endDate: 1 });
     if (!existing) throw new ApiError(404, "Project not found");
     if (session.user.role === "manager" && existing.assignedManagerId?.toString() !== session.user.id) {
       throw new ApiError(403, "You can only edit your assigned projects");
@@ -76,11 +76,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.name !== undefined) update.name = data.name;
     if (data.status !== undefined) update.status = data.status;
     if (data.completionPercent !== undefined) update.completionPercent = clampPct(data.completionPercent);
-    if (data.budget !== undefined) { const parsedBudget = parseFloat(data.budget); if (!isNaN(parsedBudget)) update.budget = parsedBudget; }
+    if (data.budget !== undefined) {
+      const parsedBudget = parseFloat(data.budget);
+      if (!isNaN(parsedBudget)) {
+        if (parsedBudget < 0) throw new ApiError(400, "Budget cannot be negative");
+        update.budget = parsedBudget;
+      }
+    }
     if (data.location !== undefined) update.location = data.location;
     if (data.description !== undefined) update.description = data.description;
     if (data.startDate !== undefined) update.startDate = data.startDate ? new Date(data.startDate) : null;
     if (data.endDate !== undefined) update.endDate = data.endDate ? new Date(data.endDate) : null;
+
+    const start = update.startDate !== undefined ? update.startDate : existing.startDate;
+    const end = update.endDate !== undefined ? update.endDate : existing.endDate;
+    if (start && end && end < start) {
+      throw new ApiError(400, "End date cannot be before start date");
+    }
+
     if (data.clientId !== undefined) update.clientId = toId(data.clientId);
     if (data.assignedManagerId !== undefined) update.assignedManagerId = toId(data.assignedManagerId);
     if (data.contractId !== undefined) update.contractId = toId(data.contractId);
@@ -101,7 +114,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     await connectDB();
     if (!await Project.exists({ _id: id })) throw new ApiError(404, "Project not found");
     const [hasInvoices, hasLedger] = await Promise.all([
-      Invoice.exists({ projectId: id }),
+      Invoice.exists({ projectId: id, deletedAt: null }),
       LedgerEntry.exists({ projectId: id }),
     ]);
     if (hasInvoices || hasLedger) {

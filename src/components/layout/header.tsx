@@ -135,7 +135,7 @@ export function Header({ user, onMenuClick }: HeaderProps) {
               <p className="text-xs text-muted-foreground font-normal">{user.email}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem><User className="w-4 h-4 mr-2" />Profile</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/settings")} className="cursor-pointer"><User className="w-4 h-4 mr-2" />Profile</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => signOut({ callbackUrl: "/login" })}>
               <LogOut className="w-4 h-4 mr-2" />Sign Out

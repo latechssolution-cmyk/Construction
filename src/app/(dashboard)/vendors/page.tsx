@@ -1,6 +1,6 @@
 "use client";
 import useSWR from "swr";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "@/hooks/use-toast";
@@ -20,6 +20,13 @@ export default function VendorsPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const q = new URLSearchParams(window.location.search).get("q");
+      if (q) setSearch(q);
+    }
+  }, []);
 
   // Edit states
   const [editingVendor, setEditingVendor] = useState<any>(null);

@@ -77,16 +77,24 @@ export async function POST(req: NextRequest) {
     requireRole(session, "admin", "ceo", "manager");
     const data = await req.json();
     if (!data.name) throw new Error("Project name is required");
+    const parsedBudget = parseFloat(data.budget || "0");
+    if (parsedBudget < 0) throw new Error("Budget cannot be negative");
+    const start = data.startDate ? new Date(data.startDate) : null;
+    const end = data.endDate ? new Date(data.endDate) : null;
+    if (start && end && end < start) {
+      throw new Error("End date cannot be before start date");
+    }
+
     await connectDB();
     const project = await Project.create({
       name: data.name,
       location: data.location || null,
       type: data.type || "residential",
       status: data.status || "planning",
-      budget: parseFloat(data.budget || "0"),
+      budget: parsedBudget,
       description: data.description || null,
-      startDate: data.startDate ? new Date(data.startDate) : null,
-      endDate: data.endDate ? new Date(data.endDate) : null,
+      startDate: start,
+      endDate: end,
       clientId: toId(data.clientId),
       contractId: toId(data.contractId),
       assignedManagerId: toId(data.assignedManagerId) || session.user.id,

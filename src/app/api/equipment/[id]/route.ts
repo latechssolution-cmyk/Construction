@@ -32,7 +32,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await connectDB();
     const eq = await Equipment.findById(id);
     if (!eq) throw new ApiError(404, "Equipment not found");
-    const fields = ["name","type","model","condition","status","location","notes","dailyRate","hourlyRate"] as const;
     if (data.status !== undefined && data.status !== eq.status) {
       if (data.status === "available") {
         const activeAssign = await ProjectEquipment.findOne({ equipmentId: id, returnedAt: null }).populate("project", "name");
@@ -46,7 +45,42 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         }
       }
     }
-    fields.forEach((f) => { if (data[f] !== undefined) (eq as any)[f] = data[f]; });
+    if (data.type !== undefined && !data.type) {
+      throw new ApiError(400, "Type is required");
+    }
+    if (data.purchasePrice !== undefined && data.purchasePrice !== null && data.purchasePrice !== "") {
+      const parsedPPrice = parseFloat(data.purchasePrice);
+      if (!isNaN(parsedPPrice) && parsedPPrice < 0) {
+        throw new ApiError(400, "Purchase price cannot be negative");
+      }
+    }
+    if (data.dailyRate !== undefined) {
+      const parsedDRate = parseFloat(data.dailyRate);
+      if (!isNaN(parsedDRate) && parsedDRate < 0) {
+        throw new ApiError(400, "Daily rate cannot be negative");
+      }
+    }
+    if (data.hourlyRate !== undefined) {
+      const parsedHRate = parseFloat(data.hourlyRate);
+      if (!isNaN(parsedHRate) && parsedHRate < 0) {
+        throw new ApiError(400, "Hourly rate cannot be negative");
+      }
+    }
+
+    const fields = ["name","type","model","condition","status","location","notes","dailyRate","hourlyRate","purchasePrice","purchaseDate"] as const;
+    fields.forEach((f) => {
+      if (data[f] !== undefined) {
+        if (f === "purchasePrice") {
+          (eq as any)[f] = data[f] === "" || data[f] === null ? null : parseFloat(data[f]);
+        } else if (f === "purchaseDate") {
+          (eq as any)[f] = data[f] === "" || data[f] === null ? null : new Date(data[f]);
+        } else if (f === "dailyRate" || f === "hourlyRate") {
+          (eq as any)[f] = parseFloat(data[f]) || 0;
+        } else {
+          (eq as any)[f] = data[f];
+        }
+      }
+    });
     await eq.save();
     await auditLog(session.user.id, "UPDATE", "Equipment", id, `Updated: ${eq.name}`);
     return ok(eq);

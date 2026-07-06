@@ -41,6 +41,11 @@ export async function POST(req: NextRequest) {
     requireRole(session, "admin", "ceo", "manager");
     const data = await req.json();
     if (!data.title || !data.projectId) throw new Error("Title and projectId are required");
+    const est = data.estimatedHours ? parseFloat(data.estimatedHours) : null;
+    if (est !== null && est < 0) throw new Error("Estimated hours cannot be negative");
+    const weightVal = data.weight !== undefined ? parseFloat(data.weight) || 1 : 1;
+    if (weightVal < 0) throw new Error("Task weight cannot be negative");
+
     await connectDB();
     const task = await Task.create({
       title: data.title,
@@ -51,9 +56,9 @@ export async function POST(req: NextRequest) {
       phaseId: toId(data.phaseId),
       assignedToId: toId(data.assignedToId),
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
-      estimatedHours: data.estimatedHours ? parseFloat(data.estimatedHours) : null,
+      estimatedHours: est,
       notes: data.notes || null,
-      weight: data.weight !== undefined ? parseFloat(data.weight) || 1 : 1,
+      weight: weightVal,
     });
     await task.populate("project", "id name");
     await task.populate("assignedTo", "id name");

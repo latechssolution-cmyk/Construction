@@ -1,6 +1,6 @@
 "use client";
 import useSWR from "swr";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { ExportButton } from "@/components/export-button";
 import { StatsSkeleton, TableSkeleton } from "@/components/ui/skeleton";
@@ -23,6 +23,14 @@ export default function LedgerPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const q = new URLSearchParams(window.location.search).get("q");
+      if (q) setSearch(q);
+    }
+  }, []);
 
   if (session && !["admin","ceo","accountant"].includes(session.user?.role||"")) {
     return <div className="p-6 text-center text-gray-500"><p className="text-4xl mb-2">&#x1F512;</p><p className="font-medium">Access Restricted</p></div>;
@@ -30,7 +38,15 @@ export default function LedgerPage() {
 
   const canManage = ["admin","ceo","accountant"].includes(session?.user?.role||"");
   const list: any[] = entries?.data ? entries.data : (Array.isArray(entries) ? entries : []);
-  const filtered = list.filter((e:any)=>!typeFilter||e.type===typeFilter);
+  
+  const filtered = list.filter((e: any) => {
+    const matchesType = !typeFilter || e.type === typeFilter;
+    const matchesSearch = !search ||
+      e.description?.toLowerCase().includes(search.toLowerCase()) ||
+      e.referenceNumber?.toLowerCase().includes(search.toLowerCase()) ||
+      (e.vendor?.name || e.partyName || "").toLowerCase().includes(search.toLowerCase());
+    return matchesType && matchesSearch;
+  });
 
   const totalIncome = list.filter((e:any)=>e.type==="income").reduce((s:number,e:any)=>s+e.amount,0);
   const totalExpense = list.filter((e:any)=>e.type==="expense").reduce((s:number,e:any)=>s+e.amount,0);
@@ -41,6 +57,7 @@ export default function LedgerPage() {
     if (!form.description?.trim()) { setError("Description is required."); return; }
     if (!form.amount || parseFloat(form.amount) <= 0) { setError("Enter a valid positive amount."); return; }
     if (!form.date) { setError("Date is required."); return; }
+    if (new Date(form.date) > new Date()) { setError("Date cannot be in the future."); return; }
     if (!form.category?.trim()) { setError("Category is required."); return; }
     setLoading(true);
     try {
@@ -78,27 +95,33 @@ export default function LedgerPage() {
 
       {isLoading ? <StatsSkeleton count={3} /> : (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 min-w-0">
           <p className="text-xs text-green-700 font-medium">Total Income</p>
-          <p className="text-2xl font-bold text-green-800">PKR {totalIncome.toLocaleString()}</p>
+          <p className="text-xl sm:text-2xl font-bold text-green-800 truncate" title={`PKR ${totalIncome.toLocaleString()}`}>PKR {totalIncome.toLocaleString()}</p>
         </div>
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 min-w-0">
           <p className="text-xs text-red-700 font-medium">Total Expenses</p>
-          <p className="text-2xl font-bold text-red-800">PKR {totalExpense.toLocaleString()}</p>
+          <p className="text-xl sm:text-2xl font-bold text-red-800 truncate" title={`PKR ${totalExpense.toLocaleString()}`}>PKR {totalExpense.toLocaleString()}</p>
         </div>
-        <div className={"border rounded-xl p-4 "+(totalIncome-totalExpense>=0?"bg-blue-50 border-blue-200":"bg-orange-50 border-orange-200")}>
+        <div className={"border rounded-xl p-4 min-w-0 "+(totalIncome-totalExpense>=0?"bg-blue-50 border-blue-200":"bg-orange-50 border-orange-200")}>
           <p className={"text-xs font-medium "+(totalIncome-totalExpense>=0?"text-blue-700":"text-orange-700")}>Net Balance</p>
-          <p className={"text-2xl font-bold "+(totalIncome-totalExpense>=0?"text-blue-800":"text-orange-800")}>PKR {(totalIncome-totalExpense).toLocaleString()}</p>
+          <p className={"text-xl sm:text-2xl font-bold truncate "+(totalIncome-totalExpense>=0?"text-blue-800":"text-orange-800")} title={`PKR ${(totalIncome-totalExpense).toLocaleString()}`}>PKR {(totalIncome-totalExpense).toLocaleString()}</p>
         </div>
       </div>
       )}
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>}
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 items-center">
         {["","income","expense"].map(t=>(
           <button key={t} onClick={()=>setTypeFilter(t)} className={"px-3 py-1.5 text-sm rounded-lg capitalize transition-colors "+(typeFilter===t?"bg-blue-100 text-blue-700":"border border-gray-200 text-gray-600 hover:bg-gray-50")}>{t||"All"}</button>
         ))}
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search ledger..."
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-full sm:w-56 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+        />
       </div>
 
       {showForm && (
@@ -115,7 +138,7 @@ export default function LedgerPage() {
               <option value="">Select Category *</option>
               {CATEGORIES.map(c=><option key={c} value={c}>{c.replace(/_/g," ")}</option>)}
             </select>
-            <input type="date" required value={form.date||""} onChange={e=>setForm({...form,date:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            <input type="date" required max={new Date().toISOString().slice(0, 10)} value={form.date||""} onChange={e=>setForm({...form,date:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <select value={form.projectId||""} onChange={e=>setForm({...form,projectId:e.target.value||undefined})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40">
               <option value="">No Project (General)</option>
               {(projects||[]).map((p:any)=><option key={p.id} value={p.id}>{p.name}</option>)}
@@ -180,7 +203,7 @@ export default function LedgerPage() {
               <div key={e.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-medium text-gray-900">{e.description||"—"}</p>
+                    <p className="font-medium text-gray-900 break-words">{e.description||"—"}</p>
                     <p className="text-xs text-gray-500 whitespace-nowrap">{e.date?new Date(e.date).toLocaleDateString():"-"}</p>
                   </div>
                   <span className={"text-xs px-2 py-0.5 rounded-full capitalize shrink-0 "+(TYPE_COLORS[e.type]||"bg-gray-100 text-gray-600")}>{e.type}</span>

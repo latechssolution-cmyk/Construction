@@ -45,6 +45,13 @@ export async function POST(req: NextRequest) {
     requireRole(session, "admin", "ceo", "manager");
     const data = await req.json();
     if (!data.name || !data.type) throw new Error("Name and type are required");
+    const pPrice = data.purchasePrice ? parseFloat(data.purchasePrice) : null;
+    if (pPrice !== null && pPrice < 0) throw new Error("Purchase price cannot be negative");
+    const dRate = data.dailyRate ? parseFloat(data.dailyRate) : 0;
+    if (dRate < 0) throw new Error("Daily rate cannot be negative");
+    const hRate = data.hourlyRate ? parseFloat(data.hourlyRate) : 0;
+    if (hRate < 0) throw new Error("Hourly rate cannot be negative");
+
     await connectDB();
     const eq = await Equipment.create({
       name: data.name,
@@ -52,11 +59,11 @@ export async function POST(req: NextRequest) {
       model: data.model || null,
       serialNumber: data.serialNumber || null,
       purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : null,
-      purchasePrice: data.purchasePrice ? parseFloat(data.purchasePrice) : null,
+      purchasePrice: pPrice,
       condition: data.condition || "good",
       status: data.status || "available",
-      dailyRate: data.dailyRate ? parseFloat(data.dailyRate) : 0,
-      hourlyRate: data.hourlyRate ? parseFloat(data.hourlyRate) : 0,
+      dailyRate: dRate,
+      hourlyRate: hRate,
       location: data.location || null,
       notes: data.notes || null,
     });

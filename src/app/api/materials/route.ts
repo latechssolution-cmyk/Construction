@@ -84,9 +84,12 @@ export async function POST(req: NextRequest) {
         }
 
         const qty = parseFloat(data.quantity || "0");
+        if (qty < 0) throw new ApiError(400, "Quantity cannot be negative");
         const price = parseFloat(data.unitPrice || "0");
+        if (price <= 0) throw new ApiError(400, "Unit price must be greater than 0");
         totalPrice = qty * price;
         const minStock = parseFloat(data.minStockLevel || "5");
+        if (minStock < 0) throw new ApiError(400, "Minimum stock level cannot be negative");
         const receivedDate = data.receivedDate ? new Date(data.receivedDate) : new Date();
 
         const [createdMaterial] = await Material.create([{

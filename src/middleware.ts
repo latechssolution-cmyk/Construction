@@ -40,6 +40,19 @@ const ROLE_RESTRICTED_PATHS: { prefix: string; roles: string[] }[] = [
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  if (pathname === "/login") {
+    if (req.auth?.user && !req.nextUrl.searchParams.has("error") && !req.nextUrl.searchParams.has("loggedOut")) {
+      const dashUrl = req.nextUrl.clone();
+      dashUrl.pathname = "/dashboard";
+      return NextResponse.redirect(dashUrl);
+    }
+    const response = NextResponse.next();
+    response.cookies.set("next-auth.session-token", "", { path: "/", maxAge: 0, expires: new Date(0) });
+    response.cookies.set("__Secure-next-auth.session-token", "", { path: "/", maxAge: 0, expires: new Date(0) });
+    response.cookies.set("next-auth.callback-url", "", { path: "/", maxAge: 0, expires: new Date(0) });
+    response.cookies.set("next-auth.csrf-token", "", { path: "/", maxAge: 0, expires: new Date(0) });
+    return response;
+  }
   if (isPublic) return NextResponse.next();
 
   if (!req.auth?.user) {

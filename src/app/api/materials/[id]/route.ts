@@ -46,8 +46,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.restockQuantity !== undefined) {
       const addQty = parseFloat(data.restockQuantity);
       if (!addQty || addQty <= 0) throw new ApiError(400, "Restock quantity must be greater than zero");
-
       const newPrice = data.unitPrice ? parseFloat(data.unitPrice) : material.unitPrice;
+      if (newPrice <= 0) throw new ApiError(400, "Unit price must be greater than 0");
       const restockCost = addQty * newPrice;
       const receivedDate = data.receivedDate ? new Date(data.receivedDate) : new Date();
 
@@ -59,9 +59,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         }
       }
 
+      const oldQty = material.quantity;
+      const oldPrice = material.unitPrice;
+
       material.stockQuantity += addQty;
       material.quantity += addQty;
-      material.unitPrice = newPrice;
+      material.unitPrice = (oldQty + addQty) > 0 ? ((oldQty * oldPrice) + (addQty * newPrice)) / (oldQty + addQty) : newPrice;
       if (data.vendorId !== undefined) material.vendorId = toId(data.vendorId) as any;
       if (data.notes !== undefined) material.notes = data.notes;
       await material.save();
@@ -108,16 +111,28 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.unit !== undefined) material.unit = data.unit;
     
     const parsedMinStock = data.minStockLevel !== undefined ? parseFloat(data.minStockLevel) : NaN;
-    if (!isNaN(parsedMinStock)) material.minStockLevel = parsedMinStock;
+    if (!isNaN(parsedMinStock)) {
+      if (parsedMinStock < 0) throw new ApiError(400, "Minimum stock level cannot be negative");
+      material.minStockLevel = parsedMinStock;
+    }
     
     const parsedStockQty = data.stockQuantity !== undefined ? parseFloat(data.stockQuantity) : NaN;
-    if (!isNaN(parsedStockQty)) material.stockQuantity = parsedStockQty;
+    if (!isNaN(parsedStockQty)) {
+      if (parsedStockQty < 0) throw new ApiError(400, "Stock quantity cannot be negative");
+      material.stockQuantity = parsedStockQty;
+    }
     
     const parsedQty = data.quantity !== undefined ? parseFloat(data.quantity) : NaN;
-    if (!isNaN(parsedQty)) material.quantity = parsedQty;
+    if (!isNaN(parsedQty)) {
+      if (parsedQty < 0) throw new ApiError(400, "Quantity cannot be negative");
+      material.quantity = parsedQty;
+    }
     
     const parsedUnitPrice = data.unitPrice !== undefined ? parseFloat(data.unitPrice) : NaN;
-    if (!isNaN(parsedUnitPrice)) material.unitPrice = parsedUnitPrice;
+    if (!isNaN(parsedUnitPrice)) {
+      if (parsedUnitPrice <= 0) throw new ApiError(400, "Unit price must be greater than 0");
+      material.unitPrice = parsedUnitPrice;
+    }
 
     const newTotalPrice = material.quantity * material.unitPrice;
     const diff = newTotalPrice - oldTotalPrice;

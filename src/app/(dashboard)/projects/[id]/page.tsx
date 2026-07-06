@@ -82,9 +82,19 @@ export default function ProjectDetailPage() {
   if (project.error) return <div className="p-6 text-red-500">Project not found</div>;
 
   async function saveProject(extra?: any) {
+    const payload = extra ?? edit;
+    if (payload.budget !== undefined && parseFloat(payload.budget) < 0) {
+      toast({ title: "Validation Error", description: "Budget cannot be negative.", variant: "destructive" });
+      return;
+    }
+    const start = payload.startDate !== undefined ? payload.startDate : (project.startDate ? project.startDate.slice(0, 10) : "");
+    const end = payload.endDate !== undefined ? payload.endDate : (project.endDate ? project.endDate.slice(0, 10) : "");
+    if (start && end && new Date(end) < new Date(start)) {
+      toast({ title: "Validation Error", description: "End date cannot be before start date.", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
-      const payload = extra ?? edit;
       const res = await fetch(`/api/projects/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -1080,7 +1090,7 @@ export default function ProjectDetailPage() {
                   className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
                 >
                   <option value="">Select Employee *</option>
-                  {(Array.isArray(allEmployees) ? allEmployees : [])
+                  {(allEmployees?.data ? allEmployees.data : (Array.isArray(allEmployees) ? allEmployees : []))
                     .filter((emp: any) => emp.isActive !== false)
                     .map((emp: any) => (
                       <option key={emp.id} value={emp.id}>

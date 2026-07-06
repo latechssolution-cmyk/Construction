@@ -1,6 +1,6 @@
 "use client";
 import useSWR from "swr";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { ExportButton } from "@/components/export-button";
 import { TableSkeleton } from "@/components/ui/skeleton";
@@ -72,6 +72,12 @@ export default function MaterialsPage() {
   const [modalError, setModalError] = useState("");
 
   const [search, setSearch] = useState("");
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const q = new URLSearchParams(window.location.search).get("q");
+      if (q) setSearch(q);
+    }
+  }, []);
   const [lowStockOnly, setLowStockOnly] = useState(false);
 
   const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
@@ -592,7 +598,7 @@ export default function MaterialsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs text-gray-500 block mb-1">Received Date</label>
-                      <input type="date" value={modalForm.receivedDate || ""} onChange={e => setModalForm({ ...modalForm, receivedDate: e.target.value })}
+                      <input type="date" max={new Date().toISOString().slice(0, 10)} value={modalForm.receivedDate || ""} onChange={e => setModalForm({ ...modalForm, receivedDate: e.target.value })}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/40" />
                     </div>
                     <div>
@@ -652,7 +658,7 @@ export default function MaterialsPage() {
                     </div>
                     <div>
                       <label className="text-xs text-gray-500 block mb-1">Date Used</label>
-                      <input type="date" value={modalForm.date || ""} onChange={e => setModalForm({ ...modalForm, date: e.target.value })}
+                      <input type="date" max={new Date().toISOString().slice(0, 10)} value={modalForm.date || ""} onChange={e => setModalForm({ ...modalForm, date: e.target.value })}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40" />
                     </div>
                   </div>

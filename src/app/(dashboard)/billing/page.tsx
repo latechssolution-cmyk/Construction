@@ -21,8 +21,8 @@ export default function BillingPage() {
   const { data: bankAccounts } = useSWR("/api/bank-accounts", fetcher);
   const [statusFilter, setStatusFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<any>({ status:"draft", taxPercent:0 });
-  const [items, setItems] = useState([{ description:"", quantity:1, unitPrice:0 }]);
+  const [form, setForm] = useState<any>({ status:"draft", taxPercent:"" });
+  const [items, setItems] = useState([{ description:"", quantity:"", unitPrice:"" }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -38,25 +38,27 @@ export default function BillingPage() {
   const list: any[] = Array.isArray(invoices) ? invoices : [];
   const filtered = list.filter((i:any)=>!statusFilter||i.status===statusFilter);
 
-  function addItem() { setItems([...items,{description:"",quantity:1,unitPrice:0}]); }
+  function addItem() { setItems([...items,{description:"",quantity:"",unitPrice:""}]); }
   function updateItem(idx: number, field: string, val: any) { setItems(items.map((it,i)=>i===idx?{...it,[field]:val}:it)); }
   function removeItem(idx: number) { setItems(items.filter((_,i)=>i!==idx)); }
 
-  const subtotal = items.reduce((s,it)=>s+it.quantity*it.unitPrice,0);
-  const taxAmount = subtotal*(parseFloat(String(form.taxPercent||0))/100);
+  const subtotal = items.reduce((s,it)=>s+(parseFloat(String(it.quantity))||0)*(parseFloat(String(it.unitPrice))||0),0);
+  const taxPercentVal = parseFloat(String(form.taxPercent)) || 0;
+  const taxAmount = subtotal*(taxPercentVal/100);
   const grandTotal = subtotal+taxAmount;
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
     setError(""); setSuccess("");
     if (form.dueDate && form.issueDate && new Date(form.dueDate) < new Date(form.issueDate)) { setError("Due date must be after issue date."); return; }
+    if (form.taxPercent !== "" && form.taxPercent !== undefined && (isNaN(taxPercentVal) || taxPercentVal < 0 || taxPercentVal > 100)) { setError("Tax percentage must be between 0 and 100."); return; }
     if (items.every(it=>!it.description.trim())) { setError("Add at least one line item with a description."); return; }
     setLoading(true);
     try {
-      const res = await fetch("/api/invoices",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...form,items})});
+      const res = await fetch("/api/invoices",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...form,taxPercent:taxPercentVal,items:items.map(it=>({...it,quantity:parseFloat(String(it.quantity))||0,unitPrice:parseFloat(String(it.unitPrice))||0}))})});
       if (!res.ok) { const e = await res.json(); setError(e.error||"Failed to create invoice"); return; }
       setSuccess("Invoice created successfully!");
-      mutate(); setShowForm(false); setForm({status:"draft",taxPercent:0}); setItems([{description:"",quantity:1,unitPrice:0}]);
+      mutate(); setShowForm(false); setForm({status:"draft",taxPercent:""}); setItems([{description:"",quantity:"",unitPrice:""}]);
       setTimeout(()=>setSuccess(""),3000);
     } finally { setLoading(false); }
   }
@@ -135,7 +137,24 @@ export default function BillingPage() {
             </select>
             <div className="flex flex-col gap-1"><label className="text-xs text-gray-500">Issue Date</label><input type="date" value={form.issueDate||""} onChange={e=>setForm({...form,issueDate:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" /></div>
             <div className="flex flex-col gap-1"><label className="text-xs text-gray-500">Due Date</label><input type="date" value={form.dueDate||""} onChange={e=>setForm({...form,dueDate:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" /></div>
-            <div className="flex flex-col gap-1"><label className="text-xs text-gray-500">Tax %</label><input type="number" step="0.1" min="0" max="100" value={form.taxPercent||0} onChange={e=>setForm({...form,taxPercent:parseFloat(e.target.value||"0")})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" /></div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500">Tax %</label>
+              <input
+                type="number"
+                step="0.1"
+                placeholder="e.g. 17"
+                value={form.taxPercent !== undefined ? form.taxPercent : ""}
+                onChange={e => setForm({ ...form, taxPercent: e.target.value })}
+                className={`border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+                  form.taxPercent !== "" && form.taxPercent !== undefined && (parseFloat(form.taxPercent) < 0 || parseFloat(form.taxPercent) > 100)
+                    ? "border-red-500 focus:ring-red-500/40"
+                    : "border-gray-200 focus:ring-blue-500/40"
+                }`}
+              />
+              {form.taxPercent !== "" && form.taxPercent !== undefined && (parseFloat(form.taxPercent) < 0 || parseFloat(form.taxPercent) > 100) && (
+                <p className="text-[10px] text-red-500 font-medium mt-0.5">Tax must be between 0% and 100%</p>
+              )}
+            </div>
             <div className="sm:col-span-3"><textarea value={form.notes||""} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Notes (optional)" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" /></div>
           </div>
           <div className="space-y-2">
@@ -146,15 +165,15 @@ export default function BillingPage() {
             {items.map((it,idx)=>(
               <div key={idx} className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-center">
                 <input value={it.description} onChange={e=>updateItem(idx,"description",e.target.value)} placeholder="Description *" className="col-span-2 sm:col-span-5 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
-                <input type="number" value={it.quantity} min="0" onChange={e=>updateItem(idx,"quantity",parseFloat(e.target.value)||0)} placeholder="Qty" className="col-span-1 sm:col-span-2 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
-                <input type="number" step="0.01" value={it.unitPrice} min="0" onChange={e=>updateItem(idx,"unitPrice",parseFloat(e.target.value)||0)} placeholder="Unit Price" className="col-span-1 sm:col-span-3 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
-                <span className="col-span-1 sm:col-span-1 text-sm font-medium text-gray-700 text-right whitespace-nowrap">PKR {(it.quantity*it.unitPrice).toLocaleString()}</span>
+                <input type="number" value={it.quantity !== undefined ? it.quantity : ""} onChange={e=>updateItem(idx,"quantity",e.target.value)} placeholder="Qty *" className="col-span-1 sm:col-span-2 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+                <input type="number" step="0.01" value={it.unitPrice !== undefined ? it.unitPrice : ""} onChange={e=>updateItem(idx,"unitPrice",e.target.value)} placeholder="Unit Price *" className="col-span-1 sm:col-span-3 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+                <span className="col-span-1 sm:col-span-1 text-sm font-medium text-gray-700 text-right whitespace-nowrap">PKR {((parseFloat(String(it.quantity))||0)*(parseFloat(String(it.unitPrice))||0)).toLocaleString()}</span>
                 {items.length>1 && <button type="button" onClick={()=>removeItem(idx)} className="col-span-1 sm:col-span-1 text-red-400 hover:text-red-600 text-center">&#x2715;</button>}
               </div>
             ))}
             <div className="border-t border-gray-200 pt-3 flex flex-col sm:flex-row sm:justify-end gap-2 sm:gap-6 text-sm">
               <span className="text-gray-500">Subtotal: <strong>PKR {subtotal.toLocaleString()}</strong></span>
-              <span className="text-gray-500">Tax ({form.taxPercent||0}%): <strong>PKR {taxAmount.toLocaleString()}</strong></span>
+              <span className="text-gray-500">Tax ({taxPercentVal}%): <strong>PKR {taxAmount.toLocaleString()}</strong></span>
               <span className="text-gray-900 font-bold">Grand Total: PKR {grandTotal.toLocaleString()}</span>
             </div>
           </div>

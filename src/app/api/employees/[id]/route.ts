@@ -51,7 +51,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
     if (data.salaryType !== undefined) employee.salaryType = data.salaryType;
     await employee.save();
-    await auditLog(session.user.id, "UPDATE", "Employee", id, `Updated employee: ${employee.name}`);
+    void auditLog(session.user.id, "UPDATE", "Employee", id, `Updated employee: ${employee.name}`);
     return ok(employee);
   } catch (e) {
     return handleApiError(e);
@@ -84,7 +84,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     } finally {
       await dbSession.endSession();
     }
-    await auditLog(session.user.id, "DELETE", "Employee", id, `Deactivated: ${empName}`);
+    void auditLog(session.user.id, "DELETE", "Employee", id, `Deactivated: ${empName}`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

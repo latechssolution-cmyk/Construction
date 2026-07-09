@@ -137,7 +137,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return createdEntry;
     });
 
-    await auditLog(session.user.id, "CREATE", "Salary", entry.id, `Paid salary: ${employee.name} PKR ${amount}`);
+    void auditLog(session.user.id, "CREATE", "Salary", entry.id, `Paid salary: ${employee.name} PKR ${amount}`);
     return created(entry);
   } catch (e) {
     return handleApiError(e);

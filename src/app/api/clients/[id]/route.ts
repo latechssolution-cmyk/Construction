@@ -52,7 +52,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       client.isActive = data.isActive;
     }
     await client.save();
-    await auditLog(session.user.id, "UPDATE", "Client", id, `Updated client: ${client.name}`);
+    void auditLog(session.user.id, "UPDATE", "Client", id, `Updated client: ${client.name}`);
     return ok(client);
   } catch (e) {
     return handleApiError(e);
@@ -72,7 +72,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     if (activeProjects > 0) throw new ApiError(400, `Cannot deactivate client: ${activeProjects} active project(s) still linked. Complete or cancel those projects first.`);
     if (activeContracts > 0) throw new ApiError(400, `Cannot deactivate client: ${activeContracts} active contract(s) still linked. Terminate those contracts first.`);
     await Client.findByIdAndUpdate(id, { isActive: false });
-    await auditLog(session.user.id, "DELETE", "Client", id, "Deactivated client");
+    void auditLog(session.user.id, "DELETE", "Client", id, "Deactivated client");
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

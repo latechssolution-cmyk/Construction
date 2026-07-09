@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     settings.updatedById = toId(session.user.id) as any;
     await settings.save();
 
-    await auditLog(session.user.id, "UPDATE", "Settings", settings.id, "Updated company settings");
+    void auditLog(session.user.id, "UPDATE", "Settings", settings.id, "Updated company settings");
     return ok(settings);
   } catch (e) {
     return handleApiError(e);

@@ -42,7 +42,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.date !== undefined) entry.date = new Date(data.date);
 
     await entry.save();
-    await auditLog(session.user.id, "UPDATE", "Payment", id, `Updated metadata for payment ${entry.referenceNumber || id}`);
+    void auditLog(session.user.id, "UPDATE", "Payment", id, `Updated metadata for payment ${entry.referenceNumber || id}`);
     return ok(entry);
   } catch (e) {
     return handleApiError(e);
@@ -110,7 +110,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       await dbSession.endSession();
     }
 
-    await auditLog(session.user.id, "DELETE", "Payment", id, `Reversed payment transaction. Reversal ID: ${reversalId}`);
+    void auditLog(session.user.id, "DELETE", "Payment", id, `Reversed payment transaction. Reversal ID: ${reversalId}`);
     return ok({ success: true, message: "Transaction reversed successfully", reversalId });
   } catch (e) {
     return handleApiError(e);

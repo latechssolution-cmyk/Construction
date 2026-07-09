@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       uploadedById: session.user.id,
       tags: data.tags || [],
     });
-    await auditLog(session.user.id, "CREATE", "Document", doc.id, `Uploaded: ${doc.name}`);
+    void auditLog(session.user.id, "CREATE", "Document", doc.id, `Uploaded: ${doc.name}`);
     return created(doc);
   } catch (e) {
     return handleApiError(e);

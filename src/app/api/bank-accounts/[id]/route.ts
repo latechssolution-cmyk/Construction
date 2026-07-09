@@ -39,7 +39,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     // at account creation (POST /api/bank-accounts).
     if (data.notes !== undefined) account.notes = data.notes;
     await account.save();
-    await auditLog(session.user.id, "UPDATE", "BankAccount", id, `Updated: ${account.name}`);
+    void auditLog(session.user.id, "UPDATE", "BankAccount", id, `Updated: ${account.name}`);
     return ok(account);
   } catch (e) {
     return handleApiError(e);
@@ -62,7 +62,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       throw new ApiError(400, `Cannot deactivate "${account.name}": it still has a balance of PKR ${account.balance.toLocaleString()}. Transfer or zero out the balance first.`);
     }
     await BankAccount.findByIdAndUpdate(id, { isActive: false });
-    await auditLog(session.user.id, "DELETE", "BankAccount", id, "Deactivated bank account");
+    void auditLog(session.user.id, "DELETE", "BankAccount", id, "Deactivated bank account");
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

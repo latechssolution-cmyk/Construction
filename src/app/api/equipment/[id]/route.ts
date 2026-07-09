@@ -82,7 +82,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     });
     await eq.save();
-    await auditLog(session.user.id, "UPDATE", "Equipment", id, `Updated: ${eq.name}`);
+    void auditLog(session.user.id, "UPDATE", "Equipment", id, `Updated: ${eq.name}`);
     return ok(eq);
   } catch (e) {
     return handleApiError(e);
@@ -100,7 +100,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const eq = await Equipment.findByIdAndUpdate(id, { status: "decommissioned" }, { new: true });
     await ProjectEquipment.updateMany({ equipmentId: id, returnedAt: null }, { returnedAt: new Date() });
     
-    await auditLog(session.user.id, "DELETE", "Equipment", id, `Decommissioned: ${eq?.name}`);
+    void auditLog(session.user.id, "DELETE", "Equipment", id, `Decommissioned: ${eq?.name}`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

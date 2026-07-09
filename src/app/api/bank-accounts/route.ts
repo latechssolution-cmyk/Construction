@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     } finally {
       await dbSession.endSession();
     }
-    await auditLog(session.user.id, "CREATE", "BankAccount", account.id, `Created: ${account.name} with starting balance PKR ${initialBalance}`);
+    void auditLog(session.user.id, "CREATE", "BankAccount", account.id, `Created: ${account.name} with starting balance PKR ${initialBalance}`);
     return created(account);
   } catch (e) {
     return handleApiError(e);

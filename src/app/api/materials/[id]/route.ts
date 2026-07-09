@@ -105,7 +105,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         );
       }
 
-      await auditLog(session.user.id, "UPDATE", "Material", id,
+      void auditLog(session.user.id, "UPDATE", "Material", id,
         `Restocked ${updatedMaterial.itemName}: +${addQty} ${updatedMaterial.unit} @ PKR ${newPrice}/unit`);
       return ok(updatedMaterial);
     }
@@ -173,7 +173,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.notes !== undefined) material.notes = data.notes;
     await material.save();
 
-    await auditLog(session.user.id, "UPDATE", "Material", id, `Updated: ${material.itemName}`);
+    void auditLog(session.user.id, "UPDATE", "Material", id, `Updated: ${material.itemName}`);
     return ok(material);
   } catch (e) {
     return handleApiError(e);
@@ -202,7 +202,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     await MaterialUsage.deleteMany({ materialId: id });
     await Material.findByIdAndDelete(id);
-    await auditLog(session.user.id, "DELETE", "Material", id, `Deleted material: ${material.itemName}`);
+    void auditLog(session.user.id, "DELETE", "Material", id, `Deleted material: ${material.itemName}`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

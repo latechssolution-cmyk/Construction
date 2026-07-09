@@ -20,7 +20,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.startDate !== undefined) phase.startDate = data.startDate ? new Date(data.startDate) : null;
     if (data.endDate !== undefined) phase.endDate = data.endDate ? new Date(data.endDate) : null;
     await phase.save();
-    await auditLog(session.user.id, "UPDATE", "ProjectPhase", id, `Updated phase: ${phase.name}`);
+    void auditLog(session.user.id, "UPDATE", "ProjectPhase", id, `Updated phase: ${phase.name}`);
     return ok(phase);
   } catch (e) {
     return handleApiError(e);
@@ -39,7 +39,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     // real work items, just no longer grouped under this phase.
     await Task.updateMany({ phaseId: id }, { phaseId: null });
     await ProjectPhase.findByIdAndDelete(id);
-    await auditLog(session.user.id, "DELETE", "ProjectPhase", id, `Deleted phase: ${phase.name}`);
+    void auditLog(session.user.id, "DELETE", "ProjectPhase", id, `Deleted phase: ${phase.name}`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

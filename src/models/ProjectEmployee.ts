@@ -44,6 +44,11 @@ projectEmployeeSchema.virtual("employee", {
 });
 
 projectEmployeeSchema.index({ projectId: 1, employeeId: 1 }, { unique: true });
+// The Employees list page queries by employeeId (with an $in across a page
+// of employees) + endDate, not projectId — the compound index above can't
+// be used efficiently for that access pattern since employeeId isn't its
+// leading field.
+projectEmployeeSchema.index({ employeeId: 1, endDate: 1 });
 
 const ProjectEmployee: Model<IProjectEmployee> =
   mongoose.models.ProjectEmployee ||

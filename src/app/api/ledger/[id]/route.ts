@@ -75,7 +75,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return updated;
     });
 
-    await auditLog(session.user.id, "UPDATE", "LedgerEntry", id, "Updated ledger entry");
+    void auditLog(session.user.id, "UPDATE", "LedgerEntry", id, "Updated ledger entry");
     return ok(entry);
   } catch (e) {
     return handleApiError(e);
@@ -97,7 +97,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       }
       await LedgerEntry.findByIdAndDelete(id, { session: dbSession });
     });
-    await auditLog(session.user.id, "DELETE", "LedgerEntry", id, "Deleted ledger entry");
+    void auditLog(session.user.id, "DELETE", "LedgerEntry", id, "Deleted ledger entry");
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

@@ -36,8 +36,15 @@ export default function ProjectsPage() {
   const canManage = ["admin","ceo","manager"].includes(session?.user?.role || "");
 
   async function updateStatus(id: string, status: string) {
+    // Optimistic update — flip the status badge immediately instead of
+    // waiting for the full projects list to re-fetch.
+    mutate((current: any) => {
+      const list = Array.isArray(current) ? current : [];
+      return list.map((p: any) => (p.id === id ? { ...p, status } : p));
+    }, { revalidate: false });
+
     const res = await fetch(`/api/projects/${id}`, { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ status }) });
-    if (!res.ok) { const e = await res.json().catch(()=>({})); toast({ title: "Error", description: e.error || "Failed to update status", variant: "destructive" }); return; }
+    if (!res.ok) { const e = await res.json().catch(()=>({})); toast({ title: "Error", description: e.error || "Failed to update status", variant: "destructive" }); mutate(); return; }
     mutate();
   }
 

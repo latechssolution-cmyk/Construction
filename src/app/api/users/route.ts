@@ -34,7 +34,7 @@ export async function PATCH(req: NextRequest) {
     await connectDB();
     const user = await User.findByIdAndUpdate(data.id, { isActive: data.isActive }, { new: true, select: "-passwordHash" });
     if (!user) throw new Error("User not found");
-    await auditLog(session.user.id, "UPDATE", "User", data.id, `${data.isActive ? "Activated" : "Deactivated"} user: ${user.email}`);
+    void auditLog(session.user.id, "UPDATE", "User", data.id, `${data.isActive ? "Activated" : "Deactivated"} user: ${user.email}`);
     return ok(user);
   } catch (e) {
     return handleApiError(e);
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     });
     const result = user.toJSON();
     delete (result as any).passwordHash;
-    await auditLog(session.user.id, "CREATE", "User", user.id, `Created user: ${user.email} (${user.role})`);
+    void auditLog(session.user.id, "CREATE", "User", user.id, `Created user: ${user.email} (${user.role})`);
     return created(result);
   } catch (e) {
     return handleApiError(e);

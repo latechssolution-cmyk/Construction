@@ -56,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
     }
     await assignment.populate("employee", "id name role");
-    await auditLog(session.user.id, "CREATE", "ProjectEmployee", assignment.id, `Assigned ${employee.name} to project ${project.name}`);
+    void auditLog(session.user.id, "CREATE", "ProjectEmployee", assignment.id, `Assigned ${employee.name} to project ${project.name}`);
     return created(assignment);
   } catch (e) {
     return handleApiError(e);
@@ -80,7 +80,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       { new: true }
     );
     if (!assignment) throw new ApiError(404, "Active assignment not found");
-    await auditLog(session.user.id, "UPDATE", "ProjectEmployee", assignment.id, `Removed employee ${employeeId} from project ${project.name}`);
+    void auditLog(session.user.id, "UPDATE", "ProjectEmployee", assignment.id, `Removed employee ${employeeId} from project ${project.name}`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

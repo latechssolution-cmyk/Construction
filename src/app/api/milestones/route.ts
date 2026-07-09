@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       completedAt: data.completed ? new Date() : null,
     });
 
-    await auditLog(session.user.id, "CREATE", "Milestone", milestone.id, `Created milestone ${milestone.name}`);
+    void auditLog(session.user.id, "CREATE", "Milestone", milestone.id, `Created milestone ${milestone.name}`);
     return created(milestone);
   } catch (e) {
     return handleApiError(e);

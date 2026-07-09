@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
       return createdInvoice;
     });
     await invoice.populate("client", "name");
-    await auditLog(session.user.id, "CREATE", "Invoice", invoice.id, `Created invoice ${invoice.invoiceNumber}`);
+    void auditLog(session.user.id, "CREATE", "Invoice", invoice.id, `Created invoice ${invoice.invoiceNumber}`);
     return created(invoice);
   } catch (e) {
     return handleApiError(e);

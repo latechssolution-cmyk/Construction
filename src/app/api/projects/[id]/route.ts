@@ -120,7 +120,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.contractId !== undefined) update.contractId = toId(data.contractId);
     if (data.type !== undefined) update.type = data.type;
     const project = await Project.findByIdAndUpdate(id, update, { new: true });
-    await auditLog(session.user.id, "UPDATE", "Project", id, `Updated project: ${project!.name}`);
+    void auditLog(session.user.id, "UPDATE", "Project", id, `Updated project: ${project!.name}`);
     return ok(project);
   } catch (e) {
     return handleApiError(e);
@@ -166,7 +166,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       ProjectEquipment.deleteMany({ projectId: id }),
     ]);
     await Project.findByIdAndDelete(id);
-    await auditLog(session.user.id, "DELETE", "Project", id, "Deleted project and all related data");
+    void auditLog(session.user.id, "DELETE", "Project", id, "Deleted project and all related data");
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

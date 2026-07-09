@@ -43,6 +43,14 @@ export default function ContractsPage() {
   );
 
   async function updateStatus(id: string, status: string) {
+    // Optimistic update — reflect the new status immediately instead of
+    // waiting for the full contracts list (populated + cross-referenced
+    // against projects) to re-fetch.
+    mutate((current: any) => {
+      const list = Array.isArray(current) ? current : [];
+      return list.map((c: any) => (c.id === id ? { ...c, status } : c));
+    }, { revalidate: false });
+
     const res = await fetch(`/api/contracts/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -51,6 +59,7 @@ export default function ContractsPage() {
     if (!res.ok) {
       const e = await res.json();
       toast({ title: "Error", description: e.error || "Failed to update status", variant: "destructive" });
+      mutate();
       return;
     }
     toast({ title: "Status updated" });

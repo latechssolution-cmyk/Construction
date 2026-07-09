@@ -53,7 +53,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.endDate !== undefined) subcontract.endDate = data.endDate ? new Date(data.endDate) : undefined;
 
     await subcontract.save();
-    await auditLog(session.user.id, "UPDATE", "Subcontract", id, `Updated subcontract details`);
+    void auditLog(session.user.id, "UPDATE", "Subcontract", id, `Updated subcontract details`);
     return ok(subcontract);
   } catch (e) {
     return handleApiError(e);
@@ -79,7 +79,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     await Subcontract.findByIdAndDelete(id);
-    await auditLog(session.user.id, "DELETE", "Subcontract", id, `Deleted subcontract`);
+    void auditLog(session.user.id, "DELETE", "Subcontract", id, `Deleted subcontract`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

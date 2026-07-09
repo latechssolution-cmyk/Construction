@@ -41,7 +41,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     await doc.save();
-    await auditLog(session.user.id, "UPDATE", "Document", id, `Updated metadata for document: ${doc.name}`);
+    void auditLog(session.user.id, "UPDATE", "Document", id, `Updated metadata for document: ${doc.name}`);
     return ok(doc);
   } catch (e) {
     return handleApiError(e);
@@ -106,7 +106,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       }
     }
     await Doc.findByIdAndDelete(id);
-    await auditLog(session.user.id, "DELETE", "Document", id, `Deleted: ${doc.name}`);
+    void auditLog(session.user.id, "DELETE", "Document", id, `Deleted: ${doc.name}`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

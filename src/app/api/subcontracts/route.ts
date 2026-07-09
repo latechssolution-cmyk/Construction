@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     await subcontract.populate("vendor", "name");
     await subcontract.populate("createdBy", "name");
 
-    await auditLog(
+    void auditLog(
       session.user.id,
       "CREATE",
       "Subcontract",

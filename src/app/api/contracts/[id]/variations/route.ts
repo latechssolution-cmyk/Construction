@@ -48,7 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       notes: data.notes || null,
     });
 
-    await auditLog(session.user.id, "CREATE", "ContractVariation", variation.id, `Created contract variation: ${varNum} (${valueChange})`);
+    void auditLog(session.user.id, "CREATE", "ContractVariation", variation.id, `Created contract variation: ${varNum} (${valueChange})`);
     return created(variation);
   } catch (e) {
     return handleApiError(e);
@@ -78,7 +78,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (notes !== undefined) variation.notes = notes;
     await variation.save();
 
-    await auditLog(session.user.id, "UPDATE", "ContractVariation", variation.id, `Updated variation status to ${status}: ${variation.variationNumber}`);
+    void auditLog(session.user.id, "UPDATE", "ContractVariation", variation.id, `Updated variation status to ${status}: ${variation.variationNumber}`);
     return ok(variation);
   } catch (e) {
     return handleApiError(e);

@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       documentPath: data.documentPath || null,
       notes: data.notes || null,
     });
-    await auditLog(session.user.id, "CREATE", "Contract", contract.id, `Created contract: ${contract.contractNumber}`);
+    void auditLog(session.user.id, "CREATE", "Contract", contract.id, `Created contract: ${contract.contractNumber}`);
     return created(contract);
   } catch (e) {
     return handleApiError(e);

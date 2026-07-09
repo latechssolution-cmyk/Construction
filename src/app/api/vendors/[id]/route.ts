@@ -41,7 +41,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       vendor.isActive = data.isActive;
     }
     await vendor.save();
-    await auditLog(session.user.id, "UPDATE", "Vendor", id, `Updated vendor: ${vendor.name}`);
+    void auditLog(session.user.id, "UPDATE", "Vendor", id, `Updated vendor: ${vendor.name}`);
     return ok(vendor);
   } catch (e) {
     return handleApiError(e);
@@ -55,7 +55,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     await connectDB();
     await Vendor.findByIdAndUpdate(id, { isActive: false });
-    await auditLog(session.user.id, "DELETE", "Vendor", id, "Deactivated vendor");
+    void auditLog(session.user.id, "DELETE", "Vendor", id, "Deactivated vendor");
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

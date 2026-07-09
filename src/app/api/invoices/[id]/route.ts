@@ -83,7 +83,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return updated;
     });
 
-    await auditLog(session.user.id, "UPDATE", "Invoice", id, `Updated invoice ${invoice.invoiceNumber} → ${invoice.status}`);
+    void auditLog(session.user.id, "UPDATE", "Invoice", id, `Updated invoice ${invoice.invoiceNumber} → ${invoice.status}`);
     return ok(invoice);
   } catch (e) {
     return handleApiError(e);
@@ -111,7 +111,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       }
       await Invoice.findByIdAndDelete(id, { session: dbSession });
     });
-    await auditLog(session.user.id, "DELETE", "Invoice", id, "Deleted invoice");
+    void auditLog(session.user.id, "DELETE", "Invoice", id, "Deleted invoice");
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

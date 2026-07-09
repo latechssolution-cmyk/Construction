@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const passwordHash = await bcrypt.hash(data.newPassword, 12);
     // Issue #89: Set passwordChangedAt to invalidate any JWTs issued before this point
     await User.findByIdAndUpdate(id, { passwordHash, passwordChangedAt: new Date() });
-    await auditLog(session.user.id, "UPDATE", "User", id, "Password reset — all existing sessions invalidated");
+    void auditLog(session.user.id, "UPDATE", "User", id, "Password reset — all existing sessions invalidated");
     return ok({ success: true, message: "Password updated successfully. Please log in again on all devices." });
   } catch (e) {
     return handleApiError(e);

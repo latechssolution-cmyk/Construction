@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       location: data.location || null,
       notes: data.notes || null,
     });
-    await auditLog(session.user.id, "CREATE", "Equipment", eq.id, `Added equipment: ${eq.name}`);
+    void auditLog(session.user.id, "CREATE", "Equipment", eq.id, `Added equipment: ${eq.name}`);
     return created(eq);
   } catch (e) {
     return handleApiError(e);

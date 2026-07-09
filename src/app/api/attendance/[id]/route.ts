@@ -27,7 +27,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.date !== undefined) existing.date = new Date(data.date);
     await existing.save();
     await existing.populate("employee", "id name");
-    await auditLog(session.user.id, "UPDATE", "Attendance", id, `Updated attendance record for employee: ${(existing as any).employee?.name || existing.employeeId}`);
+    void auditLog(session.user.id, "UPDATE", "Attendance", id, `Updated attendance record for employee: ${(existing as any).employee?.name || existing.employeeId}`);
     return ok(existing);
   } catch (e) {
     return handleApiError(e);
@@ -41,7 +41,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     await connectDB();
     const existing = await Attendance.findByIdAndDelete(id);
-    await auditLog(session.user.id, "DELETE", "Attendance", id, `Deleted attendance record for employee ID: ${existing?.employeeId}`);
+    void auditLog(session.user.id, "DELETE", "Attendance", id, `Deleted attendance record for employee ID: ${existing?.employeeId}`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

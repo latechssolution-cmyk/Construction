@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const pct = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
     await Project.findByIdAndUpdate(id, { completionPercent: pct });
 
-    await auditLog(session.user.id, "CREATE", "Task", task.id, `Created task: ${task.title}`);
+    void auditLog(session.user.id, "CREATE", "Task", task.id, `Created task: ${task.title}`);
     return created(task);
   } catch (e) {
     return handleApiError(e);

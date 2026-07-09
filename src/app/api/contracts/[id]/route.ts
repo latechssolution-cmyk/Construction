@@ -75,7 +75,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.documentPath !== undefined) contract.documentPath = data.documentPath;
     if (data.notes !== undefined) contract.notes = data.notes;
     await contract.save();
-    await auditLog(session.user.id, "UPDATE", "Contract", id, `Updated contract: ${contract.contractNumber}`);
+    void auditLog(session.user.id, "UPDATE", "Contract", id, `Updated contract: ${contract.contractNumber}`);
     return ok(contract);
   } catch (e) {
     return handleApiError(e);
@@ -108,7 +108,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
     await Contract.findByIdAndUpdate(id, { status: "terminated" });
     await Project.updateMany({ contractId: id }, { status: "on_hold" });
-    await auditLog(session.user.id, "DELETE", "Contract", id, "Terminated contract");
+    void auditLog(session.user.id, "DELETE", "Contract", id, "Terminated contract");
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

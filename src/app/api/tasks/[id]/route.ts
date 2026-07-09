@@ -94,7 +94,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     if (!existingTask) throw new ApiError(404, "Task not found");
     await assertManagerOwnsTask(session, existingTask);
     const task = await Task.findByIdAndDelete(id);
-    await auditLog(session.user.id, "DELETE", "Task", id, "Deleted task");
+    void auditLog(session.user.id, "DELETE", "Task", id, "Deleted task");
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

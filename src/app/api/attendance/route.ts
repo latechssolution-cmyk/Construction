@@ -41,6 +41,15 @@ export async function POST(req: NextRequest) {
 
     if (Array.isArray(data)) {
       const VALID_STATUSES_BULK = ["present", "absent", "half_day"];
+
+      // Batch-fetch every referenced employee in one query instead of one
+      // Employee.findById() per row — bulk attendance submits can easily be
+      // 20-50 rows, which was 20-50 sequential round trips just to validate.
+      const employeeIds = [...new Set(data.map((item: any) => item.employeeId).filter(Boolean))];
+      const employeesById = new Map(
+        (await Employee.find({ _id: { $in: employeeIds } })).map((e) => [e.id, e])
+      );
+
       // Validation pass
       for (const item of data) {
         if (!item.employeeId || !item.date) throw new ApiError(400, "Each attendance record must include employeeId and date");
@@ -57,7 +66,7 @@ export async function POST(req: NextRequest) {
           : defaultHours(status);
         if (hoursWorked > 24) throw new ApiError(400, "Hours worked cannot exceed 24 hours in a single day.");
 
-        const emp = await Employee.findById(item.employeeId);
+        const emp = employeesById.get(item.employeeId);
         if (!emp) throw new ApiError(404, `Employee with ID ${item.employeeId} not found.`);
         if (!emp.isActive) throw new ApiError(400, `Employee ${emp.name} is deactivated. Cannot record attendance.`);
       }

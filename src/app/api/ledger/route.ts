@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
         }
       }
     }
-    await auditLog(session.user.id, "CREATE", "LedgerEntry", entry.id, `${data.type} PKR ${amount}`);
+    void auditLog(session.user.id, "CREATE", "LedgerEntry", entry.id, `${data.type} PKR ${amount}`);
     return created(entry);
   } catch (e) {
     return handleApiError(e);

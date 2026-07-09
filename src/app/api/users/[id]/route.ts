@@ -46,7 +46,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await user.save();
     const result = user.toJSON();
     delete (result as any).passwordHash;
-    await auditLog(session.user.id, "UPDATE", "User", id, `Updated user: ${user.email}`);
+    void auditLog(session.user.id, "UPDATE", "User", id, `Updated user: ${user.email}`);
     return ok(result);
   } catch (e) {
     return handleApiError(e);
@@ -64,7 +64,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     if (!user) throw new ApiError(404, "User not found");
     user.isActive = false;
     await user.save();
-    await auditLog(session.user.id, "DELETE", "User", id, "Deactivated user");
+    void auditLog(session.user.id, "DELETE", "User", id, "Deactivated user");
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

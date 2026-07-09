@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, ApiError } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Equipment from "@/models/Equipment";
@@ -46,6 +46,10 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
     if (!data.name || !data.type) throw new Error("Name and type are required");
     await connectDB();
+    const dailyRate = data.dailyRate ? parseFloat(data.dailyRate) : 0;
+    const hourlyRate = data.hourlyRate ? parseFloat(data.hourlyRate) : 0;
+    if (dailyRate < 0) throw new ApiError(400, "Daily rate cannot be negative");
+    if (hourlyRate < 0) throw new ApiError(400, "Hourly rate cannot be negative");
     const eq = await Equipment.create({
       name: data.name,
       type: data.type,
@@ -55,8 +59,8 @@ export async function POST(req: NextRequest) {
       purchasePrice: data.purchasePrice ? parseFloat(data.purchasePrice) : null,
       condition: data.condition || "good",
       status: data.status || "available",
-      dailyRate: data.dailyRate ? parseFloat(data.dailyRate) : 0,
-      hourlyRate: data.hourlyRate ? parseFloat(data.hourlyRate) : 0,
+      dailyRate,
+      hourlyRate,
       location: data.location || null,
       notes: data.notes || null,
     });

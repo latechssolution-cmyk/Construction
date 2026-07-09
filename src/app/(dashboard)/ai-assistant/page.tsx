@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { Bot, Paperclip, X, Send } from "lucide-react";
 
 interface Message { role: "user"|"model"; content: string; image?: string; }
 
@@ -82,13 +83,13 @@ export default function AIAssistantPage() {
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      <div className="bg-white border-b border-gray-200 p-4 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl">🤖</div>
+      <div className="bg-white border-b border-gray-200 p-4 flex items-center gap-3 shadow-sm">
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white shadow-sm"><Bot className="w-5 h-5" /></div>
         <div>
           <h1 className="font-semibold text-gray-900">Construction AI Assistant</h1>
           <p className="text-xs text-gray-500">Powered by Google Gemini · Construction, Project Management & ERP Expert</p>
         </div>
-        <button onClick={()=>setMessages([{role:"model",content:"Chat cleared. How can I help you?"}])} className="ml-auto text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2 py-1">Clear Chat</button>
+        <button onClick={()=>setMessages([{role:"model",content:"Chat cleared. How can I help you?"}])} className="ml-auto text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 transition-colors">Clear Chat</button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -102,7 +103,7 @@ export default function AIAssistantPage() {
 
         {messages.map((m,i)=>(
           <div key={i} className={`flex gap-3 ${m.role==="user"?"justify-end":""}`}>
-            {m.role==="model" && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm flex-shrink-0">🤖</div>}
+            {m.role==="model" && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white flex-shrink-0"><Bot className="w-4 h-4" /></div>}
             <div className={`max-w-3xl rounded-2xl px-4 py-3 ${m.role==="user"?"bg-blue-600 text-white ml-auto":"bg-white border border-gray-200 text-gray-800"}`}>
               {m.image && <img src={m.image} className="max-h-48 rounded-lg mb-2 object-contain" alt="uploaded" />}
               <div className={`text-sm space-y-1 leading-relaxed ${m.role==="user"?"text-white":""}`}>{formatContent(m.content)}</div>
@@ -113,7 +114,7 @@ export default function AIAssistantPage() {
 
         {loading && (
           <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm">🤖</div>
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white"><Bot className="w-4 h-4" /></div>
             <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3 flex items-center gap-2">
               <div className="flex gap-1">{[0,1,2].map(i=><span key={i} className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay:`${i*0.1}s`}}></span>)}</div>
               <span className="text-sm text-gray-500">Calculating...</span>
@@ -127,14 +128,14 @@ export default function AIAssistantPage() {
         {imagePreview && (
           <div className="mb-3 flex items-start gap-2">
             <img src={imagePreview} className="h-20 rounded-lg object-contain border border-gray-200" alt="preview" />
-            <button onClick={removeImage} className="text-red-400 hover:text-red-600 text-sm">✕</button>
+            <button onClick={removeImage} className="text-red-400 hover:text-red-600 p-1"><X className="w-4 h-4" /></button>
           </div>
         )}
         <form onSubmit={handleSend} className="flex gap-2 items-end">
-          <button type="button" onClick={()=>fileRef.current?.click()} className="p-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-500 flex-shrink-0" title="Attach blueprint/image (JPG, PNG, WebP)">📎</button>
+          <button type="button" onClick={()=>fileRef.current?.click()} className="p-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-500 flex-shrink-0 transition-colors" title="Attach blueprint/image (JPG, PNG, WebP)"><Paperclip className="w-4 h-4" /></button>
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif" onChange={handleImageChange} className="hidden" />
           <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleSend();}}} placeholder="Ask about materials, costs, project planning, contracts, HSE, procurement, finance..." rows={2} className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={loading} />
-          <button type="submit" disabled={loading||(!input.trim()&&!image)} className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 flex-shrink-0">Send</button>
+          <button type="submit" disabled={loading||(!input.trim()&&!image)} className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium disabled:opacity-40 flex-shrink-0 hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-1.5"><Send className="w-3.5 h-3.5" />Send</button>
         </form>
         <p className="text-xs text-gray-400 mt-2 text-center">Covers construction, project management, contracts, HSE, procurement, finance & more · Attach blueprints as images (JPG, PNG, WebP)</p>
       </div>

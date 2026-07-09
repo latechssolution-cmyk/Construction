@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Task from "@/models/Task";
@@ -18,9 +18,13 @@ export async function GET(req: NextRequest) {
 
     await connectDB();
 
-    if (session.user.role === "manager" && !projectId) {
+    if (session.user.role === "manager") {
       const myProjects = await Project.find({ assignedManagerId: session.user.id }, { _id: 1 });
-      filter.projectId = { $in: myProjects.map((p) => p._id) };
+      const myProjectIds = myProjects.map((p) => p._id.toString());
+      if (projectId && !myProjectIds.includes(projectId)) {
+        return ok([]);
+      }
+      if (!projectId) filter.projectId = { $in: myProjects.map((p) => p._id) };
     }
 
     const tasks = await Task.find(filter)
@@ -42,6 +46,10 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
     if (!data.title || !data.projectId) throw new Error("Title and projectId are required");
     await connectDB();
+    const parsedHours = data.estimatedHours ? parseFloat(data.estimatedHours) : null;
+    if (parsedHours !== null && parsedHours < 0) throw new ApiError(400, "Estimated hours cannot be negative");
+    const parsedWeight = data.weight !== undefined ? parseFloat(data.weight) || 1 : 1;
+    if (parsedWeight < 0) throw new ApiError(400, "Task weight cannot be negative");
     const task = await Task.create({
       title: data.title,
       description: data.description || null,
@@ -51,9 +59,9 @@ export async function POST(req: NextRequest) {
       phaseId: toId(data.phaseId),
       assignedToId: toId(data.assignedToId),
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
-      estimatedHours: data.estimatedHours ? parseFloat(data.estimatedHours) : null,
+      estimatedHours: parsedHours,
       notes: data.notes || null,
-      weight: data.weight !== undefined ? parseFloat(data.weight) || 1 : 1,
+      weight: parsedWeight,
     });
     await task.populate("project", "id name");
     await task.populate("assignedTo", "id name");

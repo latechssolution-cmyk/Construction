@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, ApiError } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
-import { auditLog } from "@/lib/audit";
 import Milestone from "@/models/Milestone";
 import Project from "@/models/Project";
 

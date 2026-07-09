@@ -5,15 +5,11 @@ import { useSession } from "next-auth/react";
 import { CardGridSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { Truck, MapPin, X, Pencil, Trash2 } from "lucide-react";
+import { Truck, MapPin, X, Pencil, Trash2, Search } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
-const STATUS_COLORS: Record<string, string> = {
-  available: "bg-green-100 text-green-800",
-  in_use: "bg-blue-100 text-blue-800",
-  maintenance: "bg-yellow-100 text-yellow-800",
-  decommissioned: "bg-red-100 text-red-800",
-};
 const COND_COLORS: Record<string, string> = {
   excellent: "text-green-600",
   good: "text-blue-600",
@@ -55,6 +51,12 @@ export default function EquipmentPage() {
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
+    if (form.purchasePrice && parseFloat(form.purchasePrice) < 0) {
+      toast({ title: "Error", description: "Purchase price cannot be negative", variant: "destructive" }); return;
+    }
+    if (parseFloat(form.dailyRate) < 0) {
+      toast({ title: "Error", description: "Daily rate cannot be negative", variant: "destructive" }); return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/equipment", {
@@ -84,7 +86,7 @@ export default function EquipmentPage() {
     setEditingEquipment(eq);
     setEditForm({
       name: eq.name,
-      type: eq.type,
+      type: eq.type || "other",
       model: eq.model || "",
       serialNumber: eq.serialNumber || "",
       condition: eq.condition || "good",
@@ -198,28 +200,28 @@ export default function EquipmentPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Equipment</h1>
-          <p className="text-sm text-gray-500">{filtered.length} items</p>
-        </div>
-        {canManage && (
+      <PageHeader
+        title="Equipment"
+        subtitle={`${filtered.length} item${filtered.length !== 1 ? "s" : ""}`}
+        actions={canManage && (
           <button
             onClick={() => { setShowForm(!showForm); setEditingEquipment(null); }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0 shadow-sm"
           >
             {showForm ? "Cancel" : "+ Add Equipment"}
           </button>
         )}
-      </div>
-
-      <input
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        placeholder="Search equipment..."
-        className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full sm:w-80 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
       />
+
+      <div className="relative w-full sm:w-80">
+        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search equipment..."
+          className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+        />
+      </div>
 
       {/* Add Form */}
       {showForm && (
@@ -234,10 +236,10 @@ export default function EquipmentPage() {
             <input value={form.model || ""} onChange={e => setForm({ ...form, model: e.target.value })} placeholder="Model" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <input value={form.serialNumber || ""} onChange={e => setForm({ ...form, serialNumber: e.target.value })} placeholder="Serial Number" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <input type="date" value={form.purchaseDate || ""} onChange={e => setForm({ ...form, purchaseDate: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
-            <input type="number" value={form.purchasePrice || ""} onChange={e => setForm({ ...form, purchasePrice: e.target.value })} placeholder="Purchase Price (PKR)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            <input type="number" min="0" step="0.01" value={form.purchasePrice || ""} onChange={e => setForm({ ...form, purchasePrice: e.target.value })} placeholder="Purchase Price (PKR)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             
             {/* Daily rate field for costing job costing (Issue #101) */}
-            <input type="number" step="1" required value={form.dailyRate ?? 0} onChange={e => setForm({ ...form, dailyRate: e.target.value })} placeholder="Daily Rate (PKR) *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            <input type="number" min="0" step="0.01" required value={form.dailyRate ?? ""} onChange={e => setForm({ ...form, dailyRate: e.target.value })} placeholder="Daily Rate (PKR) *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             
             <select value={form.condition || "good"} onChange={e => setForm({ ...form, condition: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
               <option value="excellent">Excellent</option><option value="good">Good</option><option value="fair">Fair</option><option value="poor">Poor</option>
@@ -264,7 +266,7 @@ export default function EquipmentPage() {
             <input value={editForm.serialNumber || ""} onChange={e => setEditForm({ ...editForm, serialNumber: e.target.value })} placeholder="Serial Number" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             
             {/* Daily rate field for costing job costing (Issue #101) */}
-            <input type="number" step="1" required value={editForm.dailyRate ?? 0} onChange={e => setEditForm({ ...editForm, dailyRate: e.target.value })} placeholder="Daily Rate (PKR) *" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            <input type="number" min="0" step="0.01" required value={editForm.dailyRate ?? ""} onChange={e => setEditForm({ ...editForm, dailyRate: e.target.value })} placeholder="Daily Rate (PKR) *" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             
             <select value={editForm.condition || "good"} onChange={e => setEditForm({ ...editForm, condition: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
               <option value="excellent">Excellent</option><option value="good">Good</option><option value="fair">Fair</option><option value="poor">Poor</option>
@@ -296,14 +298,14 @@ export default function EquipmentPage() {
           {filtered.map((eq: any) => {
             const activeAssignment = (eq.assignments || []).find((pe: any) => !pe.returnedAt);
             return (
-              <div key={eq.id} className={`bg-white border rounded-xl p-5 space-y-3 flex flex-col justify-between hover:shadow-md transition-shadow ${eq.status === "decommissioned" ? "opacity-60 border-red-100 bg-red-50/10" : "border-gray-200"}`}>
+              <div key={eq.id} className={`bg-white border rounded-xl p-5 shadow-sm space-y-3 flex flex-col justify-between hover:shadow-md hover:border-blue-200 transition-all ${eq.status === "decommissioned" ? "opacity-60 border-red-100 bg-red-50/10" : "border-gray-200"}`}>
                 <div className="space-y-2">
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="font-semibold text-gray-900">{eq.name}</h3>
                       <p className="text-xs text-gray-500 capitalize">{eq.type}{eq.model ? ` · ${eq.model}` : ""}</p>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full capitalize shrink-0 ${STATUS_COLORS[eq.status] || "bg-gray-100 text-gray-600"}`}>{eq.status?.replace("_", " ")}</span>
+                    <StatusBadge status={eq.status} className="shrink-0" />
                   </div>
                   {eq.serialNumber && <p className="text-xs text-gray-400">S/N: {eq.serialNumber}</p>}
                   <div className="flex flex-col gap-1.5 text-xs text-gray-600">

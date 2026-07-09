@@ -3,6 +3,7 @@ import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/l
 import { auditLog } from "@/lib/audit";
 import { notifyAdminsAndManagers } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
+import { assertDateRange, parseOptionalDate, parseRequiredNonNegativeNumber } from "@/lib/validation";
 import Project from "@/models/Project";
 import Task from "@/models/Task";
 import Milestone from "@/models/Milestone";
@@ -77,16 +78,20 @@ export async function POST(req: NextRequest) {
     requireRole(session, "admin", "ceo", "manager");
     const data = await req.json();
     if (!data.name) throw new Error("Project name is required");
+    const budget = parseRequiredNonNegativeNumber(data.budget || "0", "Budget");
+    const startDate = parseOptionalDate(data.startDate, "Start date") ?? null;
+    const endDate = parseOptionalDate(data.endDate, "End date") ?? null;
+    assertDateRange(startDate, endDate);
     await connectDB();
     const project = await Project.create({
       name: data.name,
       location: data.location || null,
       type: data.type || "residential",
       status: data.status || "planning",
-      budget: parseFloat(data.budget || "0"),
+      budget,
       description: data.description || null,
-      startDate: data.startDate ? new Date(data.startDate) : null,
-      endDate: data.endDate ? new Date(data.endDate) : null,
+      startDate,
+      endDate,
       clientId: toId(data.clientId),
       contractId: toId(data.contractId),
       assignedManagerId: toId(data.assignedManagerId) || session.user.id,

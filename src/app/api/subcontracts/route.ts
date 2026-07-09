@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     }
 
     const value = parseFloat(data.contractValue);
-    if (isNaN(value) || value < 0) {
+    if (isNaN(value) || value <= 0) {
       throw new ApiError(400, "contractValue must be a positive number");
     }
 
@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
 
     await subcontract.populate("project", "name");
     await subcontract.populate("vendor", "name");
+    await subcontract.populate("createdBy", "name");
 
     await auditLog(
       session.user.id,

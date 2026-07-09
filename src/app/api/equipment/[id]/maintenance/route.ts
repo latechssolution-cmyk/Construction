@@ -47,7 +47,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         { session: dbSession }
       );
       if (data.condition) {
-        await Equipment.findByIdAndUpdate(id, { condition: data.condition, status: "maintenance" }, { session: dbSession });
+        const equipUpdate: any = { condition: data.condition };
+        if (data.markUnderMaintenance) equipUpdate.status = "maintenance";
+        await Equipment.findByIdAndUpdate(id, equipUpdate, { session: dbSession });
       }
       if (cost > 0) {
         await LedgerEntry.create(

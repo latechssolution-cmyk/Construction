@@ -7,7 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { AuditTrail } from "@/components/audit-trail";
 import { CardGridSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Building2, Pencil, X } from "lucide-react";
+import { Building2, Pencil, X, Search } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -185,19 +185,22 @@ export default function VendorsPage() {
         {canManage && (
           <button
             onClick={() => { setShowForm(!showForm); setEditingVendor(null); setErrors({}); setForm({ category: "general" }); }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0 shadow-sm"
           >
             {showForm ? "Cancel" : "+ New Vendor"}
           </button>
         )}
       </div>
 
-      <input
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        placeholder="Search vendors..."
-        className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full sm:w-80 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-      />
+      <div className="relative w-full sm:w-80">
+        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search vendors..."
+          className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+        />
+      </div>
 
       {/* Add Form */}
       {showForm && (
@@ -303,7 +306,7 @@ export default function VendorsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
           {filtered.map((vendor: any) => (
-            <div key={vendor.id} className={`bg-white border rounded-xl p-5 space-y-2 flex flex-col justify-between hover:shadow-md transition-shadow ${vendor.isActive === false ? "opacity-60 border-gray-100 bg-gray-50/50" : "border-gray-200"}`}>
+            <div key={vendor.id} className={`bg-white border rounded-xl p-5 shadow-sm space-y-2 flex flex-col justify-between hover:shadow-md hover:border-blue-200 transition-all ${vendor.isActive === false ? "opacity-60 border-gray-100 bg-gray-50/50" : "border-gray-200"}`}>
               <div className="space-y-2">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">

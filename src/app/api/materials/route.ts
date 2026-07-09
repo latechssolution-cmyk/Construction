@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
             amount: totalPrice,
             category: "material_purchase",
             description: `${data.itemName} × ${qty} ${createdMaterial.unit}`,
+            referenceNumber: createdMaterial._id.toString(),
             projectId,
             vendorId,
             bankAccountId,

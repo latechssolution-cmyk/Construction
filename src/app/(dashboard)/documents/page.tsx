@@ -7,6 +7,7 @@ import { CardGridSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { FolderOpen, FileText, Ruler, BarChart2, Receipt, Scale, ImageIcon, File } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -88,13 +89,11 @@ export default function DocumentsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
-          <p className="text-sm text-gray-500">{filtered.length} documents</p>
-        </div>
-        {canManage && <button onClick={()=>setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0">+ Upload Document</button>}
-      </div>
+      <PageHeader
+        title="Documents"
+        subtitle={`${filtered.length} document${filtered.length !== 1 ? "s" : ""}`}
+        actions={canManage && <button onClick={()=>setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0 shadow-sm">+ Upload Document</button>}
+      />
 
       <div className="flex gap-3 flex-wrap">
         <select value={projectFilter} onChange={e=>setProjectFilter(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full sm:w-auto focus:outline-none focus:ring-2 focus:ring-blue-500/40">
@@ -142,7 +141,7 @@ export default function DocumentsPage() {
       ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map((d:any)=>(
-          <div key={d.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow transition-shadow">
+          <div key={d.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md hover:border-blue-200 transition-all">
             <div className="flex items-start justify-between mb-3">
               <span>{TYPE_ICONS[d.type] || <File className="w-6 h-6 text-gray-400" />}</span>
               <div className="flex gap-2">

@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     const type = searchParams.get("type");
     const category = searchParams.get("category");
     const bankAccountId = searchParams.get("bankAccountId");
+    const employeeId = searchParams.get("employeeId");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
     const filter: any = {};
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
     if (type) filter.type = type;
     if (category) filter.category = category;
     if (bankAccountId) filter.bankAccountId = bankAccountId;
+    if (employeeId) filter.employeeId = employeeId;
     if (from || to) {
       filter.date = {};
       if (from) filter.date.$gte = new Date(from);
@@ -42,6 +44,7 @@ export async function GET(req: NextRequest) {
       .populate("project", "id name")
       .populate("bankAccount", "id name")
       .populate("vendor", "id name")
+      .populate("employee", "id name role")
       .populate("createdBy", "id name")
       .sort({ date: -1 })
       .skip(skip)

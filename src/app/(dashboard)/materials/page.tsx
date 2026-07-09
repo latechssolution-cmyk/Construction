@@ -6,8 +6,9 @@ import { ExportButton } from "@/components/export-button";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { Package, Pencil, Trash2, Plus, MinusCircle, ChevronDown, ChevronUp, X, History } from "lucide-react";
+import { Package, Pencil, Trash2, Plus, MinusCircle, ChevronDown, ChevronUp, X, History, Search, AlertTriangle } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 const fmt = (n: number) => `PKR ${(n || 0).toLocaleString()}`;
@@ -124,6 +125,9 @@ export default function MaterialsPage() {
     setAddError("");
     if (!addForm.itemName?.trim()) { setAddError("Material name is required."); return; }
     if (!addForm.projectId) { setAddError("Please select a project."); return; }
+    if (parseFloat(addForm.unitPrice || 0) <= 0) { setAddError("Unit price must be greater than 0."); return; }
+    if (parseFloat(addForm.minStockLevel || 0) < 0) { setAddError("Minimum stock level cannot be negative."); return; }
+    if (parseFloat(addForm.quantity || 0) < 0) { setAddError("Initial quantity cannot be negative."); return; }
     setAddLoading(true);
     try {
       const res = await fetch("/api/materials", {
@@ -151,6 +155,8 @@ export default function MaterialsPage() {
 
   async function handleEdit() {
     if (!modalForm.itemName?.trim()) { setModalError("Name is required."); return; }
+    if (parseFloat(modalForm.unitPrice) <= 0) { setModalError("Unit price must be greater than 0."); return; }
+    if (parseFloat(modalForm.minStockLevel) < 0) { setModalError("Minimum stock level cannot be negative."); return; }
     setModalLoading(true);
     try {
       const res = await fetch(`/api/materials/${selected.id}`, {
@@ -226,33 +232,30 @@ export default function MaterialsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Materials</h1>
-          <p className="text-sm text-gray-500">
-            {filtered.length} items
-            {lowStockCount > 0 && <span className="text-red-500 font-medium"> · {lowStockCount} low stock</span>}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
+      <PageHeader
+        title="Materials"
+        subtitle={<>{filtered.length} items{lowStockCount > 0 && <span className="text-red-500 font-medium"> · {lowStockCount} low stock</span>}</>}
+        actions={<>
           <ExportButton module="materials" />
           {canManage && (
             <button onClick={() => { setShowAddForm(!showAddForm); setAddError(""); }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-1">
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-sm">
               <Plus className="w-4 h-4" /> Add Material
             </button>
           )}
-        </div>
-      </div>
+        </>}
+      />
 
       {/* Filters */}
       <div className="flex gap-3 flex-wrap items-center">
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or category..."
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full sm:w-80 focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+        <div className="relative w-full sm:w-80">
+          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or category..."
+            className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+        </div>
         <button onClick={() => setLowStockOnly(!lowStockOnly)}
-          className={"px-3 py-1.5 text-sm rounded-lg " + (lowStockOnly ? "bg-red-100 text-red-700" : "border border-gray-200 text-gray-600 hover:bg-gray-50")}>
-          ⚠️ Low Stock Only
+          className={"px-3 py-1.5 text-sm rounded-lg font-medium flex items-center gap-1.5 transition-colors " + (lowStockOnly ? "bg-red-100 text-red-700" : "border border-gray-200 text-gray-600 hover:bg-gray-50")}>
+          <AlertTriangle className="w-3.5 h-3.5" /> Low Stock Only
         </button>
       </div>
 
@@ -295,7 +298,7 @@ export default function MaterialsPage() {
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Unit Price (PKR)</label>
-              <input type="number" step="0.01" min="0" value={addForm.unitPrice || 0} onChange={e => setAddForm({ ...addForm, unitPrice: e.target.value })}
+              <input type="number" step="0.01" min="0.01" value={addForm.unitPrice || ""} onChange={e => setAddForm({ ...addForm, unitPrice: e.target.value })}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             </div>
             <div>
@@ -364,16 +367,22 @@ export default function MaterialsPage() {
                       <td className="py-3 px-3 text-gray-500 capitalize">{m.category || "—"}</td>
                       <td className="py-3 px-3 text-gray-500">{m.unit || "—"}</td>
                       <td className="py-3 px-3 text-gray-700 whitespace-nowrap">PKR {(m.unitPrice || 0).toLocaleString()}</td>
-                      <td className={"py-3 px-3 font-bold whitespace-nowrap " + (isLow ? "text-red-600" : "text-gray-900")}>
-                        {(m.stockQuantity || 0).toLocaleString()} {m.unit}
+                      <td className="py-3 px-3 whitespace-nowrap min-w-[110px]">
+                        <p className={"font-bold " + (isLow ? "text-red-600" : "text-gray-900")}>{(m.stockQuantity || 0).toLocaleString()} {m.unit}</p>
+                        <div className="w-20 h-1 bg-gray-100 rounded-full mt-1 overflow-hidden">
+                          <div
+                            className={"h-1 rounded-full " + (isLow ? "bg-red-500" : "bg-green-500")}
+                            style={{ width: `${Math.min(100, m.minStockLevel > 0 ? ((m.stockQuantity || 0) / (m.minStockLevel * 2)) * 100 : 100)}%` }}
+                          />
+                        </div>
                       </td>
                       <td className="py-3 px-3 text-gray-500 whitespace-nowrap">{(m.minStockLevel || 0).toLocaleString()} {m.unit}</td>
                       <td className="py-3 px-3 text-gray-500">{m.project?.name || "—"}</td>
                       <td className="py-3 px-3 text-gray-500">{m.vendor?.name || "—"}</td>
                       <td className="py-3 px-3">
                         {isLow
-                          ? <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">⚠ Low</span>
-                          : <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">OK</span>}
+                          ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium"><AlertTriangle className="w-3 h-3" /> Low</span>
+                          : <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">OK</span>}
                       </td>
                       {canManage && (
                         <td className="py-3 px-3">
@@ -421,8 +430,16 @@ export default function MaterialsPage() {
                       <p className="text-xs text-gray-500 capitalize">{m.category || "—"}{m.unit ? ` · ${m.unit}` : ""}</p>
                     </div>
                     {isLow
-                      ? <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium shrink-0">⚠ Low</span>
-                      : <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full shrink-0">OK</span>}
+                      ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium shrink-0"><AlertTriangle className="w-3 h-3" /> Low</span>
+                      : <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium shrink-0">OK</span>}
+                  </div>
+                  <div className="mt-3">
+                    <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={"h-1.5 rounded-full " + (isLow ? "bg-red-500" : "bg-green-500")}
+                        style={{ width: `${Math.min(100, m.minStockLevel > 0 ? ((m.stockQuantity || 0) / (m.minStockLevel * 2)) * 100 : 100)}%` }}
+                      />
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-3 text-xs">
                     <div><span className="text-gray-400">Unit Price: </span><span className="text-gray-700">PKR {(m.unitPrice || 0).toLocaleString()}</span></div>
@@ -521,7 +538,7 @@ export default function MaterialsPage() {
                     {/* Unit Price input added in Edit Modal (Issue #47) */}
                     <div>
                       <label className="text-xs text-gray-500 block mb-1">Unit Price (PKR) *</label>
-                      <input type="number" step="0.01" min="0" value={modalForm.unitPrice ?? 0} onChange={e => setModalForm({ ...modalForm, unitPrice: e.target.value })}
+                      <input type="number" step="0.01" min="0.01" value={modalForm.unitPrice ?? ""} onChange={e => setModalForm({ ...modalForm, unitPrice: e.target.value })}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
                     </div>
 

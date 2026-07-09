@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created, toId } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import { nextContractNumber } from "@/lib/sequence";
@@ -31,12 +31,14 @@ export async function POST(req: NextRequest) {
     requireRole(session, "admin", "ceo", "manager");
     const data = await req.json();
     if (!data.title || !data.clientId) throw new Error("Title and client are required");
+    const contractValue = parseFloat(data.contractValue || data.value || "0");
+    if (contractValue < 0) throw new ApiError(400, "Contract value cannot be negative");
     await connectDB();
     const contract = await Contract.create({
       contractNumber: data.contractNumber || (await nextContractNumber()),
       title: data.title,
       scope: data.scope || null,
-      contractValue: parseFloat(data.contractValue || data.value || "0"),
+      contractValue,
       startDate: data.startDate ? new Date(data.startDate) : null,
       endDate: data.endDate ? new Date(data.endDate) : null,
       status: data.status || "draft",

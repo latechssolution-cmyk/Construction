@@ -5,21 +5,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/hooks/use-toast";
-import { HardHat } from "lucide-react";
+import { HardHat, Search, ClipboardList, Wallet } from "lucide-react";
+import { CardGridSkeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { PageHeader } from "@/components/ui/page-header";
+import { getStatusColor } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
-const STATUS_COLORS: Record<string, string> = {
-  planning: "bg-yellow-100 text-yellow-800",
-  in_progress: "bg-blue-100 text-blue-800",
-  on_hold: "bg-orange-100 text-orange-800",
-  completed: "bg-green-100 text-green-800",
-};
 
 export default function ProjectsPage() {
   const { data: session } = useSession();
   const router = useRouter();
-  const { data: projects, mutate } = useSWR("/api/projects", fetcher);
+  const { data: projects, mutate, isLoading: projectsLoading } = useSWR("/api/projects", fetcher);
   const { data: clients } = useSWR("/api/clients", fetcher);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>({});
@@ -44,6 +42,12 @@ export default function ProjectsPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (form.budget !== undefined && form.budget !== "" && parseFloat(form.budget) < 0) {
+      toast({ title: "Error", description: "Budget cannot be negative", variant: "destructive" }); return;
+    }
+    if (form.startDate && form.endDate && form.endDate < form.startDate) {
+      toast({ title: "Error", description: "End date cannot be before start date", variant: "destructive" }); return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/projects", {
@@ -62,22 +66,23 @@ export default function ProjectsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
-          <p className="text-sm text-gray-500">{filtered.length} total projects</p>
-        </div>
-        {canManage && (
-          <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+      <PageHeader
+        title="Projects"
+        subtitle={`${filtered.length} total project${filtered.length !== 1 ? "s" : ""}`}
+        actions={canManage && (
+          <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium shadow-sm transition-colors">
             + New Project
           </button>
         )}
-      </div>
+      />
 
       {/* Filters */}
       <div className="flex gap-3 flex-wrap">
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search projects..." className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-56" />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        <div className="relative w-full sm:w-64">
+          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search projects..." className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+        </div>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
           <option value="all">All Status</option>
           <option value="planning">Planning</option>
           <option value="in_progress">In Progress</option>
@@ -119,7 +124,7 @@ export default function ProjectsPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Budget (PKR)</label>
-              <input type="number" value={form.budget || ""} onChange={(e) => setForm({...form, budget: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g., 5000000" />
+              <input type="number" min="0" step="0.01" value={form.budget || ""} onChange={(e) => setForm({...form, budget: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g., 5000000" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
@@ -144,7 +149,7 @@ export default function ProjectsPage() {
       )}
 
       {/* Projects Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+      {projectsLoading ? <CardGridSkeleton count={6} /> : <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {filtered.map((project: any) => {
           const totalWeight = (project.tasks || []).reduce((sum: number, t: any) => sum + (t.weight || 1), 0);
           const completedWeight = (project.tasks || []).filter((t: any) => t.status === "completed").reduce((sum: number, t: any) => sum + (t.weight || 1), 0);
@@ -155,10 +160,10 @@ export default function ProjectsPage() {
             <div
               key={project.id}
               onClick={() => router.push(`/projects/${project.id}`)}
-              className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow cursor-pointer block"
+              className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer block"
             >
-              <div className="flex items-start justify-between mb-3">
-                <h3 className="font-semibold text-gray-900 text-sm leading-tight flex-1 mr-2">{project.name}</h3>
+              <div className="flex items-start justify-between mb-3 gap-2">
+                <h3 className="font-semibold text-gray-900 text-sm leading-tight flex-1">{project.name}</h3>
                 {canManage ? (
                   <select
                     value={project.status}
@@ -168,7 +173,7 @@ export default function ProjectsPage() {
                       ev.stopPropagation();
                       updateStatus(project.id, ev.target.value);
                     }}
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium border-0 cursor-pointer ${STATUS_COLORS[project.status] || "bg-gray-100 text-gray-700"}`}
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize border-0 cursor-pointer shrink-0 ${getStatusColor(project.status)}`}
                   >
                     <option value="planning">planning</option>
                     <option value="in_progress">in progress</option>
@@ -177,35 +182,35 @@ export default function ProjectsPage() {
                     <option value="cancelled">cancelled</option>
                   </select>
                 ) : (
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${STATUS_COLORS[project.status] || "bg-gray-100 text-gray-700"}`}>
-                    {project.status?.replace("_", " ") || "—"}
-                  </span>
+                  <StatusBadge status={project.status} className="shrink-0" />
                 )}
               </div>
-              <p className="text-xs text-gray-500 mb-3">{project.location || "—"} · {project.type}</p>
-              {project.client && <p className="text-xs text-blue-600 mb-3">{project.client.name}</p>}
+              <p className="text-xs text-gray-500 mb-2">{project.location || "—"} · <span className="capitalize">{project.type}</span></p>
+              {project.client && <p className="text-xs font-medium text-blue-600 mb-3">{project.client.name}</p>}
               <div className="mb-3">
                 <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>Progress</span><span>{progress}%</span>
+                  <span>Progress</span><span className="font-medium text-gray-700">{progress}%</span>
                 </div>
-                <div className="h-1.5 bg-gray-100 rounded-full">
-                  <div className="h-1.5 bg-blue-500 rounded-full" style={{ width: `${progress}%` }} />
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={`h-1.5 rounded-full transition-all ${progress >= 100 ? "bg-green-500" : "bg-blue-500"}`} style={{ width: `${progress}%` }} />
                 </div>
               </div>
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>{totalTasks} tasks</span>
-                <span>PKR {(project.budget || 0).toLocaleString()}</span>
+              <div className="flex justify-between items-center text-xs text-gray-500 pt-3 border-t border-gray-100">
+                <span className="flex items-center gap-1"><ClipboardList className="w-3 h-3" />{totalTasks} tasks</span>
+                <span className="flex items-center gap-1 font-medium text-gray-700"><Wallet className="w-3 h-3 text-gray-400" />PKR {(project.budget || 0).toLocaleString()}</span>
               </div>
             </div>
           );
         })}
-      </div>
+      </div>}
 
-      {filtered.length === 0 && (
-        <div className="text-center py-16 text-gray-400">
-          <HardHat className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <p className="font-medium text-gray-700">No projects found</p><p className="text-sm mt-1 text-gray-400">Projects are the heart of your ERP. Click &quot;+ New Project&quot; to create your first one.</p>
-          {canManage && <p className="text-sm mt-1">Click &quot;New Project&quot; to get started</p>}
+      {!projectsLoading && filtered.length === 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
+          <EmptyState
+            icon={<HardHat className="w-10 h-10" />}
+            title="No projects found"
+            hint={canManage ? "Projects are the heart of your ERP. Click “+ New Project” to create your first one." : "No projects match your current filters."}
+          />
         </div>
       )}
     </div>

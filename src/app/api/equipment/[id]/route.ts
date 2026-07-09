@@ -47,6 +47,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
     fields.forEach((f) => { if (data[f] !== undefined) (eq as any)[f] = data[f]; });
+    if (data.dailyRate !== undefined && parseFloat(data.dailyRate) < 0) throw new ApiError(400, "Daily rate cannot be negative");
+    if (data.hourlyRate !== undefined && parseFloat(data.hourlyRate) < 0) throw new ApiError(400, "Hourly rate cannot be negative");
     await eq.save();
     await auditLog(session.user.id, "UPDATE", "Equipment", id, `Updated: ${eq.name}`);
     return ok(eq);

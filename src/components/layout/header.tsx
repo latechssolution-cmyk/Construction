@@ -66,7 +66,7 @@ export function Header({ user, onMenuClick }: HeaderProps) {
   function goTo(href: string) { router.push(href); setShowNotifs(false); }
 
   return (
-    <header className="h-16 bg-white border-b flex items-center justify-between px-4 sm:px-6 flex-shrink-0 shadow-sm">
+    <header className="h-16 bg-white/95 backdrop-blur border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 flex-shrink-0">
       <div className="flex items-center gap-3 min-w-0">
         <button onClick={onMenuClick} className="lg:hidden text-gray-600 hover:text-gray-900 -ml-1" aria-label="Open menu">
           <Menu className="w-6 h-6" />
@@ -77,27 +77,27 @@ export function Header({ user, onMenuClick }: HeaderProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         {/* Notifications */}
         <div className="relative">
-          <Button variant="ghost" size="icon" className="relative" onClick={() => setShowNotifs(!showNotifs)}>
-            <Bell className="w-4 h-4" />
+          <Button variant="ghost" size="icon" className="relative rounded-full hover:bg-gray-100" onClick={() => setShowNotifs(!showNotifs)}>
+            <Bell className="w-4 h-4 text-gray-600" />
             {count > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5">
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 ring-2 ring-white">
                 {count > 99 ? "99+" : count}
               </span>
             )}
           </Button>
 
           {showNotifs && (
-            <div className="absolute right-0 top-11 w-80 sm:w-96 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <div className="absolute right-0 top-11 w-80 sm:w-96 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/60">
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-sm text-gray-900">Alerts</h3>
                   {count > 0 && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">{count} active</span>}
                 </div>
                 <div className="flex items-center gap-2">
-                  {count > 0 && <button onClick={dismissAll} className="text-xs text-blue-600 hover:underline">Dismiss all</button>}
+                  {count > 0 && <button onClick={dismissAll} className="text-xs text-blue-600 hover:underline font-medium">Dismiss all</button>}
                   <button onClick={() => setShowNotifs(false)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
                 </div>
               </div>
@@ -132,16 +132,16 @@ export function Header({ user, onMenuClick }: HeaderProps) {
         {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2 h-auto py-1 px-2">
-              <Avatar className="w-8 h-8">
+            <Button variant="ghost" className="flex items-center gap-2 h-auto py-1.5 px-2 rounded-full hover:bg-gray-100">
+              <Avatar className="w-8 h-8 ring-2 ring-white shadow-sm">
                 <AvatarImage src={user.image ?? undefined} />
-                <AvatarFallback className="text-xs bg-blue-100 text-blue-700">{initials}</AvatarFallback>
+                <AvatarFallback className="text-xs bg-blue-100 text-blue-700 font-semibold">{initials}</AvatarFallback>
               </Avatar>
               <div className="text-left hidden sm:block">
-                <p className="text-sm font-medium leading-tight">{user.name ?? "User"}</p>
-                <span className={"text-xs px-1.5 py-0.5 rounded font-medium " + getRoleBadgeColor(user.role)}>{user.role}</span>
+                <p className="text-sm font-medium leading-tight text-gray-900">{user.name ?? "User"}</p>
+                <span className={"text-[10px] px-1.5 py-0.5 rounded font-medium capitalize inline-block mt-0.5 " + getRoleBadgeColor(user.role)}>{user.role}</span>
               </div>
-              <ChevronDown className="w-3 h-3 text-gray-400" />
+              <ChevronDown className="w-3 h-3 text-gray-400 hidden sm:block" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
@@ -150,7 +150,7 @@ export function Header({ user, onMenuClick }: HeaderProps) {
               <p className="text-xs text-muted-foreground font-normal">{user.email}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem><User className="w-4 h-4 mr-2" />Profile</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/settings")}><User className="w-4 h-4 mr-2" />Profile</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => signOut({ callbackUrl: "/login" })}>
               <LogOut className="w-4 h-4 mr-2" />Sign Out

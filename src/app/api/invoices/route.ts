@@ -3,6 +3,7 @@ import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError }
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import { nextInvoiceNumber } from "@/lib/sequence";
+import { withTransaction } from "@/lib/db-transaction";
 import Invoice from "@/models/Invoice";
 import Project from "@/models/Project";
 import Contract from "@/models/Contract";
@@ -92,41 +93,55 @@ export async function POST(req: NextRequest) {
     // Previously was: subtotal + taxAmount (inflating every invoice by retention + WHT amount)
     const grandTotal = subtotal + taxAmount - retentionAmount - whtDeducted;
 
-    // Validate invoice totals against contract limit
     const projId = toId(data.projectId);
-    if (projId) {
-      const project = await Project.findById(projId);
-      if (project && project.contractId) {
-        const contract = await Contract.findById(project.contractId).populate("variations");
-        if (contract) {
-          const pastInvoices = await Invoice.find({ projectId: projId, status: { $ne: "cancelled" }, deletedAt: null });
-          const pastSum = pastInvoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
-          const contractLimit = (contract as any).totalValue || contract.contractValue || 0;
-          if (pastSum + grandTotal > contractLimit) {
-            throw new Error(`Invoicing limit exceeded. Total invoiced including this invoice will be PKR ${(pastSum + grandTotal).toLocaleString()}, which exceeds the contract limit of PKR ${contractLimit.toLocaleString()}.`);
+    const issueDate = data.issueDate ? new Date(data.issueDate) : new Date();
+    const dueDate = data.dueDate ? new Date(data.dueDate) : null;
+    if (dueDate && dueDate < issueDate) throw new ApiError(400, "Due date cannot be before the issue date");
+    const invoiceNumber = data.invoiceNumber || (await nextInvoiceNumber());
+
+    // The contract-limit check and the invoice insert run inside the same
+    // transaction so there's no gap between "read past invoice total" and
+    // "write the new invoice" for a concurrent request to land in. This
+    // narrows the race (two simultaneous invoices both squeaking under the
+    // limit) rather than eliminating it outright — a fully atomic guarantee
+    // would need a running total counter on Contract, which is a larger
+    // schema change than this fix warrants for a soft business limit.
+    const invoice = await withTransaction(async (dbSession) => {
+      if (projId) {
+        const project = await Project.findById(projId).session(dbSession ?? null);
+        if (project && project.contractId) {
+          const contract = await Contract.findById(project.contractId).session(dbSession ?? null).populate("variations");
+          if (contract) {
+            const pastInvoices = await Invoice.find({ projectId: projId, status: { $ne: "cancelled" }, deletedAt: null }).session(dbSession ?? null);
+            const pastSum = pastInvoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
+            const contractLimit = (contract as any).totalValue || contract.contractValue || 0;
+            if (pastSum + grandTotal > contractLimit) {
+              throw new ApiError(400, `Invoicing limit exceeded. Total invoiced including this invoice will be PKR ${(pastSum + grandTotal).toLocaleString()}, which exceeds the contract limit of PKR ${contractLimit.toLocaleString()}.`);
+            }
           }
         }
       }
-    }
 
-    const invoice = await Invoice.create({
-      invoiceNumber: data.invoiceNumber || (await nextInvoiceNumber()),
-      clientId: toId(data.clientId),
-      projectId: projId,
-      issueDate: data.issueDate ? new Date(data.issueDate) : new Date(),
-      dueDate: data.dueDate ? new Date(data.dueDate) : null,
-      status: data.status || "draft",
-      subtotal,
-      taxPercent,
-      taxAmount,
-      retentionPercent,
-      retentionAmount,
-      whtDeducted,
-      grandTotal,
-      notes: data.notes || null,
-      paymentTerms: data.paymentTerms || null,
-      createdById: session.user.id,
-      items,
+      const [createdInvoice] = await Invoice.create([{
+        invoiceNumber,
+        clientId: toId(data.clientId),
+        projectId: projId,
+        issueDate,
+        dueDate,
+        status: data.status || "draft",
+        subtotal,
+        taxPercent,
+        taxAmount,
+        retentionPercent,
+        retentionAmount,
+        whtDeducted,
+        grandTotal,
+        notes: data.notes || null,
+        paymentTerms: data.paymentTerms || null,
+        createdById: session.user.id,
+        items,
+      }], { session: dbSession });
+      return createdInvoice;
     });
     await invoice.populate("client", "name");
     await auditLog(session.user.id, "CREATE", "Invoice", invoice.id, `Created invoice ${invoice.invoiceNumber}`);

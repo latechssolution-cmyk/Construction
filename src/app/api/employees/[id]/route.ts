@@ -42,7 +42,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       requireRole(session, "admin");
       employee.isActive = data.isActive;
     }
-    if (data.salary !== undefined) { const parsedSalary = parseFloat(data.salary); if (!isNaN(parsedSalary)) employee.salary = parsedSalary; }
+    if (data.salary !== undefined) { const parsedSalary = parseFloat(data.salary); if (!isNaN(parsedSalary)) { if (parsedSalary < 0) throw new ApiError(400, "Salary cannot be negative"); employee.salary = parsedSalary; } }
     if (data.salaryType !== undefined) employee.salaryType = data.salaryType;
     await employee.save();
     await auditLog(session.user.id, "UPDATE", "Employee", id, `Updated employee: ${employee.name}`);

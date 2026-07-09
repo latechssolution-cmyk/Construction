@@ -35,13 +35,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!existing) throw new ApiError(404, "Invoice not found");
     const TRANSITIONS: Record<string, string[]> = {
       draft: ["sent", "cancelled"],
-      // Issue #61: partially_paid is now a reachable transition
-      sent: ["paid", "partially_paid", "overdue", "cancelled", "draft"],
-      overdue: ["paid", "partially_paid", "cancelled"],
-      partially_paid: ["paid", "overdue", "cancelled"],
+      sent: ["paid", "overdue", "cancelled", "draft"],
+      overdue: ["paid", "cancelled"],
       paid: [],
       cancelled: [],
-      issued: ["sent", "paid", "partially_paid", "overdue", "cancelled"],
     };
     if (data.status !== undefined && data.status !== existing.status) {
       const allowed = TRANSITIONS[existing.status] || [];

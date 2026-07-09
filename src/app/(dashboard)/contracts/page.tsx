@@ -5,17 +5,11 @@ import { useSession } from "next-auth/react";
 import { CardGridSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Pencil, Trash2, X } from "lucide-react";
+import { FileText, Pencil, Trash2, X, Search } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
-const STATUS_COLORS: Record<string, string> = {
-  active: "bg-green-100 text-green-800",
-  completed: "bg-blue-100 text-blue-800",
-  terminated: "bg-red-100 text-red-800",
-  cancelled: "bg-red-100 text-red-700",
-  on_hold: "bg-yellow-100 text-yellow-800",
-  draft: "bg-gray-100 text-gray-700",
-};
 
 export default function ContractsPage() {
   const { data: session } = useSession();
@@ -58,6 +52,12 @@ export default function ContractsPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (form.contractValue !== undefined && parseFloat(form.contractValue) <= 0) {
+      toast({ title: "Error", description: "Contract value must be greater than 0", variant: "destructive" }); return;
+    }
+    if (form.startDate && form.endDate && form.endDate < form.startDate) {
+      toast({ title: "Error", description: "End date cannot be before start date", variant: "destructive" }); return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/contracts", {
@@ -95,6 +95,12 @@ export default function ContractsPage() {
 
   async function handleEditSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (editForm.contractValue !== undefined && parseFloat(editForm.contractValue) <= 0) {
+      toast({ title: "Error", description: "Contract value must be greater than 0", variant: "destructive" }); return;
+    }
+    if (editForm.startDate && editForm.endDate && editForm.endDate < editForm.startDate) {
+      toast({ title: "Error", description: "End date cannot be before start date", variant: "destructive" }); return;
+    }
     setEditLoading(true);
     try {
       const res = await fetch(`/api/contracts/${editingContract.id}`, {
@@ -130,28 +136,28 @@ export default function ContractsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Contracts</h1>
-          <p className="text-sm text-gray-500">{filtered.length} contracts</p>
-        </div>
-        {canManage && (
+      <PageHeader
+        title="Contracts"
+        subtitle={`${filtered.length} contract${filtered.length !== 1 ? "s" : ""}`}
+        actions={canManage && (
           <button
             onClick={() => { setShowForm(!showForm); setEditingContract(null); }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0 shadow-sm"
           >
             {showForm ? "Cancel" : "+ New Contract"}
           </button>
         )}
-      </div>
-
-      <input
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        placeholder="Search contracts..."
-        className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full sm:w-80 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
       />
+
+      <div className="relative w-full sm:w-80">
+        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search contracts..."
+          className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+        />
+      </div>
 
       {/* New Contract Form */}
       {showForm && (
@@ -179,6 +185,7 @@ export default function ContractsPage() {
             <input
               type="number"
               step="0.01"
+              min="0.01"
               required
               value={form.contractValue || ""}
               onChange={e => setForm({ ...form, contractValue: e.target.value })}
@@ -248,6 +255,7 @@ export default function ContractsPage() {
             <input
               type="number"
               step="0.01"
+              min="0.01"
               required
               value={editForm.contractValue || ""}
               onChange={e => setEditForm({ ...editForm, contractValue: e.target.value })}
@@ -299,12 +307,12 @@ export default function ContractsPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((c: any) => (
-            <div key={c.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all">
+            <div key={c.id} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-blue-200 transition-all">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-mono text-gray-400">{c.contractNumber}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[c.status] || "bg-gray-100 text-gray-600"}`}>{c.status}</span>
+                    <StatusBadge status={c.status} />
                   </div>
                   <h3 className="font-semibold text-gray-900">{c.title}</h3>
                   <p className="text-sm text-gray-500 mt-0.5">Client: {c.client?.name || "—"}</p>

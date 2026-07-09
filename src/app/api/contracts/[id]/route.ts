@@ -36,7 +36,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.scope !== undefined) contract.scope = data.scope;
     if (data.contractValue !== undefined && contract.status === "draft") {
       const parsedValue = parseFloat(data.contractValue);
-      if (!isNaN(parsedValue)) contract.contractValue = parsedValue;
+      if (!isNaN(parsedValue)) {
+        if (parsedValue < 0) throw new ApiError(400, "Contract value cannot be negative");
+        contract.contractValue = parsedValue;
+      }
     }
     if (data.startDate !== undefined) contract.startDate = data.startDate ? new Date(data.startDate) : null;
     if (data.endDate !== undefined) contract.endDate = data.endDate ? new Date(data.endDate) : null;

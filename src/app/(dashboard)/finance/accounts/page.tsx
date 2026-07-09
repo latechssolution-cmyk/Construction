@@ -5,7 +5,8 @@ import { useSession } from "next-auth/react";
 import { CardGridSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { Landmark, Pencil, Trash2, X } from "lucide-react";
+import { Landmark, Pencil, Trash2, X, Lock } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -35,7 +36,12 @@ export default function BankAccountsPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   if (session && !["admin","ceo","accountant"].includes(session.user?.role||"")) {
-    return <div className="p-6 text-center text-gray-500"><p className="text-4xl mb-2">&#x1F512;</p><p className="font-medium">Access Restricted</p></div>;
+    return (
+      <div className="p-6 text-center text-gray-500">
+        <Lock className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+        <p className="font-medium text-gray-700">Access Restricted</p>
+      </div>
+    );
   }
 
   const canManage = ["admin", "ceo"].includes(session?.user?.role||"");
@@ -104,10 +110,10 @@ export default function BankAccountsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">Bank Accounts</h1>
-        {canManage && <button onClick={()=>{setShowForm(!showForm); setEditingAccount(null);}} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0">{showForm ? "Cancel" : "+ Add Account"}</button>}
-      </div>
+      <PageHeader
+        title="Bank Accounts"
+        actions={canManage && <button onClick={()=>{setShowForm(!showForm); setEditingAccount(null);}} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0 shadow-sm">{showForm ? "Cancel" : "+ Add Account"}</button>}
+      />
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 space-y-4 shadow-sm">
@@ -116,7 +122,7 @@ export default function BankAccountsPage() {
             <input required value={form.name||""} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Account Name *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <input required value={form.accountNumber||""} onChange={e=>setForm({...form,accountNumber:e.target.value})} placeholder="Account Number *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <input required value={form.bankName||""} onChange={e=>setForm({...form,bankName:e.target.value})} placeholder="Bank Name *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
-            <input type="number" step="0.01" value={form.balance||""} onChange={e=>setForm({...form,balance:e.target.value})} placeholder="Opening Balance" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            <input type="number" min="0" step="0.01" value={form.balance||""} onChange={e=>setForm({...form,balance:e.target.value})} placeholder="Opening Balance" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <select value={form.currency||"PKR"} onChange={e=>setForm({...form,currency:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40">
               {["PKR","USD","EUR"].map(c=><option key={c} value={c}>{c}</option>)}
             </select>
@@ -147,7 +153,7 @@ export default function BankAccountsPage() {
       {isLoading ? <CardGridSkeleton count={3} /> : list.length>0 && (
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {list.map((acc:any)=>(
-          <div key={acc.id} onClick={()=>setSelected(selected?.id===acc.id?null:acc)} className={`relative text-left bg-white border rounded-xl p-5 shadow-sm transition-all cursor-pointer ${selected?.id===acc.id?"border-blue-500 ring-2 ring-blue-100":"border-gray-200 hover:border-blue-300"}`}>
+          <div key={acc.id} onClick={()=>setSelected(selected?.id===acc.id?null:acc)} className={`group relative text-left bg-white border rounded-xl p-5 shadow-sm transition-all cursor-pointer ${selected?.id===acc.id?"border-blue-500 ring-2 ring-blue-100":"border-gray-200 hover:border-blue-300"}`}>
             <div className="flex items-center justify-between mb-3">
               <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">{acc.bankName?.[0]||"B"}</div>
               <span className="text-xs text-gray-400">{acc._count?.ledgerEntries||0} entries</span>
@@ -173,8 +179,6 @@ export default function BankAccountsPage() {
                 )}
               </div>
             )}
-            {/* Added group class to container to support group-hover */}
-            <div className="absolute inset-0 -z-10 group"></div>
           </div>
         ))}
       </div>
@@ -226,12 +230,16 @@ export default function BankAccountsPage() {
             </tr></thead>
             <tbody>
               {(()=>{
+                // e.runningBalance is computed server-side from the account's
+                // pre-filter opening balance forward through the sorted,
+                // filtered entries — the correct value. Recomputing it here
+                // from the account's *current* live balance was wrong
+                // whenever a date filter or pagination was active, since
+                // "current balance minus this page's net" isn't the balance
+                // as of that historical entry.
                 const entries: any[] = statement.entries || [];
-                const totalNet = entries.reduce((s:number,e:any)=>s+(e.type==="income"?e.amount:-e.amount),0);
-                let bal = (statement.account?.balance||0) - totalNet;
                 return entries.map((e:any)=>{
-                  bal += e.type==="income" ? e.amount : -e.amount;
-                  const snap = bal;
+                  const snap = e.runningBalance ?? 0;
                   return (
                     <tr key={e.id} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="py-2 px-4 text-gray-500 whitespace-nowrap">{new Date(e.date).toLocaleDateString()}</td>
@@ -252,11 +260,8 @@ export default function BankAccountsPage() {
           <div className="md:hidden p-3 space-y-3">
             {(()=>{
               const entries: any[] = statement.entries || [];
-              const totalNet = entries.reduce((s:number,e:any)=>s+(e.type==="income"?e.amount:-e.amount),0);
-              let bal = (statement.account?.balance||0) - totalNet;
               return entries.map((e:any)=>{
-                bal += e.type==="income" ? e.amount : -e.amount;
-                const snap = bal;
+                const snap = e.runningBalance ?? 0;
                 return (
                   <div key={e.id} className="border border-gray-200 rounded-xl p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-2">

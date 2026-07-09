@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, ApiError, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
+import { assertDateRange, parseOptionalDate, parseOptionalNonNegativeNumber } from "@/lib/validation";
 import Project from "@/models/Project";
 import ProjectPhase from "@/models/ProjectPhase";
 import Task from "@/models/Task";
@@ -14,6 +15,7 @@ import LedgerEntry from "@/models/LedgerEntry";
 import Invoice from "@/models/Invoice";
 import Doc from "@/models/Document";
 import Attendance from "@/models/Attendance";
+import Subcontract from "@/models/Subcontract";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -28,7 +30,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     if (session.user.role === "manager" && project.assignedManagerId?.toString() !== session.user.id) {
       throw new ApiError(403, "You can only view your assigned projects");
     }
-    const [phases, tasks, milestones, materials, employees, equipment, ledgerEntries, invoices, documents] = await Promise.all([
+    const [phases, tasks, milestones, materials, employees, equipment, ledgerEntries, invoices, documents, subcontracts] = await Promise.all([
       ProjectPhase.find({ projectId: id }).sort({ order: 1 }).then(async (phases) => {
         await Promise.all(phases.map((ph) => ph.populate({ path: "tasks", populate: { path: "assignedTo", select: "id name" } })));
         return phases;
@@ -38,9 +40,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       Material.find({ projectId: id }).populate("vendor", "id name"),
       ProjectEmployee.find({ projectId: id }).populate("employee"),
       ProjectEquipment.find({ projectId: id, returnedAt: null }).populate("equipment"),
-      LedgerEntry.find({ projectId: id }).sort({ date: -1 }).limit(50),
+      LedgerEntry.find({ projectId: id }).populate("bankAccount", "id name").populate("vendor", "id name").sort({ date: -1 }).limit(50),
       Invoice.find({ projectId: id }).populate("client", "name").sort({ createdAt: -1 }),
       Doc.find({ projectId: id }).populate("uploadedBy", "name").sort({ createdAt: -1 }),
+      Subcontract.find({ projectId: id }).populate("vendor", "id name category contactPerson phone").sort({ createdAt: -1 }),
     ]);
     return ok({
       ...project.toJSON(),
@@ -53,6 +56,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       ledgerEntries,
       invoices,
       documents,
+      subcontracts,
     });
   } catch (e) {
     return handleApiError(e);
@@ -66,7 +70,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const data = await req.json();
     await connectDB();
-    const existing = await Project.findById(id, { assignedManagerId: 1 });
+    const existing = await Project.findById(id, { assignedManagerId: 1, startDate: 1, endDate: 1 });
     if (!existing) throw new ApiError(404, "Project not found");
     const currentManagerId = existing.assignedManagerId?.toString() || null;
     if (session.user.role === "manager" && existing.assignedManagerId?.toString() !== session.user.id) {
@@ -77,11 +81,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.name !== undefined) update.name = data.name;
     if (data.status !== undefined) update.status = data.status;
     if (data.completionPercent !== undefined) update.completionPercent = clampPct(data.completionPercent);
-    if (data.budget !== undefined) { const parsedBudget = parseFloat(data.budget); if (!isNaN(parsedBudget)) update.budget = parsedBudget; }
+    if (data.budget !== undefined) update.budget = parseOptionalNonNegativeNumber(data.budget, "Budget");
     if (data.location !== undefined) update.location = data.location;
     if (data.description !== undefined) update.description = data.description;
-    if (data.startDate !== undefined) update.startDate = data.startDate ? new Date(data.startDate) : null;
-    if (data.endDate !== undefined) update.endDate = data.endDate ? new Date(data.endDate) : null;
+    if (data.startDate !== undefined) update.startDate = parseOptionalDate(data.startDate, "Start date");
+    if (data.endDate !== undefined) update.endDate = parseOptionalDate(data.endDate, "End date");
+    assertDateRange(
+      update.startDate !== undefined ? update.startDate : (existing as any).startDate,
+      update.endDate !== undefined ? update.endDate : (existing as any).endDate
+    );
     if (data.clientId !== undefined) update.clientId = toId(data.clientId);
     // Reassigning a project to a different manager is an admin/ceo decision
     // — a manager reassigning their own project could hand it off (or dump

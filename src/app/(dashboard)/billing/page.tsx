@@ -7,10 +7,12 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { Receipt, X } from "lucide-react";
+import { Receipt, X, Lock, Wallet, Clock, Landmark } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { StatCard } from "@/components/ui/stat-card";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
-const STATUS_COLORS: Record<string,string> = { draft:"bg-gray-100 text-gray-700", sent:"bg-blue-100 text-blue-700", paid:"bg-green-100 text-green-700", overdue:"bg-red-100 text-red-700", cancelled:"bg-orange-100 text-orange-700" };
 
 export default function BillingPage() {
   const { data: session } = useSession();
@@ -32,7 +34,13 @@ export default function BillingPage() {
   const [paidLoading, setPaidLoading] = useState(false);
 
   if (session && !["admin","ceo","accountant"].includes(session.user?.role||"")) {
-    return <div className="p-6 text-center text-gray-500"><p className="text-4xl mb-2">&#x1F512;</p><p className="font-medium">Access Restricted</p><p className="text-sm mt-1">You do not have permission to view this module.</p></div>;
+    return (
+      <div className="p-6 text-center text-gray-500">
+        <Lock className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+        <p className="font-medium text-gray-700">Access Restricted</p>
+        <p className="text-sm mt-1">You do not have permission to view this module.</p>
+      </div>
+    );
   }
 
   const canManage = ["admin","ceo","accountant"].includes(session?.user?.role||"");
@@ -94,38 +102,27 @@ export default function BillingPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Invoices &amp; Billing</h1>
-          <p className="text-sm text-gray-500">{filtered.length} invoices</p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
+      <PageHeader
+        title="Invoices & Billing"
+        subtitle={`${filtered.length} invoice${filtered.length !== 1 ? "s" : ""}`}
+        actions={<>
           <ExportButton module="invoices" />
-          {canManage && <button onClick={()=>setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0">+ New Invoice</button>}
-        </div>
-      </div>
+          {canManage && <button onClick={()=>setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0 shadow-sm">+ New Invoice</button>}
+        </>}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-          <p className="text-xs text-green-700 font-medium">Total Paid</p>
-          <p className="text-2xl font-bold text-green-800">PKR {totalPaid.toLocaleString()}</p>
-        </div>
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-          <p className="text-xs text-orange-700 font-medium">Pending Payment</p>
-          <p className="text-2xl font-bold text-orange-800">PKR {totalPending.toLocaleString()}</p>
-        </div>
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-          <p className="text-xs text-gray-600 font-medium">Total Invoiced</p>
-          <p className="text-2xl font-bold text-gray-800">PKR {totalInvoiced.toLocaleString()}</p>
-        </div>
+        <StatCard label="Total Paid" value={`PKR ${totalPaid.toLocaleString()}`} tone="green" icon={<Wallet className="w-4 h-4" />} />
+        <StatCard label="Pending Payment" value={`PKR ${totalPending.toLocaleString()}`} tone="orange" icon={<Clock className="w-4 h-4" />} />
+        <StatCard label="Total Invoiced" value={`PKR ${totalInvoiced.toLocaleString()}`} tone="gray" icon={<Landmark className="w-4 h-4" />} />
       </div>
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>}
       {success && <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">{success}</div>}
 
-      <div className="flex gap-3 flex-wrap">
+      <div className="flex gap-1.5 flex-wrap bg-gray-100 p-1 rounded-lg w-fit">
         {["","draft","sent","paid","overdue","cancelled"].map(s=>(
-          <button key={s} onClick={()=>setStatusFilter(s)} className={"px-3 py-1.5 text-sm rounded-lg capitalize "+(statusFilter===s?"bg-blue-100 text-blue-700":"border border-gray-200 text-gray-600 hover:bg-gray-50")}>{s||"All"}</button>
+          <button key={s} onClick={()=>setStatusFilter(s)} className={"px-3 py-1.5 text-sm rounded-md capitalize font-medium transition-colors "+(statusFilter===s?"bg-white text-gray-900 shadow-sm":"text-gray-500 hover:text-gray-700")}>{s||"All"}</button>
         ))}
       </div>
 
@@ -201,7 +198,7 @@ export default function BillingPage() {
                     <td className="py-3 px-3 text-gray-500 whitespace-nowrap">{inv.issueDate?new Date(inv.issueDate).toLocaleDateString():"&#x2014;"}</td>
                     <td className={"py-3 px-3 whitespace-nowrap "+(inv.dueDate&&new Date(inv.dueDate)<new Date()&&inv.status!=="paid"?"text-red-500 font-medium":"text-gray-500")}>{inv.dueDate?new Date(inv.dueDate).toLocaleDateString():"&#x2014;"}</td>
                     <td className="py-3 px-3 font-bold text-gray-900 whitespace-nowrap">PKR {(inv.grandTotal||0).toLocaleString()}</td>
-                    <td className="py-3 px-3"><span className={"text-xs px-2 py-0.5 rounded-full capitalize "+(STATUS_COLORS[inv.status]||"bg-gray-100 text-gray-600")}>{inv.status}</span></td>
+                    <td className="py-3 px-3"><StatusBadge status={inv.status} /></td>
                     <td className="py-3 px-3">
                       <div className="flex gap-2 flex-wrap">
                         <a href={"/api/invoices/"+inv.id+"/pdf"} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">PDF</a>
@@ -236,7 +233,7 @@ export default function BillingPage() {
                     <p className="font-semibold text-gray-900 truncate">{inv.client?.name||"&#x2014;"}</p>
                     {inv.project?.name && <p className="text-xs text-gray-500 truncate">{inv.project.name}</p>}
                   </div>
-                  <span className={"text-xs px-2 py-0.5 rounded-full capitalize shrink-0 "+(STATUS_COLORS[inv.status]||"bg-gray-100 text-gray-600")}>{inv.status}</span>
+                  <StatusBadge status={inv.status} className="shrink-0" />
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-3 text-xs">
                   <div><span className="text-gray-400">Issued: </span><span className="text-gray-700 whitespace-nowrap">{inv.issueDate?new Date(inv.issueDate).toLocaleDateString():"&#x2014;"}</span></div>

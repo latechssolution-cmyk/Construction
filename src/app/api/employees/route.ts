@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, ApiError } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Employee from "@/models/Employee";
@@ -63,6 +63,8 @@ export async function POST(req: NextRequest) {
         throw new Error(`An employee with CNIC ${data.cnic} already exists: ${existingCnic.name}`);
       }
     }
+    const parsedSalary = parseFloat(data.salary || "0");
+    if (isNaN(parsedSalary) || parsedSalary < 0) throw new ApiError(400, "Salary cannot be negative");
     const employee = await Employee.create({
       name: data.name,
       role: data.role,
@@ -72,7 +74,7 @@ export async function POST(req: NextRequest) {
       cnic: data.cnic || null,
       address: data.address || null,
       joiningDate: data.joiningDate ? new Date(data.joiningDate) : new Date(),
-      salary: parseFloat(data.salary || "0"),
+      salary: parsedSalary,
       salaryType: data.salaryType || "monthly",
       bankAccount: data.bankAccount || null,
       emergencyContact: data.emergencyContact || null,

@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       // Since there is no SMTP gateway, print reset link to server logs (Issue #4 / #86)
       console.log(
         `\n[SECURITY] Password reset requested for user: ${emailClean}\n` +
-        `Reset Link: http://localhost:3000/reset-password?token=${token}\n` +
+        `Reset Link: ${process.env.NEXTAUTH_URL || "http://localhost:3000"}/reset-password?token=${token}\n` +
         `Token expires at: ${expires.toISOString()}\n`
       );
     }

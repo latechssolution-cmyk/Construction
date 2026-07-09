@@ -15,7 +15,9 @@ export function EmptyState({
     <div className="text-center py-16 px-4">
       {icon && (
         <div className="flex justify-center mb-3 text-gray-300">
-          {icon}
+          <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center">
+            {icon}
+          </div>
         </div>
       )}
       <p className="font-medium text-gray-700">{title}</p>

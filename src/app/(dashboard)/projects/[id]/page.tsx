@@ -13,7 +13,9 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const PROJECT_STATUSES = ["planning", "in_progress", "on_hold", "completed", "cancelled"];
 const PROJECT_TYPES = ["residential", "commercial", "industrial", "renovation", "infrastructure", "other"];
 
-const TABS = ["Overview", "Phases & Tasks", "Materials", "Team", "Finance", "Documents", "Milestones", "Report"];
+const TABS = ["Overview", "Contract", "Phases & Tasks", "Materials", "Team", "Finance", "Billing", "Documents", "Milestones", "Report"];
+const CONTRACT_STATUSES = ["draft", "active", "on_hold", "completed", "cancelled", "terminated"];
+const INVOICE_STATUS_COLORS: Record<string, string> = { draft: "bg-gray-100 text-gray-700", sent: "bg-blue-100 text-blue-700", paid: "bg-green-100 text-green-700", overdue: "bg-red-100 text-red-700", cancelled: "bg-orange-100 text-orange-700" };
 const STATUS_COLORS: Record<string, string> = {
   todo: "bg-gray-100 text-gray-700", in_progress: "bg-blue-100 text-blue-800", on_hold: "bg-yellow-100 text-yellow-800", completed: "bg-green-100 text-green-800",
 };
@@ -48,6 +50,30 @@ export default function ProjectDetailPage() {
   const [phaseForm, setPhaseForm] = useState<any>({});
   const [editingPhaseId, setEditingPhaseId] = useState<string | null>(null);
   const [editPhaseName, setEditPhaseName] = useState("");
+  const [ledgerForm, setLedgerForm] = useState<any>({ type: "expense", category: "" });
+  const [showLedgerForm, setShowLedgerForm] = useState(false);
+  const [ledgerError, setLedgerError] = useState("");
+  const [editingLedgerId, setEditingLedgerId] = useState<string | null>(null);
+  const [editLedgerForm, setEditLedgerForm] = useState<any>({});
+  const [deletingLedgerId, setDeletingLedgerId] = useState<string | null>(null);
+  const [showLinkContractForm, setShowLinkContractForm] = useState(false);
+  const [linkContractForm, setLinkContractForm] = useState<any>({});
+  const [contractError, setContractError] = useState("");
+  const [editingContract, setEditingContract] = useState(false);
+  const [editContractForm, setEditContractForm] = useState<any>({});
+  const [contractSubTab, setContractSubTab] = useState<"client" | "subcontractors">("client");
+  const [showSubcontractForm, setShowSubcontractForm] = useState(false);
+  const [subcontractForm, setSubcontractForm] = useState<any>({});
+  const [subcontractError, setSubcontractError] = useState("");
+  const [editingSubcontractId, setEditingSubcontractId] = useState<string | null>(null);
+  const [editSubcontractForm, setEditSubcontractForm] = useState<any>({});
+  const [deletingSubcontractId, setDeletingSubcontractId] = useState<string | null>(null);
+  const [showInvoiceForm, setShowInvoiceForm] = useState(false);
+  const [invoiceForm, setInvoiceForm] = useState<any>({ status: "draft", taxPercent: 0 });
+  const [invoiceItems, setInvoiceItems] = useState([{ description: "", quantity: 1, unitPrice: 0 }]);
+  const [invoiceError, setInvoiceError] = useState("");
+  const [paidInvoiceModal, setPaidInvoiceModal] = useState<any>(null);
+  const [paidInvoiceBankId, setPaidInvoiceBankId] = useState("");
 
   // Inline editing of project details
   const [editing, setEditing] = useState(false);
@@ -59,7 +85,10 @@ export default function ProjectDetailPage() {
   const { data: vendors } = useSWR("/api/vendors", fetcher);
   const { data: clients } = useSWR(canManage ? "/api/clients" : null, fetcher);
   const { data: managers } = useSWR(canManage ? "/api/users/assignable" : null, fetcher);
-  const { data: employeesList } = useSWR(canManage ? "/api/employees" : null, fetcher);
+  const { data: employeesList } = useSWR(canManage ? "/api/employees?limit=500" : null, fetcher);
+  const canManageFinance = ["admin", "ceo", "accountant"].includes(role);
+  const canReverseFinance = ["admin", "ceo"].includes(role);
+  const { data: bankAccounts } = useSWR(canManageFinance ? "/api/bank-accounts" : null, fetcher);
 
   // Seed the edit form whenever we enter edit mode / project loads
   useEffect(() => {
@@ -84,6 +113,14 @@ export default function ProjectDetailPage() {
   if (project.error) return <div className="p-6 text-red-500">Project not found</div>;
 
   async function saveProject(extra?: any) {
+    if (!extra) {
+      if (edit.budget !== "" && edit.budget !== undefined && parseFloat(edit.budget) < 0) {
+        toast({ title: "Error", description: "Budget cannot be negative", variant: "destructive" }); return;
+      }
+      if (edit.startDate && edit.endDate && edit.endDate < edit.startDate) {
+        toast({ title: "Error", description: "End date cannot be before start date", variant: "destructive" }); return;
+      }
+    }
     setSaving(true);
     try {
       const payload = extra ?? edit;
@@ -211,6 +248,9 @@ export default function ProjectDetailPage() {
 
   async function createMaterial(e: React.FormEvent) {
     e.preventDefault();
+    if (parseFloat(materialForm.unitPrice) <= 0) { toast({ title: "Error", description: "Unit price must be greater than 0", variant: "destructive" }); return; }
+    if (parseFloat(materialForm.quantity) < 0) { toast({ title: "Error", description: "Quantity cannot be negative", variant: "destructive" }); return; }
+    if (materialForm.minStockLevel !== undefined && materialForm.minStockLevel !== "" && parseFloat(materialForm.minStockLevel) < 0) { toast({ title: "Error", description: "Min stock level cannot be negative", variant: "destructive" }); return; }
     const res = await fetch("/api/materials", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -241,6 +281,10 @@ export default function ProjectDetailPage() {
 
   async function updateMaterial(e: React.FormEvent, materialId: string) {
     e.preventDefault();
+    if (editMaterialForm.unitPrice !== undefined && parseFloat(editMaterialForm.unitPrice) <= 0) { toast({ title: "Error", description: "Unit price must be greater than 0", variant: "destructive" }); return; }
+    if (editMaterialForm.quantity !== undefined && parseFloat(editMaterialForm.quantity) < 0) { toast({ title: "Error", description: "Quantity cannot be negative", variant: "destructive" }); return; }
+    if (editMaterialForm.stockQuantity !== undefined && editMaterialForm.stockQuantity !== "" && parseFloat(editMaterialForm.stockQuantity) < 0) { toast({ title: "Error", description: "Stock quantity cannot be negative", variant: "destructive" }); return; }
+    if (editMaterialForm.minStockLevel !== undefined && editMaterialForm.minStockLevel !== "" && parseFloat(editMaterialForm.minStockLevel) < 0) { toast({ title: "Error", description: "Min stock level cannot be negative", variant: "destructive" }); return; }
     const res = await fetch(`/api/materials/${materialId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -255,6 +299,282 @@ export default function ProjectDetailPage() {
       const err = await res.json().catch(() => ({}));
       toast({ title: "Error", description: err.error || "Failed to update material", variant: "destructive" });
     }
+  }
+
+  const LEDGER_CATEGORIES = ["material_purchase", "salary", "maintenance", "invoice_payment", "client_payment", "vendor_payment", "utility", "overhead", "advance", "other"];
+
+  async function createLedgerEntry(e: React.FormEvent) {
+    e.preventDefault();
+    setLedgerError("");
+    if (!ledgerForm.description?.trim()) { setLedgerError("Description is required."); return; }
+    if (!ledgerForm.amount || parseFloat(ledgerForm.amount) <= 0) { setLedgerError("Enter a valid positive amount."); return; }
+    if (!ledgerForm.date) { setLedgerError("Date is required."); return; }
+    if (!ledgerForm.category?.trim()) { setLedgerError("Category is required."); return; }
+    const res = await fetch("/api/ledger", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...ledgerForm, amount: parseFloat(ledgerForm.amount), projectId: id }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setLedgerError(err.error || "Failed to add entry");
+      return;
+    }
+    mutate();
+    mutateSummary();
+    setShowLedgerForm(false);
+    setLedgerForm({ type: "expense", category: "" });
+    toast({ title: "Ledger entry added" });
+  }
+
+  function startEditLedger(entry: any) {
+    setEditingLedgerId(entry.id);
+    setEditLedgerForm({
+      date: entry.date ? new Date(entry.date).toISOString().slice(0, 10) : "",
+      type: entry.type,
+      amount: entry.amount,
+      category: entry.category || "",
+      description: entry.description || "",
+      referenceNumber: entry.referenceNumber || "",
+      bankAccountId: entry.bankAccountId || entry.bankAccount?.id || "",
+      vendorId: entry.vendorId || entry.vendor?.id || "",
+      partyName: entry.partyName || "",
+    });
+  }
+
+  async function updateLedgerEntry(e: React.FormEvent, entryId: string) {
+    e.preventDefault();
+    if (editLedgerForm.amount !== undefined && parseFloat(editLedgerForm.amount) <= 0) { toast({ title: "Error", description: "Amount must be greater than 0", variant: "destructive" }); return; }
+    const res = await fetch(`/api/ledger/${entryId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editLedgerForm),
+    });
+    if (res.ok) {
+      mutate();
+      mutateSummary();
+      setEditingLedgerId(null);
+      setEditLedgerForm({});
+      toast({ title: "Ledger entry updated" });
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || "Failed to update entry", variant: "destructive" });
+    }
+  }
+
+  async function deleteLedgerEntry(entryId: string) {
+    // Uses the reversal endpoint (creates a balancing compensating entry
+    // instead of hard-deleting) so the audit trail and bank balance history
+    // stay intact — same mechanism the general Payments page relies on.
+    const res = await fetch(`/api/payments/${entryId}`, { method: "DELETE" });
+    if (res.ok) {
+      mutate();
+      mutateSummary();
+      setDeletingLedgerId(null);
+      toast({ title: "Ledger entry reversed" });
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || "Failed to reverse entry", variant: "destructive" });
+    }
+  }
+
+  async function linkNewContract(e: React.FormEvent) {
+    e.preventDefault();
+    setContractError("");
+    if (!linkContractForm.title?.trim()) { setContractError("Title is required."); return; }
+    const clientId = linkContractForm.clientId || project.clientId;
+    if (!clientId) { setContractError("This project has no client set. Set a client on the Overview tab first."); return; }
+    const res = await fetch("/api/contracts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...linkContractForm, clientId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setContractError(err.error || "Failed to create contract");
+      return;
+    }
+    const newContract = await res.json();
+    const linkRes = await fetch(`/api/projects/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contractId: newContract.data?.id || newContract.id }),
+    });
+    if (!linkRes.ok) {
+      const err = await linkRes.json().catch(() => ({}));
+      setContractError(err.error || "Contract was created but could not be linked to this project");
+      return;
+    }
+    mutate();
+    setShowLinkContractForm(false);
+    setLinkContractForm({});
+    toast({ title: "Contract linked to project" });
+  }
+
+  function startEditContract() {
+    setEditContractForm({
+      title: project.contract.title || "",
+      scope: project.contract.scope || "",
+      contractValue: project.contract.contractValue ?? 0,
+      startDate: project.contract.startDate ? new Date(project.contract.startDate).toISOString().slice(0, 10) : "",
+      endDate: project.contract.endDate ? new Date(project.contract.endDate).toISOString().slice(0, 10) : "",
+      paymentTerms: project.contract.paymentTerms || "",
+      notes: project.contract.notes || "",
+    });
+    setEditingContract(true);
+  }
+
+  async function saveContract(e: React.FormEvent) {
+    e.preventDefault();
+    const res = await fetch(`/api/contracts/${project.contract.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editContractForm),
+    });
+    if (res.ok) {
+      mutate();
+      setEditingContract(false);
+      toast({ title: "Contract updated" });
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || "Failed to update contract", variant: "destructive" });
+    }
+  }
+
+  async function changeContractStatus(status: string) {
+    const res = await fetch(`/api/contracts/${project.contract.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (res.ok) {
+      mutate();
+      toast({ title: `Contract status updated to "${status}"` });
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || "Failed to change contract status", variant: "destructive" });
+    }
+  }
+
+  async function createSubcontract(e: React.FormEvent) {
+    e.preventDefault();
+    setSubcontractError("");
+    if (!subcontractForm.vendorId) { setSubcontractError("Select the vendor/subcontractor being outsourced to."); return; }
+    if (!subcontractForm.contractValue || parseFloat(subcontractForm.contractValue) <= 0) { setSubcontractError("Enter a contract value greater than 0."); return; }
+    const res = await fetch("/api/subcontracts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...subcontractForm, projectId: id }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setSubcontractError(err.error || "Failed to add subcontractor");
+      return;
+    }
+    mutate();
+    setShowSubcontractForm(false);
+    setSubcontractForm({});
+    toast({ title: "Subcontractor added" });
+  }
+
+  function startEditSubcontract(sc: any) {
+    setEditingSubcontractId(sc.id);
+    setEditSubcontractForm({
+      contractValue: sc.contractValue,
+      scopeOfWork: sc.scopeOfWork || "",
+      startDate: sc.startDate ? new Date(sc.startDate).toISOString().slice(0, 10) : "",
+      endDate: sc.endDate ? new Date(sc.endDate).toISOString().slice(0, 10) : "",
+      notes: sc.notes || "",
+    });
+  }
+
+  async function updateSubcontract(e: React.FormEvent, scId: string) {
+    e.preventDefault();
+    if (editSubcontractForm.contractValue !== undefined && parseFloat(editSubcontractForm.contractValue) <= 0) { toast({ title: "Error", description: "Contract value must be greater than 0", variant: "destructive" }); return; }
+    const res = await fetch(`/api/subcontracts/${scId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editSubcontractForm),
+    });
+    if (res.ok) {
+      mutate();
+      setEditingSubcontractId(null);
+      setEditSubcontractForm({});
+      toast({ title: "Subcontractor updated" });
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || "Failed to update subcontractor", variant: "destructive" });
+    }
+  }
+
+  async function deleteSubcontract(scId: string) {
+    const res = await fetch(`/api/subcontracts/${scId}`, { method: "DELETE" });
+    if (res.ok) {
+      mutate();
+      setDeletingSubcontractId(null);
+      toast({ title: "Subcontractor removed" });
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || "Failed to remove subcontractor", variant: "destructive" });
+    }
+  }
+
+  function addInvoiceItem() { setInvoiceItems([...invoiceItems, { description: "", quantity: 1, unitPrice: 0 }]); }
+  function updateInvoiceItem(idx: number, field: string, val: any) { setInvoiceItems(invoiceItems.map((it, i) => (i === idx ? { ...it, [field]: val } : it))); }
+  function removeInvoiceItem(idx: number) { setInvoiceItems(invoiceItems.filter((_, i) => i !== idx)); }
+
+  async function createInvoice(e: React.FormEvent) {
+    e.preventDefault();
+    setInvoiceError("");
+    if (!project.clientId) { setInvoiceError("This project has no client set. Set a client on the Overview tab first."); return; }
+    if (invoiceForm.dueDate && invoiceForm.issueDate && new Date(invoiceForm.dueDate) < new Date(invoiceForm.issueDate)) { setInvoiceError("Due date must be after issue date."); return; }
+    if (invoiceItems.every((it) => !it.description.trim())) { setInvoiceError("Add at least one line item with a description."); return; }
+    const res = await fetch("/api/invoices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...invoiceForm, clientId: project.clientId, projectId: id, items: invoiceItems }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setInvoiceError(err.error || "Failed to create invoice");
+      return;
+    }
+    mutate();
+    setShowInvoiceForm(false);
+    setInvoiceForm({ status: "draft", taxPercent: 0 });
+    setInvoiceItems([{ description: "", quantity: 1, unitPrice: 0 }]);
+    toast({ title: "Invoice created" });
+  }
+
+  async function markInvoiceSent(invoiceId: string) {
+    const res = await fetch(`/api/invoices/${invoiceId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "sent" }) });
+    if (res.ok) { mutate(); toast({ title: "Invoice marked as sent" }); }
+    else { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed", variant: "destructive" }); }
+  }
+
+  async function confirmInvoicePaid() {
+    if (!paidInvoiceModal) return;
+    const res = await fetch(`/api/invoices/${paidInvoiceModal.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "paid", bankAccountId: paidInvoiceBankId || undefined }),
+    });
+    if (res.ok) {
+      mutate();
+      mutateSummary();
+      setPaidInvoiceModal(null);
+      setPaidInvoiceBankId("");
+      toast({ title: "Invoice marked paid" });
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || "Failed", variant: "destructive" });
+    }
+  }
+
+  async function cancelInvoice(invoiceId: string) {
+    const res = await fetch(`/api/invoices/${invoiceId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "cancelled" }) });
+    if (res.ok) { mutate(); toast({ title: "Invoice cancelled" }); }
+    else { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed", variant: "destructive" }); }
   }
 
   async function assignEmployee(e: React.FormEvent) {
@@ -449,7 +769,7 @@ export default function ProjectDetailPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Budget (PKR)</label>
-                    <input type="number" value={edit.budget} onChange={(e) => setEdit({ ...edit, budget: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    <input type="number" min="0" step="0.01" value={edit.budget} onChange={(e) => setEdit({ ...edit, budget: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Start Date</label>
@@ -516,6 +836,227 @@ export default function ProjectDetailPage() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {tab === "Contract" && (
+        <div className="space-y-4">
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+            <button
+              onClick={() => setContractSubTab("client")}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${contractSubTab === "client" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              Main Contract
+            </button>
+            <button
+              onClick={() => setContractSubTab("subcontractors")}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${contractSubTab === "subcontractors" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              Subcontractors {(project.subcontracts || []).length > 0 && `(${project.subcontracts.length})`}
+            </button>
+          </div>
+
+          {contractSubTab === "client" && (<>
+          {!project.contract ? (
+            <div className="bg-white border border-gray-200 rounded-xl">
+              <EmptyState icon={<FileText className="w-10 h-10" />} title="No contract linked" hint="Link a new contract to this project to track its value, status, and payment terms here." />
+              {canManage && (
+                <div className="px-6 pb-6 -mt-2 flex justify-center">
+                  <button onClick={() => setShowLinkContractForm(!showLinkContractForm)} className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg">
+                    {showLinkContractForm ? "Cancel" : "+ Create & Link Contract"}
+                  </button>
+                </div>
+              )}
+              {showLinkContractForm && canManage && (
+                <div className="p-6 pt-0">
+                  {contractError && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-3">{contractError}</div>}
+                  <form onSubmit={linkNewContract} className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                    <input required value={linkContractForm.title || ""} onChange={(e) => setLinkContractForm({ ...linkContractForm, title: e.target.value })} placeholder="Contract title *" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    <input required type="number" min="0" step="0.01" value={linkContractForm.contractValue || ""} onChange={(e) => setLinkContractForm({ ...linkContractForm, contractValue: e.target.value })} placeholder="Contract value (PKR) *" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <input type="date" value={linkContractForm.startDate || ""} onChange={(e) => setLinkContractForm({ ...linkContractForm, startDate: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                      <input type="date" value={linkContractForm.endDate || ""} onChange={(e) => setLinkContractForm({ ...linkContractForm, endDate: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <textarea value={linkContractForm.scope || ""} onChange={(e) => setLinkContractForm({ ...linkContractForm, scope: e.target.value })} placeholder="Scope of work (optional)" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    <input value={linkContractForm.paymentTerms || ""} onChange={(e) => setLinkContractForm({ ...linkContractForm, paymentTerms: e.target.value })} placeholder="Payment terms (optional)" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    <div className="flex gap-2">
+                      <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Create & Link</button>
+                      <button type="button" onClick={() => { setShowLinkContractForm(false); setLinkContractForm({}); setContractError(""); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </div>
+          ) : editingContract ? (
+            <form onSubmit={saveContract} className="bg-white border border-gray-200 rounded-xl p-6 space-y-3">
+              <h3 className="font-semibold text-gray-900">Edit Contract: {project.contract.contractNumber}</h3>
+              <input required value={editContractForm.title || ""} onChange={(e) => setEditContractForm({ ...editContractForm, title: e.target.value })} placeholder="Title *" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              <div>
+                <input
+                  type="number" min="0" step="0.01"
+                  disabled={project.contract.status !== "draft"}
+                  value={editContractForm.contractValue ?? ""}
+                  onChange={(e) => setEditContractForm({ ...editContractForm, contractValue: e.target.value })}
+                  placeholder="Contract value (PKR)"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-400"
+                />
+                {project.contract.status !== "draft" && <p className="text-xs text-gray-400 mt-1">Base value is locked once a contract leaves draft — log a variation order instead.</p>}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <input type="date" value={editContractForm.startDate || ""} onChange={(e) => setEditContractForm({ ...editContractForm, startDate: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                <input type="date" value={editContractForm.endDate || ""} onChange={(e) => setEditContractForm({ ...editContractForm, endDate: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <textarea value={editContractForm.scope || ""} onChange={(e) => setEditContractForm({ ...editContractForm, scope: e.target.value })} placeholder="Scope of work" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              <input value={editContractForm.paymentTerms || ""} onChange={(e) => setEditContractForm({ ...editContractForm, paymentTerms: e.target.value })} placeholder="Payment terms" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              <textarea value={editContractForm.notes || ""} onChange={(e) => setEditContractForm({ ...editContractForm, notes: e.target.value })} placeholder="Notes" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              <div className="flex gap-2">
+                <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Save</button>
+                <button type="button" onClick={() => setEditingContract(false)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
+              </div>
+            </form>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs text-gray-400 font-mono">{project.contract.contractNumber}</p>
+                  <h3 className="font-semibold text-gray-900 text-lg">{project.contract.title}</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  {canManage && CONTRACT_STATUSES.filter((s) => s !== project.contract.status).length > 0 && (
+                    <select
+                      value=""
+                      onChange={(e) => e.target.value && changeContractStatus(e.target.value)}
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1"
+                    >
+                      <option value="">Change status…</option>
+                      {CONTRACT_STATUSES.filter((s) => s !== project.contract.status).map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+                    </select>
+                  )}
+                  <span className="text-xs px-2 py-0.5 rounded-full capitalize bg-blue-100 text-blue-700">{project.contract.status?.replace(/_/g, " ")}</span>
+                  {canManage && <button onClick={startEditContract} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg" title="Edit"><Pencil className="w-4 h-4" /></button>}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <p className="text-xs text-blue-700 mb-1">Base Value</p>
+                  <p className="text-lg font-bold text-blue-800">PKR {(project.contract.contractValue || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                  <p className="text-xs text-gray-500 mb-1">Start Date</p>
+                  <p className="text-sm font-medium text-gray-800">{project.contract.startDate ? new Date(project.contract.startDate).toLocaleDateString() : "—"}</p>
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                  <p className="text-xs text-gray-500 mb-1">End Date</p>
+                  <p className="text-sm font-medium text-gray-800">{project.contract.endDate ? new Date(project.contract.endDate).toLocaleDateString() : "—"}</p>
+                </div>
+              </div>
+              {project.contract.scope && <div><p className="text-xs text-gray-400 mb-1">Scope of Work</p><p className="text-sm text-gray-700">{project.contract.scope}</p></div>}
+              {project.contract.paymentTerms && <div><p className="text-xs text-gray-400 mb-1">Payment Terms</p><p className="text-sm text-gray-700">{project.contract.paymentTerms}</p></div>}
+              {project.contract.notes && <div><p className="text-xs text-gray-400 mb-1">Notes</p><p className="text-sm text-gray-700">{project.contract.notes}</p></div>}
+            </div>
+          )}
+          </>)}
+
+          {contractSubTab === "subcontractors" && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="font-semibold text-gray-900">Subcontractors</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Parts of this project outsourced to a vendor/subcontractor outside the company.</p>
+                </div>
+                {canManage && (
+                  <button onClick={() => { setShowSubcontractForm(!showSubcontractForm); setEditingSubcontractId(null); setSubcontractError(""); }} className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg shrink-0">
+                    {showSubcontractForm ? "Cancel" : "+ Add Subcontractor"}
+                  </button>
+                )}
+              </div>
+
+              {subcontractError && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{subcontractError}</div>}
+
+              {showSubcontractForm && canManage && (
+                <form onSubmit={createSubcontract} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+                  <h4 className="text-sm font-semibold text-gray-700">New Subcontractor Agreement</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <select required value={subcontractForm.vendorId || ""} onChange={(e) => setSubcontractForm({ ...subcontractForm, vendorId: e.target.value })} className="col-span-2 border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                      <option value="">Select vendor/subcontractor *</option>
+                      {(vendors || []).map((v: any) => <option key={v.id} value={v.id}>{v.name}{v.category ? ` — ${v.category}` : ""}</option>)}
+                    </select>
+                    <input required type="number" min="0.01" step="0.01" value={subcontractForm.contractValue || ""} onChange={(e) => setSubcontractForm({ ...subcontractForm, contractValue: e.target.value })} placeholder="Contract value (PKR) *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    <input type="date" value={subcontractForm.startDate || ""} onChange={(e) => setSubcontractForm({ ...subcontractForm, startDate: e.target.value })} placeholder="Start date" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    <input type="date" value={subcontractForm.endDate || ""} onChange={(e) => setSubcontractForm({ ...subcontractForm, endDate: e.target.value })} placeholder="End date" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    <textarea value={subcontractForm.scopeOfWork || ""} onChange={(e) => setSubcontractForm({ ...subcontractForm, scopeOfWork: e.target.value })} placeholder="Scope of work outsourced (e.g. electrical wiring, plumbing)" rows={2} className="col-span-2 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    <textarea value={subcontractForm.notes || ""} onChange={(e) => setSubcontractForm({ ...subcontractForm, notes: e.target.value })} placeholder="Notes (optional)" rows={2} className="col-span-2 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Add Subcontractor</button>
+                    <button type="button" onClick={() => { setShowSubcontractForm(false); setSubcontractForm({}); setSubcontractError(""); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
+                  </div>
+                </form>
+              )}
+
+              {(project.subcontracts || []).length === 0 ? (
+                <div className="bg-white border border-gray-200 rounded-xl">
+                  <EmptyState icon={<Users className="w-10 h-10" />} title="No subcontractors on this project" hint="Add a subcontractor when you outsource part of the project's work to an outside vendor." />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {project.subcontracts.map((sc: any) => (
+                    <div key={sc.id} className="bg-white border border-gray-200 rounded-xl p-4">
+                      {editingSubcontractId === sc.id ? (
+                        <form onSubmit={(e) => updateSubcontract(e, sc.id)} className="space-y-3">
+                          <p className="text-sm font-semibold text-blue-700">Editing: {sc.vendor?.name}</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <input required type="number" min="0.01" step="0.01" value={editSubcontractForm.contractValue || ""} onChange={(e) => setEditSubcontractForm({ ...editSubcontractForm, contractValue: e.target.value })} placeholder="Contract value *" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                            <div />
+                            <input type="date" value={editSubcontractForm.startDate || ""} onChange={(e) => setEditSubcontractForm({ ...editSubcontractForm, startDate: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                            <input type="date" value={editSubcontractForm.endDate || ""} onChange={(e) => setEditSubcontractForm({ ...editSubcontractForm, endDate: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                            <textarea value={editSubcontractForm.scopeOfWork || ""} onChange={(e) => setEditSubcontractForm({ ...editSubcontractForm, scopeOfWork: e.target.value })} placeholder="Scope of work" rows={2} className="col-span-2 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                            <textarea value={editSubcontractForm.notes || ""} onChange={(e) => setEditSubcontractForm({ ...editSubcontractForm, notes: e.target.value })} placeholder="Notes" rows={2} className="col-span-2 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                          </div>
+                          <div className="flex gap-2">
+                            <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium">Save</button>
+                            <button type="button" onClick={() => { setEditingSubcontractId(null); setEditSubcontractForm({}); }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs">Cancel</button>
+                          </div>
+                        </form>
+                      ) : (
+                        <>
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="font-semibold text-gray-900">{sc.vendor?.name || "Unknown vendor"}</p>
+                              <p className="text-xs text-gray-500 capitalize">{sc.vendor?.category ? `${sc.vendor.category} · ` : ""}{sc.vendor?.contactPerson || sc.vendor?.phone || "—"}</p>
+                            </div>
+                            <p className="text-lg font-bold text-gray-900 shrink-0">PKR {(sc.contractValue || 0).toLocaleString()}</p>
+                          </div>
+                          {sc.scopeOfWork && <p className="text-sm text-gray-700 mt-2">{sc.scopeOfWork}</p>}
+                          <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                            {sc.startDate && <span>Start: {new Date(sc.startDate).toLocaleDateString()}</span>}
+                            {sc.endDate && <span>End: {new Date(sc.endDate).toLocaleDateString()}</span>}
+                          </div>
+                          {canManage && (
+                            <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+                              <button onClick={() => startEditSubcontract(sc)} className="text-xs px-2 py-1 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50">
+                                <span className="flex items-center gap-1"><Pencil className="w-3 h-3" /> Edit</span>
+                              </button>
+                              {deletingSubcontractId === sc.id ? (
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => deleteSubcontract(sc.id)} className="text-xs px-2 py-1 bg-red-600 text-white rounded-lg font-medium">Confirm Remove</button>
+                                  <button onClick={() => setDeletingSubcontractId(null)} className="text-xs px-1.5 py-1 border border-gray-300 rounded-lg"><X className="w-3 h-3" /></button>
+                                </div>
+                              ) : (
+                                <button onClick={() => setDeletingSubcontractId(sc.id)} className="text-xs px-2 py-1 border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
+                                  <span className="flex items-center gap-1"><Trash2 className="w-3 h-3" /> Remove</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -818,10 +1359,10 @@ export default function ProjectDetailPage() {
                   <option value="aggregate">Aggregate</option><option value="tiles">Tiles</option><option value="electrical">Electrical</option>
                   <option value="plumbing">Plumbing</option><option value="paint">Paint</option><option value="general">General</option>
                 </select>
-                <input required type="number" value={materialForm.quantity || ""} onChange={(e) => setMaterialForm({...materialForm, quantity: e.target.value})} placeholder="Quantity *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                <input required type="number" min="0" step="0.01" value={materialForm.quantity || ""} onChange={(e) => setMaterialForm({...materialForm, quantity: e.target.value})} placeholder="Quantity *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                 <input required value={materialForm.unit || ""} onChange={(e) => setMaterialForm({...materialForm, unit: e.target.value})} placeholder="Unit (bags, kg, pcs)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-                <input required type="number" step="0.01" value={materialForm.unitPrice || ""} onChange={(e) => setMaterialForm({...materialForm, unitPrice: e.target.value})} placeholder="Unit price (PKR) *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-                <input type="number" value={materialForm.minStockLevel || ""} onChange={(e) => setMaterialForm({...materialForm, minStockLevel: e.target.value})} placeholder="Min stock level" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                <input required type="number" min="0.01" step="0.01" value={materialForm.unitPrice || ""} onChange={(e) => setMaterialForm({...materialForm, unitPrice: e.target.value})} placeholder="Unit price (PKR) *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                <input type="number" min="0" step="1" value={materialForm.minStockLevel || ""} onChange={(e) => setMaterialForm({...materialForm, minStockLevel: e.target.value})} placeholder="Min stock level" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                 <select value={materialForm.vendorId || ""} onChange={(e) => setMaterialForm({...materialForm, vendorId: e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm col-span-2">
                   <option value="">Select vendor (optional)</option>
                   {(vendors || []).map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
@@ -859,11 +1400,11 @@ export default function ProjectDetailPage() {
                                 <option value="aggregate">Aggregate</option><option value="tiles">Tiles</option><option value="electrical">Electrical</option>
                                 <option value="plumbing">Plumbing</option><option value="paint">Paint</option><option value="general">General</option>
                               </select>
-                              <input required type="number" value={editMaterialForm.quantity || ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, quantity: e.target.value})} placeholder="Qty *" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                              <input required type="number" min="0" step="0.01" value={editMaterialForm.quantity || ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, quantity: e.target.value})} placeholder="Qty *" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                               <input required value={editMaterialForm.unit || ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, unit: e.target.value})} placeholder="Unit" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-                              <input required type="number" step="0.01" value={editMaterialForm.unitPrice || ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, unitPrice: e.target.value})} placeholder="Unit price *" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-                              <input type="number" value={editMaterialForm.stockQuantity ?? ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, stockQuantity: e.target.value})} placeholder="Stock qty" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-                              <input type="number" value={editMaterialForm.minStockLevel ?? ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, minStockLevel: e.target.value})} placeholder="Min stock" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                              <input required type="number" min="0.01" step="0.01" value={editMaterialForm.unitPrice || ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, unitPrice: e.target.value})} placeholder="Unit price *" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                              <input type="number" min="0" step="0.01" value={editMaterialForm.stockQuantity ?? ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, stockQuantity: e.target.value})} placeholder="Stock qty" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                              <input type="number" min="0" step="1" value={editMaterialForm.minStockLevel ?? ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, minStockLevel: e.target.value})} placeholder="Min stock" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                               <select value={editMaterialForm.vendorId || ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, vendorId: e.target.value})} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
                                 <option value="">No vendor</option>
                                 {(vendors || []).map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
@@ -930,10 +1471,10 @@ export default function ProjectDetailPage() {
                             <option value="plumbing">Plumbing</option><option value="paint">Paint</option><option value="general">General</option>
                           </select>
                           <input required value={editMaterialForm.unit || ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, unit: e.target.value})} placeholder="Unit" className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs" />
-                          <input required type="number" value={editMaterialForm.quantity || ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, quantity: e.target.value})} placeholder="Qty *" className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs" />
-                          <input required type="number" step="0.01" value={editMaterialForm.unitPrice || ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, unitPrice: e.target.value})} placeholder="Unit price *" className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs" />
-                          <input type="number" value={editMaterialForm.stockQuantity ?? ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, stockQuantity: e.target.value})} placeholder="Stock qty" className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs" />
-                          <input type="number" value={editMaterialForm.minStockLevel ?? ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, minStockLevel: e.target.value})} placeholder="Min stock" className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs" />
+                          <input required type="number" min="0" step="0.01" value={editMaterialForm.quantity || ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, quantity: e.target.value})} placeholder="Qty *" className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs" />
+                          <input required type="number" min="0.01" step="0.01" value={editMaterialForm.unitPrice || ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, unitPrice: e.target.value})} placeholder="Unit price *" className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs" />
+                          <input type="number" min="0" step="0.01" value={editMaterialForm.stockQuantity ?? ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, stockQuantity: e.target.value})} placeholder="Stock qty" className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs" />
+                          <input type="number" min="0" step="1" value={editMaterialForm.minStockLevel ?? ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, minStockLevel: e.target.value})} placeholder="Min stock" className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs" />
                           <select value={editMaterialForm.vendorId || ""} onChange={(e) => setEditMaterialForm({...editMaterialForm, vendorId: e.target.value})} className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs col-span-2">
                             <option value="">No vendor</option>
                             {(vendors || []).map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
@@ -989,10 +1530,54 @@ export default function ProjectDetailPage() {
 
       {tab === "Finance" && (
         <div className="space-y-4">
-          <h3 className="font-semibold text-gray-900">Ledger Entries</h3>
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold text-gray-900">Ledger Entries</h3>
+            {canManageFinance && (
+              <button
+                onClick={() => { setShowLedgerForm(!showLedgerForm); setEditingLedgerId(null); setLedgerError(""); }}
+                className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg"
+              >+ Add Entry</button>
+            )}
+          </div>
+
+          {ledgerError && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{ledgerError}</div>}
+
+          {showLedgerForm && canManageFinance && (
+            <form onSubmit={createLedgerEntry} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+              <h4 className="text-sm font-semibold text-gray-700">New Ledger Entry</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <select value={ledgerForm.type || "expense"} onChange={(e) => setLedgerForm({ ...ledgerForm, type: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                  <option value="income">Income</option>
+                  <option value="expense">Expense</option>
+                </select>
+                <input required type="number" min="0.01" step="0.01" value={ledgerForm.amount || ""} onChange={(e) => setLedgerForm({ ...ledgerForm, amount: e.target.value })} placeholder="Amount (PKR) *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                <input required value={ledgerForm.description || ""} onChange={(e) => setLedgerForm({ ...ledgerForm, description: e.target.value })} placeholder="Description *" className="col-span-2 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                <select required value={ledgerForm.category || ""} onChange={(e) => setLedgerForm({ ...ledgerForm, category: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                  <option value="">Select Category *</option>
+                  {LEDGER_CATEGORIES.map(c => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}
+                </select>
+                <input required type="date" value={ledgerForm.date || ""} onChange={(e) => setLedgerForm({ ...ledgerForm, date: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                <select value={ledgerForm.bankAccountId || ""} onChange={(e) => setLedgerForm({ ...ledgerForm, bankAccountId: e.target.value || undefined })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                  <option value="">Bank Account (optional)</option>
+                  {(Array.isArray(bankAccounts) ? bankAccounts : []).map((b: any) => <option key={b.id} value={b.id}>{b.name} — PKR {(b.balance || 0).toLocaleString()}</option>)}
+                </select>
+                <select value={ledgerForm.vendorId || ""} onChange={(e) => setLedgerForm({ ...ledgerForm, vendorId: e.target.value || undefined })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                  <option value="">Vendor (optional)</option>
+                  {(vendors || []).map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+                <input value={ledgerForm.partyName || ""} onChange={(e) => setLedgerForm({ ...ledgerForm, partyName: e.target.value })} placeholder="Other party name (optional)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                <input value={ledgerForm.referenceNumber || ""} onChange={(e) => setLedgerForm({ ...ledgerForm, referenceNumber: e.target.value })} placeholder="Reference / voucher # (optional)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div className="flex gap-2">
+                <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Add Entry</button>
+                <button type="button" onClick={() => { setShowLedgerForm(false); setLedgerForm({ type: "expense", category: "" }); setLedgerError(""); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
+              </div>
+            </form>
+          )}
+
           {(project.ledgerEntries || []).length === 0 ? (
             <div className="bg-white border border-gray-200 rounded-xl">
-              <EmptyState icon={<Wallet className="w-10 h-10" />} title="No finance entries yet" hint="Ledger entries linked to this project will appear here." />
+              <EmptyState icon={<Wallet className="w-10 h-10" />} title="No finance entries yet" hint="Add income and expense entries for this project here." />
             </div>
           ) : (
             <>
@@ -1000,18 +1585,63 @@ export default function ProjectDetailPage() {
               <div className="hidden md:block overflow-x-auto bg-white border border-gray-200 rounded-xl">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b border-gray-200 bg-gray-50">
-                    {["Date", "Type", "Category", "Amount", "Description", "Account"].map(h => <th key={h} className="text-left py-3 px-3 text-xs text-gray-500 font-medium whitespace-nowrap">{h}</th>)}
+                    {["Date", "Type", "Category", "Amount", "Description", "Account", ""].map(h => <th key={h} className="text-left py-3 px-3 text-xs text-gray-500 font-medium whitespace-nowrap">{h}</th>)}
                   </tr></thead>
                   <tbody>
                     {(project.ledgerEntries || []).map((e: any) => (
-                      <tr key={e.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-                        <td className="py-3 px-3 text-gray-500 whitespace-nowrap">{new Date(e.date).toLocaleDateString()}</td>
-                        <td className="py-3 px-3"><span className={`text-xs px-2 py-0.5 rounded-full capitalize ${e.type === "income" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>{e.type}</span></td>
-                        <td className="py-3 px-3 text-gray-500 capitalize">{e.category}</td>
-                        <td className={`py-3 px-3 font-semibold whitespace-nowrap ${e.type === "income" ? "text-green-600" : "text-red-600"}`}>PKR {e.amount?.toLocaleString()}</td>
-                        <td className="py-3 px-3 text-gray-600 max-w-xs truncate">{e.description}</td>
-                        <td className="py-3 px-3 text-gray-500 whitespace-nowrap">{e.bankAccount?.name || "—"}</td>
-                      </tr>
+                      editingLedgerId === e.id ? (
+                        <tr key={e.id + "-edit"} className="border-b border-blue-100 bg-blue-50">
+                          <td colSpan={7} className="py-3 px-3">
+                            <form onSubmit={(ev) => updateLedgerEntry(ev, e.id)} className="grid grid-cols-4 gap-2">
+                              <input required type="date" value={editLedgerForm.date || ""} onChange={(ev) => setEditLedgerForm({ ...editLedgerForm, date: ev.target.value })} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                              <select value={editLedgerForm.type || "expense"} onChange={(ev) => setEditLedgerForm({ ...editLedgerForm, type: ev.target.value })} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                                <option value="income">Income</option>
+                                <option value="expense">Expense</option>
+                              </select>
+                              <input required type="number" min="0.01" step="0.01" value={editLedgerForm.amount || ""} onChange={(ev) => setEditLedgerForm({ ...editLedgerForm, amount: ev.target.value })} placeholder="Amount *" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                              <select required value={editLedgerForm.category || ""} onChange={(ev) => setEditLedgerForm({ ...editLedgerForm, category: ev.target.value })} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                                {LEDGER_CATEGORIES.map(c => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}
+                              </select>
+                              <input required value={editLedgerForm.description || ""} onChange={(ev) => setEditLedgerForm({ ...editLedgerForm, description: ev.target.value })} placeholder="Description *" className="col-span-2 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                              <select value={editLedgerForm.bankAccountId || ""} onChange={(ev) => setEditLedgerForm({ ...editLedgerForm, bankAccountId: ev.target.value || undefined })} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                                <option value="">No bank account</option>
+                                {(Array.isArray(bankAccounts) ? bankAccounts : []).map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                              </select>
+                              <input value={editLedgerForm.referenceNumber || ""} onChange={(ev) => setEditLedgerForm({ ...editLedgerForm, referenceNumber: ev.target.value })} placeholder="Reference #" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                              <div className="col-span-4 flex gap-2 mt-1">
+                                <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium">Save</button>
+                                <button type="button" onClick={() => { setEditingLedgerId(null); setEditLedgerForm({}); }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs">Cancel</button>
+                              </div>
+                            </form>
+                          </td>
+                        </tr>
+                      ) : (
+                        <tr key={e.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                          <td className="py-3 px-3 text-gray-500 whitespace-nowrap">{new Date(e.date).toLocaleDateString()}</td>
+                          <td className="py-3 px-3"><span className={`text-xs px-2 py-0.5 rounded-full capitalize ${e.type === "income" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>{e.type}</span></td>
+                          <td className="py-3 px-3 text-gray-500 capitalize">{e.category}</td>
+                          <td className={`py-3 px-3 font-semibold whitespace-nowrap ${e.type === "income" ? "text-green-600" : "text-red-600"}`}>PKR {e.amount?.toLocaleString()}</td>
+                          <td className="py-3 px-3 text-gray-600 max-w-xs truncate">{e.description}</td>
+                          <td className="py-3 px-3 text-gray-500 whitespace-nowrap">{e.bankAccount?.name || "—"}</td>
+                          <td className="py-3 px-3">
+                            {canManageFinance && (
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => startEditLedger(e)} className="p-1 text-blue-500 hover:bg-blue-50 rounded" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
+                                {canReverseFinance && (
+                                  deletingLedgerId === e.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <button onClick={() => deleteLedgerEntry(e.id)} className="text-xs px-2 py-0.5 bg-red-600 text-white rounded font-medium">Confirm</button>
+                                      <button onClick={() => setDeletingLedgerId(null)} className="text-xs px-1.5 py-0.5 border border-gray-300 rounded"><X className="w-3 h-3" /></button>
+                                    </div>
+                                  ) : (
+                                    <button onClick={() => setDeletingLedgerId(e.id)} className="p-1 text-red-400 hover:bg-red-50 rounded" title="Reverse entry"><Trash2 className="w-3.5 h-3.5" /></button>
+                                  )
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )
                     ))}
                   </tbody>
                 </table>
@@ -1031,6 +1661,25 @@ export default function ProjectDetailPage() {
                       <span className="text-gray-400">{new Date(e.date).toLocaleDateString()}</span>
                       {e.description && <><span className="text-gray-300">·</span><span className="text-gray-600 truncate">{e.description}</span></>}
                     </div>
+                    {canManageFinance && (
+                      <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+                        <button onClick={() => startEditLedger(e)} className="flex-1 py-1.5 text-xs border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50">
+                          <span className="flex items-center justify-center gap-1"><Pencil className="w-3.5 h-3.5" /> Edit</span>
+                        </button>
+                        {canReverseFinance && (
+                          deletingLedgerId === e.id ? (
+                            <div className="flex gap-1 flex-1">
+                              <button onClick={() => deleteLedgerEntry(e.id)} className="flex-1 py-1.5 text-xs bg-red-600 text-white rounded-lg font-medium">Confirm</button>
+                              <button onClick={() => setDeletingLedgerId(null)} className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg"><X className="w-3 h-3" /></button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setDeletingLedgerId(e.id)} className="flex-1 py-1.5 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
+                              <span className="flex items-center justify-center gap-1"><Trash2 className="w-3.5 h-3.5" /> Reverse</span>
+                            </button>
+                          )
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1053,10 +1702,160 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
+      {tab === "Billing" && (() => {
+        const invoiceSubtotal = invoiceItems.reduce((s, it) => s + (it.quantity || 0) * (it.unitPrice || 0), 0);
+        const invoiceTax = invoiceSubtotal * (parseFloat(String(invoiceForm.taxPercent || 0)) / 100);
+        const invoiceGrandTotal = invoiceSubtotal + invoiceTax;
+        const projectInvoices: any[] = project.invoices || [];
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-semibold text-gray-900">Invoices</h3>
+              {canManageFinance && (
+                <button onClick={() => { setShowInvoiceForm(!showInvoiceForm); setInvoiceError(""); }} className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg">
+                  {showInvoiceForm ? "Cancel" : "+ New Invoice"}
+                </button>
+              )}
+            </div>
+
+            {invoiceError && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{invoiceError}</div>}
+            {!project.clientId && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg text-sm">This project has no client set — set one on the Overview tab before creating invoices.</div>
+            )}
+
+            {showInvoiceForm && canManageFinance && (
+              <form onSubmit={createInvoice} className="bg-white border border-gray-200 rounded-xl p-4 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <select value={invoiceForm.status || "draft"} onChange={(e) => setInvoiceForm({ ...invoiceForm, status: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                    {["draft", "sent", "cancelled"].map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <div className="flex flex-col gap-1"><label className="text-xs text-gray-500">Issue Date</label><input type="date" value={invoiceForm.issueDate || ""} onChange={(e) => setInvoiceForm({ ...invoiceForm, issueDate: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" /></div>
+                  <div className="flex flex-col gap-1"><label className="text-xs text-gray-500">Due Date</label><input type="date" value={invoiceForm.dueDate || ""} onChange={(e) => setInvoiceForm({ ...invoiceForm, dueDate: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" /></div>
+                  <div className="flex flex-col gap-1"><label className="text-xs text-gray-500">Tax %</label><input type="number" step="0.1" min="0" max="100" value={invoiceForm.taxPercent || 0} onChange={(e) => setInvoiceForm({ ...invoiceForm, taxPercent: parseFloat(e.target.value || "0") })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" /></div>
+                  <div className="sm:col-span-2"><textarea value={invoiceForm.notes || ""} onChange={(e) => setInvoiceForm({ ...invoiceForm, notes: e.target.value })} placeholder="Notes (optional)" rows={1} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" /></div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-sm text-gray-700">Line Items</h4>
+                    <button type="button" onClick={addInvoiceItem} className="text-xs text-blue-600 hover:underline">+ Add Item</button>
+                  </div>
+                  {invoiceItems.map((it, idx) => (
+                    <div key={idx} className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-center">
+                      <input value={it.description} onChange={(e) => updateInvoiceItem(idx, "description", e.target.value)} placeholder="Description *" className="col-span-2 sm:col-span-5 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                      <input type="number" value={it.quantity} min="0" onChange={(e) => updateInvoiceItem(idx, "quantity", parseFloat(e.target.value) || 0)} placeholder="Qty" className="col-span-1 sm:col-span-2 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                      <input type="number" step="0.01" value={it.unitPrice} min="0" onChange={(e) => updateInvoiceItem(idx, "unitPrice", parseFloat(e.target.value) || 0)} placeholder="Unit Price" className="col-span-1 sm:col-span-3 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                      <span className="col-span-1 sm:col-span-1 text-sm font-medium text-gray-700 text-right whitespace-nowrap">PKR {(it.quantity * it.unitPrice).toLocaleString()}</span>
+                      {invoiceItems.length > 1 && <button type="button" onClick={() => removeInvoiceItem(idx)} className="col-span-1 sm:col-span-1 text-red-400 hover:text-red-600 text-center">✕</button>}
+                    </div>
+                  ))}
+                  <div className="border-t border-gray-200 pt-3 flex flex-col sm:flex-row sm:justify-end gap-2 sm:gap-6 text-sm">
+                    <span className="text-gray-500">Subtotal: <strong>PKR {invoiceSubtotal.toLocaleString()}</strong></span>
+                    <span className="text-gray-500">Tax ({invoiceForm.taxPercent || 0}%): <strong>PKR {invoiceTax.toLocaleString()}</strong></span>
+                    <span className="text-gray-900 font-bold">Grand Total: PKR {invoiceGrandTotal.toLocaleString()}</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Create Invoice</button>
+                  <button type="button" onClick={() => { setShowInvoiceForm(false); setInvoiceError(""); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
+                </div>
+              </form>
+            )}
+
+            {projectInvoices.length === 0 ? (
+              <div className="bg-white border border-gray-200 rounded-xl">
+                <EmptyState icon={<Wallet className="w-10 h-10" />} title="No invoices yet" hint="Invoices billed to this project's client will appear here." />
+              </div>
+            ) : (
+              <>
+                {/* Desktop table */}
+                <div className="hidden md:block overflow-x-auto bg-white border border-gray-200 rounded-xl">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b border-gray-200 bg-gray-50">
+                      {["Invoice #", "Issue Date", "Due Date", "Amount", "Status", "Actions"].map((h) => <th key={h} className="text-left py-3 px-3 text-xs text-gray-500 font-medium whitespace-nowrap">{h}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {projectInvoices.map((inv: any) => (
+                        <tr key={inv.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                          <td className="py-3 px-3 font-mono text-xs text-gray-700">{inv.invoiceNumber}</td>
+                          <td className="py-3 px-3 text-gray-500 whitespace-nowrap">{inv.issueDate ? new Date(inv.issueDate).toLocaleDateString() : "—"}</td>
+                          <td className={`py-3 px-3 whitespace-nowrap ${inv.dueDate && new Date(inv.dueDate) < new Date() && inv.status !== "paid" ? "text-red-500 font-medium" : "text-gray-500"}`}>{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "—"}</td>
+                          <td className="py-3 px-3 font-bold text-gray-900 whitespace-nowrap">PKR {(inv.grandTotal || 0).toLocaleString()}</td>
+                          <td className="py-3 px-3"><span className={`text-xs px-2 py-0.5 rounded-full capitalize ${INVOICE_STATUS_COLORS[inv.status] || "bg-gray-100 text-gray-600"}`}>{inv.status}</span></td>
+                          <td className="py-3 px-3">
+                            <div className="flex gap-2 flex-wrap">
+                              <a href={`/api/invoices/${inv.id}/pdf`} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">PDF</a>
+                              {canManageFinance && inv.status === "draft" && <button onClick={() => markInvoiceSent(inv.id)} className="text-xs text-blue-600 hover:underline">Mark Sent</button>}
+                              {canManageFinance && ["sent", "overdue"].includes(inv.status) && <button onClick={() => { setPaidInvoiceModal(inv); setPaidInvoiceBankId(""); }} className="text-xs text-green-600 hover:underline font-medium">Mark Paid</button>}
+                              {canManageFinance && ["draft", "sent"].includes(inv.status) && <button onClick={() => cancelInvoice(inv.id)} className="text-xs text-red-500 hover:underline">Cancel</button>}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Mobile cards */}
+                <div className="md:hidden space-y-3">
+                  {projectInvoices.map((inv: any) => (
+                    <div key={inv.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-mono text-xs text-gray-700">{inv.invoiceNumber}</p>
+                          <p className="font-bold text-gray-900">PKR {(inv.grandTotal || 0).toLocaleString()}</p>
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full capitalize shrink-0 ${INVOICE_STATUS_COLORS[inv.status] || "bg-gray-100 text-gray-600"}`}>{inv.status}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-3 text-xs">
+                        <div><span className="text-gray-400">Issued: </span><span className="text-gray-700 whitespace-nowrap">{inv.issueDate ? new Date(inv.issueDate).toLocaleDateString() : "—"}</span></div>
+                        <div><span className="text-gray-400">Due: </span><span className={`whitespace-nowrap ${inv.dueDate && new Date(inv.dueDate) < new Date() && inv.status !== "paid" ? "text-red-500 font-medium" : "text-gray-700"}`}>{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "—"}</span></div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-gray-100 flex gap-3 flex-wrap">
+                        <a href={`/api/invoices/${inv.id}/pdf`} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">PDF</a>
+                        {canManageFinance && inv.status === "draft" && <button onClick={() => markInvoiceSent(inv.id)} className="text-xs text-blue-600 hover:underline">Mark Sent</button>}
+                        {canManageFinance && ["sent", "overdue"].includes(inv.status) && <button onClick={() => { setPaidInvoiceModal(inv); setPaidInvoiceBankId(""); }} className="text-xs text-green-600 hover:underline font-medium">Mark Paid</button>}
+                        {canManageFinance && ["draft", "sent"].includes(inv.status) && <button onClick={() => cancelInvoice(inv.id)} className="text-xs text-red-500 hover:underline">Cancel</button>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {paidInvoiceModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+                  <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+                    <div>
+                      <h2 className="font-semibold text-gray-900">Mark Invoice Paid</h2>
+                      <p className="text-xs text-gray-500 mt-0.5">{paidInvoiceModal.invoiceNumber} · PKR {(paidInvoiceModal.grandTotal || 0).toLocaleString()}</p>
+                    </div>
+                    <button onClick={() => setPaidInvoiceModal(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Received Into Bank Account</label>
+                      <select value={paidInvoiceBankId} onChange={(e) => setPaidInvoiceBankId(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                        <option value="">Not specified</option>
+                        {(Array.isArray(bankAccounts) ? bankAccounts : []).map((b: any) => <option key={b.id} value={b.id}>{b.name} — PKR {(b.balance || 0).toLocaleString()}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={confirmInvoicePaid} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">Confirm Payment</button>
+                      <button onClick={() => setPaidInvoiceModal(null)} className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors">Cancel</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {tab === "Team" && (() => {
         const activeTeam = (project.employees || []).filter((pe: any) => !pe.endDate);
         const assignedIds = new Set(activeTeam.map((pe: any) => pe.employee?.id || pe.employeeId));
-        const assignableEmployees = (Array.isArray(employeesList) ? employeesList : [])
+        const empData: any[] = employeesList?.data ? employeesList.data : (Array.isArray(employeesList) ? employeesList : []);
+        const assignableEmployees = empData
           .filter((e: any) => e.isActive && !assignedIds.has(e.id));
         return (
           <div className="space-y-4">

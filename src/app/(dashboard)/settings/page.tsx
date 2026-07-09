@@ -135,7 +135,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden divide-y divide-gray-100">
+      <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden divide-y divide-gray-100">
         {/* Company Profile Section */}
         <div className="p-6 space-y-4">
           <h2 className="text-base font-bold text-gray-900">Company Profile</h2>
@@ -204,7 +204,7 @@ export default function SettingsPage() {
                 max="100"
                 disabled={!isAdmin}
                 value={form.taxPercent ?? 16}
-                onChange={e => setForm({ ...form, taxPercent: e.target.value })}
+                onChange={e => setForm({ ...form, taxPercent: parseFloat(e.target.value) || 0 })}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
               />
             </div>
@@ -217,7 +217,7 @@ export default function SettingsPage() {
                 max="100"
                 disabled={!isAdmin}
                 value={form.retentionPercent ?? 10}
-                onChange={e => setForm({ ...form, retentionPercent: e.target.value })}
+                onChange={e => setForm({ ...form, retentionPercent: parseFloat(e.target.value) || 0 })}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
               />
             </div>
@@ -230,7 +230,7 @@ export default function SettingsPage() {
                 max="100"
                 disabled={!isAdmin}
                 value={form.whtPercent ?? 7.5}
-                onChange={e => setForm({ ...form, whtPercent: e.target.value })}
+                onChange={e => setForm({ ...form, whtPercent: parseFloat(e.target.value) || 0 })}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
               />
             </div>
@@ -262,7 +262,7 @@ export default function SettingsPage() {
         )}
       </form>
 
-      <form onSubmit={handlePasswordChange} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden divide-y divide-gray-100">
+      <form onSubmit={handlePasswordChange} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden divide-y divide-gray-100">
         {/* Security Settings Section */}
         <div className="p-6 space-y-4">
           <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">

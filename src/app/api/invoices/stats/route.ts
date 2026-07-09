@@ -10,6 +10,7 @@ export async function GET() {
     await requireAuth();
     await connectDB();
     const agg = await Invoice.aggregate([
+      { $match: { deletedAt: null } },
       { $group: { _id: "$status", total: { $sum: "$grandTotal" }, count: { $sum: 1 } } },
     ]);
     const byStatus: Record<string, { total: number; count: number }> = {};

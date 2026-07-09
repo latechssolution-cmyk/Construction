@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, ApiError } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import BankAccount from "@/models/BankAccount";
@@ -43,9 +43,10 @@ export async function POST(req: NextRequest) {
     const session = await requireAuth();
     requireRole(session, "admin", "ceo");
     const data = await req.json();
-    if (!data.name) throw new Error("Account name is required");
+    if (!data.name?.trim()) throw new Error("Account name is required");
     await connectDB();
     const initialBalance = parseFloat(data.balance || "0");
+    if (isNaN(initialBalance) || initialBalance < 0) throw new ApiError(400, "Opening balance cannot be negative");
     const dbSession = await mongoose.startSession();
     let account: any;
     try {

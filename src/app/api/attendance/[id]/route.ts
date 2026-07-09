@@ -13,7 +13,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await connectDB();
     const existing = await Attendance.findById(id);
     if (!existing) throw new ApiError(404, "Attendance record not found");
-    if (data.status !== undefined) existing.status = data.status;
+    const VALID_STATUSES = ["present", "absent", "half_day"];
+    if (data.status !== undefined) {
+      if (!VALID_STATUSES.includes(data.status)) throw new ApiError(400, `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}`);
+      existing.status = data.status;
+    }
     if (data.hoursWorked !== undefined) {
       const val = Math.max(0, Number(data.hoursWorked) || 0);
       if (val > 24) throw new ApiError(400, "Hours worked cannot exceed 24 hours in a single day.");

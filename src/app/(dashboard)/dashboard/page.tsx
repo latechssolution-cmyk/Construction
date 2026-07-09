@@ -2,11 +2,16 @@
 import useSWR from "swr";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Calendar, BarChart2, Landmark, Flag } from "lucide-react";
+import {
+  CheckCircle2, Calendar, BarChart2, Landmark,
+  FolderOpen, FolderKanban, Receipt, Users2, TrendingUp, TrendingDown,
+  Wallet, ClipboardList, Boxes, Sparkles,
+} from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   PieChart, Pie, Cell, AreaChart, Area,
 } from "recharts";
+import { StatCard } from "@/components/ui/stat-card";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -23,23 +28,6 @@ const compact = (n: number) => {
   return `${Math.round(n || 0)}`;
 };
 
-function StatCard({ label, value, sub, color = "blue", urgent = false }: { label: string; value: string | number; sub?: string; color?: string; urgent?: boolean }) {
-  const colors: Record<string, string> = {
-    blue: "bg-blue-50 border-blue-200 text-blue-800",
-    green: "bg-green-50 border-green-200 text-green-800",
-    red: "bg-red-50 border-red-200 text-red-800",
-    purple: "bg-purple-50 border-purple-200 text-purple-800",
-    orange: "bg-orange-50 border-orange-200 text-orange-800",
-  };
-  return (
-    <div className={`border rounded-xl p-5 ${colors[color] || colors.blue} ${urgent ? "ring-2 ring-red-400" : ""}`}>
-      <p className="text-xs font-medium opacity-70 uppercase tracking-wide">{label}</p>
-      <p className="text-3xl font-bold mt-1">{value}</p>
-      {sub && <p className="text-xs opacity-60 mt-1">{sub}</p>}
-    </div>
-  );
-}
-
 function ProgressBar({ pct, color = "bg-blue-500" }: { pct: number; color?: string }) {
   return (
     <div className="w-full bg-gray-100 rounded-full h-1.5">
@@ -50,7 +38,7 @@ function ProgressBar({ pct, color = "bg-blue-500" }: { pct: number; color?: stri
 
 function ChartCard({ title, children, className = "" }: { title: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white border border-gray-200 rounded-xl p-5 ${className}`}>
+    <div className={`bg-white border border-gray-200 rounded-xl shadow-sm p-5 ${className}`}>
       <h2 className="font-semibold mb-4 text-gray-900">{title}</h2>
       {children}
     </div>
@@ -73,16 +61,16 @@ function AdminDashboard({ data }: { data: any }) {
     <div className="space-y-6">
       {/* KPI Row */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-        <StatCard label="Total Projects" value={data?.totalProjects || 0} color="blue" />
-        <StatCard label="Active Projects" value={data?.activeProjects || 0} color="green" />
-        <StatCard label="Overdue Tasks" value={data?.overdueTasks || 0} color={data?.overdueTasks > 0 ? "red" : "green"} urgent={data?.overdueTasks > 0} sub={data?.overdueTasks > 0 ? "Need attention" : undefined} />
-        <StatCard label="Unpaid Invoices" value={data?.overdueInvoices || 0} color={data?.overdueInvoices > 0 ? "orange" : "green"} urgent={data?.overdueInvoices > 0} sub={data?.overdueInvoices > 0 ? "Overdue" : undefined} />
-        <StatCard label="Employees" value={data?.totalEmployees || 0} color="purple" />
+        <StatCard label="Total Projects" value={data?.totalProjects || 0} tone="blue" icon={<FolderOpen className="w-4 h-4" />} />
+        <StatCard label="Active Projects" value={data?.activeProjects || 0} tone="green" icon={<FolderKanban className="w-4 h-4" />} />
+        <StatCard label="Overdue Tasks" value={data?.overdueTasks || 0} tone={data?.overdueTasks > 0 ? "red" : "green"} urgent={data?.overdueTasks > 0} sub={data?.overdueTasks > 0 ? "Need attention" : undefined} icon={<ClipboardList className="w-4 h-4" />} />
+        <StatCard label="Unpaid Invoices" value={data?.overdueInvoices || 0} tone={data?.overdueInvoices > 0 ? "orange" : "green"} urgent={data?.overdueInvoices > 0} sub={data?.overdueInvoices > 0 ? "Overdue" : undefined} icon={<Receipt className="w-4 h-4" />} />
+        <StatCard label="Employees" value={data?.totalEmployees || 0} tone="purple" icon={<Users2 className="w-4 h-4" />} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard label="Total Income" value={pkr(data?.totalIncome || 0)} color="green" />
-        <StatCard label="Total Expense" value={pkr(data?.totalExpense || 0)} color="red" />
-        <StatCard label="Net Profit" value={pkr((data?.totalIncome || 0) - (data?.totalExpense || 0))} color={(data?.totalIncome || 0) >= (data?.totalExpense || 0) ? "blue" : "orange"} />
+        <StatCard label="Total Income" value={pkr(data?.totalIncome || 0)} tone="green" icon={<TrendingUp className="w-4 h-4" />} />
+        <StatCard label="Total Expense" value={pkr(data?.totalExpense || 0)} tone="red" icon={<TrendingDown className="w-4 h-4" />} />
+        <StatCard label="Net Profit" value={pkr((data?.totalIncome || 0) - (data?.totalExpense || 0))} tone={(data?.totalIncome || 0) >= (data?.totalExpense || 0) ? "blue" : "orange"} icon={<Wallet className="w-4 h-4" />} />
       </div>
 
       {/* Charts */}
@@ -123,7 +111,7 @@ function AdminDashboard({ data }: { data: any }) {
 
       {/* Portfolio Health */}
       {portfolio.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-900">Portfolio Health</h2>
             <Link href="/projects" className="text-xs text-blue-600 hover:underline">View all</Link>
@@ -160,7 +148,7 @@ function AdminDashboard({ data }: { data: any }) {
       )}
 
       {/* Recent Activity */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5">
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
         <h2 className="font-semibold mb-4 text-gray-900">Recent Activity</h2>
         <div className="space-y-2">
           {recentActivity.slice(0, 8).map((a: any, i: number) => (
@@ -193,10 +181,10 @@ function ManagerDashboard({ data }: { data: any }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="My Projects" value={data?.myProjectsCount || 0} color="blue" />
-        <StatCard label="Active Projects" value={data?.activeProjectsCount || 0} color="green" />
-        <StatCard label="Tasks Due in 7 Days" value={dueSoon.length} color={dueSoon.length > 0 ? "orange" : "green"} sub={dueSoon.length > 0 ? "Action needed" : undefined} urgent={dueSoon.length > 0} />
-        <StatCard label="Low Stock Alerts" value={lowStock.length} color={lowStock.length > 0 ? "red" : "green"} sub={lowStock.length > 0 ? "Reorder required" : undefined} urgent={lowStock.length > 0} />
+        <StatCard label="My Projects" value={data?.myProjectsCount || 0} tone="blue" icon={<FolderOpen className="w-4 h-4" />} />
+        <StatCard label="Active Projects" value={data?.activeProjectsCount || 0} tone="green" icon={<FolderKanban className="w-4 h-4" />} />
+        <StatCard label="Tasks Due in 7 Days" value={dueSoon.length} tone={dueSoon.length > 0 ? "orange" : "green"} sub={dueSoon.length > 0 ? "Action needed" : undefined} urgent={dueSoon.length > 0} icon={<ClipboardList className="w-4 h-4" />} />
+        <StatCard label="Low Stock Alerts" value={lowStock.length} tone={lowStock.length > 0 ? "red" : "green"} sub={lowStock.length > 0 ? "Reorder required" : undefined} urgent={lowStock.length > 0} icon={<Boxes className="w-4 h-4" />} />
       </div>
 
       {/* Project progress chart — real data */}
@@ -281,10 +269,10 @@ function AccountantDashboard({ data }: { data: any }) {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Month Income" value={pkr(data?.monthIncome || 0)} color="green" />
-        <StatCard label="Month Expense" value={pkr(data?.monthExpense || 0)} color="red" />
-        <StatCard label="Total Income" value={pkr(data?.totalIncome || 0)} color="green" />
-        <StatCard label="Total Expense" value={pkr(data?.totalExpense || 0)} color="red" />
+        <StatCard label="Month Income" value={pkr(data?.monthIncome || 0)} tone="green" icon={<TrendingUp className="w-4 h-4" />} />
+        <StatCard label="Month Expense" value={pkr(data?.monthExpense || 0)} tone="red" icon={<TrendingDown className="w-4 h-4" />} />
+        <StatCard label="Total Income" value={pkr(data?.totalIncome || 0)} tone="green" icon={<TrendingUp className="w-4 h-4" />} />
+        <StatCard label="Total Expense" value={pkr(data?.totalExpense || 0)} tone="red" icon={<TrendingDown className="w-4 h-4" />} />
       </div>
 
       <ChartCard title="Monthly Cash Flow (This Year)">
@@ -304,7 +292,7 @@ function AccountantDashboard({ data }: { data: any }) {
       </ChartCard>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
           <div className="flex items-center justify-between mb-4"><h2 className="font-semibold">Bank Accounts</h2><Link href="/finance/accounts" className="text-xs text-blue-600 hover:underline">View all</Link></div>
           <div className="space-y-3">
             {bankAccounts.map((b: any) => (
@@ -316,7 +304,7 @@ function AccountantDashboard({ data }: { data: any }) {
             {bankAccounts.length === 0 && <div className="text-center py-6"><Landmark className="w-6 h-6 text-gray-300 mx-auto mb-1" /><p className="text-sm text-gray-400">No bank accounts yet. <Link href="/finance/accounts" className="text-blue-600 hover:underline">Add one</Link></p></div>}
           </div>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
           <div className="flex items-center justify-between mb-4"><h2 className="font-semibold text-orange-700">Pending Invoices</h2><Link href="/billing" className="text-xs text-blue-600 hover:underline">View all</Link></div>
           <div className="space-y-2">
             {pendingInvoices.map((inv: any) => (
@@ -342,21 +330,21 @@ export default function DashboardPage() {
 
   if (isLoading) return (
     <div className="p-6 flex items-center justify-center h-64">
-      <div className="text-center"><div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div><p className="text-gray-500 text-sm">Loading your dashboard…</p></div>
+      <div className="text-center"><div className="w-10 h-10 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div><p className="text-gray-500 text-sm">Loading your dashboard…</p></div>
     </div>
   );
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Welcome back, {session?.user?.name?.split(" ")[0] || "User"}</h1>
           <p className="text-sm text-gray-500 capitalize">{role} Dashboard · {new Date().toLocaleDateString("en-PK", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
         </div>
-        <div className="flex gap-2">
-          <Link href="/projects" className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Projects</Link>
-          <Link href="/tasks" className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Tasks</Link>
-          {["admin", "ceo", "manager"].includes(role) && <Link href="/ai-assistant" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">🤖 AI Assistant</Link>}
+        <div className="flex gap-2 shrink-0">
+          <Link href="/projects" className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"><FolderOpen className="w-3.5 h-3.5" />Projects</Link>
+          <Link href="/tasks" className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"><ClipboardList className="w-3.5 h-3.5" />Tasks</Link>
+          {["admin", "ceo", "manager"].includes(role) && <Link href="/ai-assistant" className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"><Sparkles className="w-3.5 h-3.5" />AI Assistant</Link>}
         </div>
       </div>
 

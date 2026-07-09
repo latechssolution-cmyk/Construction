@@ -5,10 +5,11 @@ import { useSession } from "next-auth/react";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { Users } from "lucide-react";
+import { Users, Lock } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { getRoleBadgeColor } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
-const ROLE_COLORS: Record<string,string> = { admin:"bg-red-100 text-red-700", ceo:"bg-purple-100 text-purple-700", manager:"bg-blue-100 text-blue-700", accountant:"bg-green-100 text-green-700" };
 
 export default function UsersPage() {
   const { data: session } = useSession();
@@ -21,7 +22,12 @@ export default function UsersPage() {
   const [newPassword, setNewPassword] = useState("");
 
   if (!["admin"].includes(session?.user?.role||"")) {
-    return <div className="p-6 text-center text-gray-500"><p>Access restricted to administrators.</p></div>;
+    return (
+      <div className="p-6 text-center text-gray-500">
+        <Lock className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+        <p className="font-medium text-gray-700">Access restricted to administrators.</p>
+      </div>
+    );
   }
 
   const canCreate = session?.user?.role === "admin";
@@ -64,10 +70,10 @@ export default function UsersPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-        {canCreate && <button onClick={()=>setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0">+ Add User</button>}
-      </div>
+      <PageHeader
+        title="User Management"
+        actions={canCreate && <button onClick={()=>setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0 shadow-sm">+ Add User</button>}
+      />
 
       {showForm && canCreate && (
         <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 space-y-4 shadow-sm">
@@ -115,11 +121,11 @@ export default function UsersPage() {
                 <td className="py-3 px-4 text-gray-500">{u.email}</td>
                 <td className="py-3 px-4">
                   {session?.user?.role==="admin" ? (
-                    <select value={u.role} onChange={e=>handleRoleChange(u.id,e.target.value)} className={`text-xs px-2 py-0.5 rounded-full border-0 cursor-pointer ${ROLE_COLORS[u.role]||"bg-gray-100"}`}>
+                    <select value={u.role} onChange={e=>handleRoleChange(u.id,e.target.value)} className={`text-xs px-2 py-0.5 rounded-full border-0 cursor-pointer ${getRoleBadgeColor(u.role)}`}>
                       {["admin","ceo","manager","accountant"].map(r=><option key={r} value={r}>{r}</option>)}
                     </select>
                   ) : (
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${ROLE_COLORS[u.role]||"bg-gray-100"}`}>{u.role}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${getRoleBadgeColor(u.role)}`}>{u.role}</span>
                   )}
                 </td>
                 <td className="py-3 px-4">
@@ -168,11 +174,11 @@ export default function UsersPage() {
               <div className="flex items-center gap-1">
                 <span className="text-gray-400">Role: </span>
                 {session?.user?.role==="admin" ? (
-                  <select value={u.role} onChange={e=>handleRoleChange(u.id,e.target.value)} className={`text-xs px-2 py-0.5 rounded-full border-0 cursor-pointer ${ROLE_COLORS[u.role]||"bg-gray-100"}`}>
+                  <select value={u.role} onChange={e=>handleRoleChange(u.id,e.target.value)} className={`text-xs px-2 py-0.5 rounded-full border-0 cursor-pointer ${getRoleBadgeColor(u.role)}`}>
                     {["admin","ceo","manager","accountant"].map(r=><option key={r} value={r}>{r}</option>)}
                   </select>
                 ) : (
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${ROLE_COLORS[u.role]||"bg-gray-100"}`}>{u.role}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${getRoleBadgeColor(u.role)}`}>{u.role}</span>
                 )}
               </div>
               <div><span className="text-gray-400">Joined: </span><span className="text-gray-700 whitespace-nowrap">{u.createdAt?new Date(u.createdAt).toLocaleDateString():"—"}</span></div>

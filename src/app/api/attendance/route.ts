@@ -40,10 +40,12 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     if (Array.isArray(data)) {
+      const VALID_STATUSES_BULK = ["present", "absent", "half_day"];
       // Validation pass
       for (const item of data) {
-        if (!item.employeeId || !item.date) continue;
+        if (!item.employeeId || !item.date) throw new ApiError(400, "Each attendance record must include employeeId and date");
         const status = item.status || "present";
+        if (!VALID_STATUSES_BULK.includes(status)) throw new ApiError(400, `Invalid status "${status}". Must be one of: ${VALID_STATUSES_BULK.join(", ")}`);
         const hoursWorked = item.hoursWorked !== undefined && item.hoursWorked !== ""
           ? Math.max(0, Number(item.hoursWorked) || 0)
           : defaultHours(status);
@@ -59,7 +61,7 @@ export async function POST(req: NextRequest) {
       try {
         await dbSession.withTransaction(async () => {
           for (const item of data) {
-            if (!item.employeeId || !item.date) continue;
+            if (!item.employeeId || !item.date) continue; // already validated above
             const status = item.status || "present";
             const hoursWorked = item.hoursWorked !== undefined && item.hoursWorked !== ""
               ? Math.max(0, Number(item.hoursWorked) || 0)

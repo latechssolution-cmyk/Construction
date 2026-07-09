@@ -3,7 +3,9 @@ import useSWR from "swr";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { StatsSkeleton, TableSkeleton } from "@/components/ui/skeleton";
-import { Lock } from "lucide-react";
+import { Lock, TrendingUp, TrendingDown, Scale } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -12,7 +14,8 @@ export default function ProfitSheetsPage() {
   const year = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(year);
   const { data: summary, isLoading } = useSWR(`/api/ledger/summary?year=${selectedYear}`, fetcher);
-  const { data: projects } = useSWR("/api/projects", fetcher);
+  const { data: projectsRaw } = useSWR("/api/projects", fetcher);
+  const projects: any[] = projectsRaw?.data ? projectsRaw.data : (Array.isArray(projectsRaw) ? projectsRaw : []);
 
   if (session && !["admin","ceo","accountant"].includes(session.user?.role || "")) {
     return (
@@ -34,28 +37,26 @@ export default function ProfitSheetsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">Profit & Loss Statement</h1>
-        <select value={selectedYear} onChange={e=>setSelectedYear(parseInt(e.target.value))} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full sm:w-auto shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
-          {[year-1,year,year+1].map(y=><option key={y} value={y}>{y}</option>)}
-        </select>
-      </div>
+      <PageHeader
+        title="Profit & Loss Statement"
+        actions={
+          <select value={selectedYear} onChange={e=>setSelectedYear(parseInt(e.target.value))} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full sm:w-auto shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+            {[year-1,year,year+1].map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+        }
+      />
 
       {isLoading ? <StatsSkeleton count={3} /> : (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-5">
-          <p className="text-sm text-green-700 font-medium">Total Revenue</p>
-          <p className="text-3xl font-bold text-green-800 mt-1">PKR {(totals.totalIncome||0).toLocaleString()}</p>
-        </div>
-        <div className="bg-red-50 border border-red-200 rounded-xl p-5">
-          <p className="text-sm text-red-700 font-medium">Total Expenses</p>
-          <p className="text-3xl font-bold text-red-800 mt-1">PKR {(totals.totalExpense||0).toLocaleString()}</p>
-        </div>
-        <div className={`border rounded-xl p-5 ${(totals.net||0)>=0?"bg-blue-50 border-blue-200":"bg-orange-50 border-orange-200"}`}>
-          <p className="text-sm font-medium text-gray-600">Net Profit / Loss</p>
-          <p className={`text-3xl font-bold mt-1 ${(totals.net||0)>=0?"text-blue-800":"text-orange-700"}`}>PKR {(totals.net||0).toLocaleString()}</p>
-          {totals.totalIncome>0 && <p className="text-xs text-gray-500 mt-1">Margin: {((totals.net/totals.totalIncome)*100).toFixed(1)}%</p>}
-        </div>
+        <StatCard label="Total Revenue" value={`PKR ${(totals.totalIncome||0).toLocaleString()}`} tone="green" icon={<TrendingUp className="w-4 h-4" />} />
+        <StatCard label="Total Expenses" value={`PKR ${(totals.totalExpense||0).toLocaleString()}`} tone="red" icon={<TrendingDown className="w-4 h-4" />} />
+        <StatCard
+          label="Net Profit / Loss"
+          value={`PKR ${(totals.net||0).toLocaleString()}`}
+          tone={(totals.net||0)>=0?"blue":"orange"}
+          icon={<Scale className="w-4 h-4" />}
+          sub={totals.totalIncome>0 ? `Margin: ${((totals.net/totals.totalIncome)*100).toFixed(1)}%` : undefined}
+        />
       </div>
       )}
 
@@ -138,7 +139,7 @@ export default function ProfitSheetsPage() {
         </div>
       </div>
 
-      {Array.isArray(projects) && projects.length>0 && (
+      {projects.length>0 && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 bg-gray-50"><h2 className="font-semibold">Project Overview</h2></div>
           <div className="overflow-x-auto">

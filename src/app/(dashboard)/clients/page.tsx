@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { CardGridSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Mail, Phone, MapPin, User, Pencil, Trash2, X } from "lucide-react";
+import { Building2, Mail, Phone, MapPin, User, Pencil, Trash2, X, Search } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -128,19 +128,22 @@ export default function ClientsPage() {
         {canManage && (
           <button
             onClick={() => { setShowForm(!showForm); setEditingClient(null); }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0 shadow-sm"
           >
             {showForm ? "Cancel" : "+ New Client"}
           </button>
         )}
       </div>
 
-      <input
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        placeholder="Search clients..."
-        className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full sm:w-80 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-      />
+      <div className="relative w-full sm:w-80">
+        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search clients..."
+          className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+        />
+      </div>
 
       {/* New Client Form */}
       {showForm && (
@@ -278,7 +281,7 @@ export default function ClientsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
           {filtered.map((client: any) => (
-            <div key={client.id} className={`bg-white border rounded-xl p-5 space-y-3 flex flex-col justify-between hover:shadow-md transition-shadow ${client.isActive === false ? "opacity-60 border-gray-100 bg-gray-50/50" : "border-gray-200"}`}>
+            <div key={client.id} className={`bg-white border rounded-xl p-5 shadow-sm space-y-3 flex flex-col justify-between hover:shadow-md hover:border-blue-200 transition-all ${client.isActive === false ? "opacity-60 border-gray-100 bg-gray-50/50" : "border-gray-200"}`}>
               <div className="space-y-2">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">

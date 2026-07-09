@@ -8,7 +8,8 @@ import mongoose from "mongoose";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    requireRole(session, "admin", "ceo", "accountant");
     const { id } = await params;
     await connectDB();
     const entry = await LedgerEntry.findById(id)
@@ -75,8 +76,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
           // If original was income, we subtract it. If original was expense, we add it back.
           const delta = entry.type === "income" ? -entry.amount : entry.amount;
           
-          if (entry.type === "expense" && bank.balance + delta < 0) {
-            // Reversing an income could drop bank account below 0, check this limit
+          if (entry.type === "income" && bank.balance + delta < 0) {
+            // Reversing an income subtracts from the balance — guard against overdraft
             throw new Error(`Cannot reverse payment: bank balance would drop below zero.`);
           }
           bank.balance += delta;

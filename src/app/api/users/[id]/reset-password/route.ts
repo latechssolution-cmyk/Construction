@@ -32,6 +32,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!data.newPassword || data.newPassword.length < 8) {
       throw new ApiError(400, "New password must be at least 8 characters");
     }
+    if (!/[A-Z]/.test(data.newPassword)) {
+      throw new ApiError(400, "New password must contain at least one uppercase letter");
+    }
+    if (!/[0-9]/.test(data.newPassword)) {
+      throw new ApiError(400, "New password must contain at least one number");
+    }
 
     const passwordHash = await bcrypt.hash(data.newPassword, 12);
     // Issue #89: Set passwordChangedAt to invalidate any JWTs issued before this point

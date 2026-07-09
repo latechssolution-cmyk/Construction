@@ -27,13 +27,13 @@ export function BillingClient({ bills, projects, clients, role }: any) {
   const [viewBill, setViewBill] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { description: "", quantity: "1", unit: "lump sum", unitPrice: "0" },
+    { description: "", quantity: "1", unit: "lump sum", unitPrice: "" },
   ]);
-  const [formData, setFormData] = useState({ clientId: "", projectId: "", paymentTerms: "30 days", notes: "", taxRate: "0", retentionPercent: "0", whtDeducted: "0", dueDate: "" });
+  const [formData, setFormData] = useState({ clientId: "", projectId: "", paymentTerms: "30 days", notes: "", taxRate: "", retentionPercent: "", whtDeducted: "", dueDate: "" });
   const { toast } = useToast();
   const router = useRouter();
 
-  const addLine = () => setLineItems([...lineItems, { description: "", quantity: "1", unit: "pcs", unitPrice: "0" }]);
+  const addLine = () => setLineItems([...lineItems, { description: "", quantity: "1", unit: "pcs", unitPrice: "" }]);
   const removeLine = (i: number) => setLineItems(lineItems.filter((_, idx) => idx !== i));
   const updateLine = (i: number, field: keyof LineItem, val: string) => {
     setLineItems(lineItems.map((item, idx) => idx === i ? { ...item, [field]: val } : item));
@@ -48,6 +48,14 @@ export function BillingClient({ bills, projects, clients, role }: any) {
 
   const onSubmit = async () => {
     if (!formData.clientId) { toast({ title: "Select a client", variant: "destructive" }); return; }
+    const tax = parseFloat(formData.taxRate || "0");
+    const ret = parseFloat(formData.retentionPercent || "0");
+    const wht = parseFloat(formData.whtDeducted || "0");
+    if (tax < 0 || tax > 100) { toast({ title: "Tax rate must be between 0 and 100%", variant: "destructive" }); return; }
+    if (ret < 0 || ret > 100) { toast({ title: "Retention rate must be between 0 and 100%", variant: "destructive" }); return; }
+    if (wht < 0) { toast({ title: "WHT deducted cannot be negative", variant: "destructive" }); return; }
+    const hasInvalidItem = lineItems.some(i => parseFloat(i.unitPrice) < 0 || parseFloat(i.quantity) <= 0);
+    if (hasInvalidItem) { toast({ title: "Line items must have positive quantity and non-negative unit price", variant: "destructive" }); return; }
     setLoading(true);
     try {
       const res = await fetch("/api/invoices", {
@@ -114,15 +122,15 @@ export function BillingClient({ bills, projects, clients, role }: any) {
                   </div>
                   <div className="space-y-1">
                     <Label>Tax Rate (%)</Label>
-                    <Input type="number" value={formData.taxRate} onChange={e => setFormData(f => ({ ...f, taxRate: e.target.value }))} />
+                    <Input type="number" min="0" max="100" step="0.01" placeholder="0" value={formData.taxRate} onChange={e => setFormData(f => ({ ...f, taxRate: e.target.value }))} />
                   </div>
                   <div className="space-y-1">
                     <Label>Retention Rate (%)</Label>
-                    <Input type="number" value={formData.retentionPercent} onChange={e => setFormData(f => ({ ...f, retentionPercent: e.target.value }))} />
+                    <Input type="number" min="0" max="100" step="0.01" placeholder="0" value={formData.retentionPercent} onChange={e => setFormData(f => ({ ...f, retentionPercent: e.target.value }))} />
                   </div>
                   <div className="space-y-1">
                     <Label>Withholding Tax Deducted (PKR)</Label>
-                    <Input type="number" value={formData.whtDeducted} onChange={e => setFormData(f => ({ ...f, whtDeducted: e.target.value }))} />
+                    <Input type="number" min="0" step="0.01" placeholder="0" value={formData.whtDeducted} onChange={e => setFormData(f => ({ ...f, whtDeducted: e.target.value }))} />
                   </div>
                 </div>
 
@@ -133,9 +141,9 @@ export function BillingClient({ bills, projects, clients, role }: any) {
                     {lineItems.map((item, i) => (
                       <div key={i} className="grid grid-cols-12 gap-2 items-center">
                         <Input className="col-span-4" placeholder="Description" value={item.description} onChange={e => updateLine(i, "description", e.target.value)} />
-                        <Input className="col-span-2" type="number" placeholder="Qty" value={item.quantity} onChange={e => updateLine(i, "quantity", e.target.value)} />
+                        <Input className="col-span-2" type="number" min="0.01" step="0.01" placeholder="Qty" value={item.quantity} onChange={e => updateLine(i, "quantity", e.target.value)} />
                         <Input className="col-span-2" placeholder="Unit" value={item.unit} onChange={e => updateLine(i, "unit", e.target.value)} />
-                        <Input className="col-span-2" type="number" placeholder="Unit Price" value={item.unitPrice} onChange={e => updateLine(i, "unitPrice", e.target.value)} />
+                        <Input className="col-span-2" type="number" min="0" step="0.01" placeholder="Unit Price" value={item.unitPrice} onChange={e => updateLine(i, "unitPrice", e.target.value)} />
                         <div className="col-span-1 text-right text-sm font-medium">
                           {formatCurrency((parseFloat(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0))}
                         </div>

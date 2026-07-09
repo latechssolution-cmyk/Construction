@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { Users, X } from "lucide-react";
+import { Users, X, Search } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -26,12 +26,16 @@ export default function EmployeesPage() {
   const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
   const canPaySalary = ["admin", "ceo", "accountant"].includes(session?.user?.role || "");
   const canDeactivate = session?.user?.role === "admin";
-  const filtered = (Array.isArray(employees) ? employees : []).filter((e: any) =>
+  const empList: any[] = employees?.data ? employees.data : (Array.isArray(employees) ? employees : []);
+  const filtered = empList.filter((e: any) =>
     e.name?.toLowerCase().includes(search.toLowerCase()) || e.role?.toLowerCase().includes(search.toLowerCase()) || e.department?.toLowerCase().includes(search.toLowerCase())
   );
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
+    if (form.salary !== undefined && form.salary !== "" && parseFloat(form.salary) < 0) {
+      toast({ title: "Error", description: "Salary cannot be negative", variant: "destructive" }); return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
@@ -86,13 +90,16 @@ export default function EmployeesPage() {
           <p className="text-sm text-gray-500">{filtered.length} employee{filtered.length !== 1 ? "s" : ""}</p>
         </div>
         {canManage && (
-          <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0">
+          <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0 shadow-sm">
             + Hire Employee
           </button>
         )}
       </div>
 
-      <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, role, department…" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full sm:w-80 focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+      <div className="relative w-full sm:w-80">
+        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, role, department…" className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+      </div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 space-y-4 shadow-sm">
@@ -104,7 +111,7 @@ export default function EmployeesPage() {
             <input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <input value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Email" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <input value={form.cnic || ""} onChange={(e) => setForm({ ...form, cnic: e.target.value })} placeholder="CNIC" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
-            <input type="number" value={form.salary || ""} onChange={(e) => setForm({ ...form, salary: e.target.value })} placeholder="Salary (PKR)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            <input type="number" min="0" step="0.01" value={form.salary || ""} onChange={(e) => setForm({ ...form, salary: e.target.value })} placeholder="Salary (PKR)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <select value={form.salaryType || "monthly"} onChange={(e) => setForm({ ...form, salaryType: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
               <option value="monthly">Monthly</option><option value="daily">Daily</option><option value="hourly">Hourly</option>
             </select>

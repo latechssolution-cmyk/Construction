@@ -122,9 +122,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.id = dbUser._id.toString();
           token.role = dbUser.role;
           token.roleCheckedAt = now;
+          token.blocked = false;
         } else {
+          // No provisioned/active DB user for this OAuth email. Deleting
+          // id/role alone isn't enough — the edge middleware's own jwt
+          // callback (middleware.ts) never sets this, it only reads
+          // token.blocked from the JWT payload this callback produces. Without
+          // setting it here, an unprovisioned Google sign-in slips past the
+          // middleware's `user?.blocked` gate and the page shell loads (API
+          // calls still fail via requireAuth(), but the intended "Account not
+          // provisioned" redirect never fires).
           delete token.id;
           delete token.role;
+          token.blocked = true;
         }
       }
 

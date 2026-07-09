@@ -130,6 +130,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }],
         { session: dbSession }
       );
+      const bankAcc = await BankAccount.findById(bankAccountId, null, { session: dbSession });
+      if (!bankAcc) throw new ApiError(404, "Bank account not found");
+      if (bankAcc.balance < amount) throw new ApiError(400, `Insufficient bank balance. Available: PKR ${bankAcc.balance.toLocaleString()}`);
       await BankAccount.findByIdAndUpdate(bankAccountId, { $inc: { balance: -amount } }, { session: dbSession });
       return createdEntry;
     });

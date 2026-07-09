@@ -45,7 +45,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (data.contractValue !== undefined) {
       const value = parseFloat(data.contractValue);
-      if (isNaN(value) || value < 0) throw new ApiError(400, "contractValue must be a positive number");
+      if (isNaN(value) || value <= 0) throw new ApiError(400, "contractValue must be a positive number");
       subcontract.contractValue = value;
     }
 

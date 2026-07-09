@@ -35,7 +35,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (data.name) user.name = data.name;
     if (data.image !== undefined) user.image = data.image;
     if (isAdmin) {
-      if (data.role) user.role = data.role;
+      if (data.role) {
+        const VALID_ROLES = ["admin", "ceo", "manager", "accountant"];
+        if (!VALID_ROLES.includes(data.role)) throw new ApiError(400, `Invalid role. Must be one of: ${VALID_ROLES.join(", ")}`);
+        user.role = data.role;
+      }
+      if (data.isActive === false && isSelf) throw new ApiError(400, "Cannot deactivate your own account");
       if (data.isActive !== undefined) user.isActive = data.isActive;
     }
     await user.save();

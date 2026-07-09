@@ -5,7 +5,7 @@ export function Skeleton({ className = "" }: { className?: string }) {
 // Generic table-ish loading placeholder
 export function TableSkeleton({ rows = 6 }: { rows?: number }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 space-y-3">
       <Skeleton className="h-8 w-full" />
       {Array.from({ length: rows }).map((_, i) => (
         <Skeleton key={i} className="h-10 w-full" />

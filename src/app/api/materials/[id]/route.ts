@@ -55,15 +55,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       const bankAccountId = toId(data.bankAccountId) ?? null;
 
       const updatedMaterial = await withTransaction(async (dbSession) => {
-        const existingValue = material.quantity * material.unitPrice;
-        const newQuantity = material.quantity + addQty;
-        const newTotalValue = existingValue + restockCost;
-        const weightedUnitPrice = newQuantity > 0 ? newTotalValue / newQuantity : newPrice;
+        // Weighted average must be based on stock actually on hand, not the
+        // lifetime total-ever-received (material.quantity) — otherwise the
+        // unit cost is diluted by units that were already consumed and no
+        // longer represent real inventory value.
+        const existingStockValue = material.stockQuantity * material.unitPrice;
+        const newStockQuantity = material.stockQuantity + addQty;
+        const newStockValue = existingStockValue + restockCost;
+        const weightedUnitPrice = newStockQuantity > 0 ? newStockValue / newStockQuantity : newPrice;
 
-        material.stockQuantity += addQty;
-        material.quantity = newQuantity;
+        material.stockQuantity = newStockQuantity;
+        material.quantity += addQty;
         material.unitPrice = weightedUnitPrice;
-        material.totalPrice = newTotalValue;
         if (data.vendorId !== undefined) material.vendorId = toId(data.vendorId) as any;
         if (data.notes !== undefined) material.notes = data.notes;
         await material.save({ session: dbSession });
@@ -109,11 +112,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     // ── Regular edit: update fields only ────────────────────────────────────
-    const oldTotalPrice = material.totalPrice;
     if (data.itemName !== undefined) material.itemName = data.itemName;
     if (data.category !== undefined) material.category = data.category;
     if (data.unit !== undefined) material.unit = data.unit;
-    
+
     const parsedMinStock = data.minStockLevel !== undefined ? parseFloat(data.minStockLevel) : NaN;
     if (!isNaN(parsedMinStock) && parsedMinStock >= 0) material.minStockLevel = parsedMinStock;
     const parsedStockQty = data.stockQuantity !== undefined ? parseFloat(data.stockQuantity) : NaN;
@@ -121,7 +123,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const parsedQty = data.quantity !== undefined ? parseFloat(data.quantity) : NaN;
     if (!isNaN(parsedQty) && parsedQty >= 0) material.quantity = parsedQty;
     const parsedUnitPrice = data.unitPrice !== undefined ? parseFloat(data.unitPrice) : NaN;
-    if (!isNaN(parsedUnitPrice) && parsedUnitPrice >= 0) { material.unitPrice = parsedUnitPrice; material.totalPrice = material.quantity * parsedUnitPrice; }
+    // totalPrice is a virtual (quantity * unitPrice) recomputed on every
+    // read — it was previously assigned here too, which Mongoose silently
+    // discards on a virtual, so the assignment was dead code.
+    if (!isNaN(parsedUnitPrice) && parsedUnitPrice >= 0) material.unitPrice = parsedUnitPrice;
     if (data.vendorId !== undefined) material.vendorId = toId(data.vendorId) as any;
     if (data.notes !== undefined) material.notes = data.notes;
     await material.save();
@@ -147,7 +152,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     const relatedEntries = await LedgerEntry.find({ referenceNumber: { $in: [id, ...usageIds] } });
     for (const entry of relatedEntries) {
-      if (entry.bankAccountId && entry.category === "inventory_asset") {
+      if (entry.bankAccountId && (entry.category === "material_purchase" || entry.category === "inventory_asset")) {
         await BankAccount.findByIdAndUpdate(entry.bankAccountId, { $inc: { balance: entry.amount } });
       }
       await LedgerEntry.findByIdAndDelete(entry._id);

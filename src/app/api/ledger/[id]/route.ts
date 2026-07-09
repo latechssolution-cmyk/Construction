@@ -9,7 +9,8 @@ import mongoose from "mongoose";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    requireRole(session, "admin", "ceo", "accountant");
     const { id } = await params;
     await connectDB();
     const entry = await LedgerEntry.findById(id)
@@ -89,7 +90,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     await connectDB();
     await withTransaction(async (dbSession) => {
       const existing = await LedgerEntry.findById(id, null, { session: dbSession });
-      if (existing && existing.bankAccountId) {
+      if (!existing) throw new ApiError(404, "Ledger entry not found");
+      if (existing.bankAccountId) {
         const delta = existing.type === "income" ? -existing.amount : existing.amount;
         await BankAccount.findByIdAndUpdate(existing.bankAccountId, { $inc: { balance: delta } }, { session: dbSession });
       }

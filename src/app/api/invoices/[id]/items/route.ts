@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const taxAmount = (subtotal * invoice.taxPercent) / 100;
     invoice.subtotal = subtotal;
     invoice.taxAmount = taxAmount;
-    invoice.grandTotal = subtotal + taxAmount;
+    invoice.grandTotal = subtotal + taxAmount - (invoice.retentionAmount || 0) - (invoice.whtDeducted || 0);
     await invoice.save();
     const addedItem = invoice.items[invoice.items.length - 1];
     void auditLog(session.user.id, "UPDATE", "Invoice", id, `Added line item to ${invoice.invoiceNumber}: ${newItem.description}`);
@@ -60,7 +60,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const taxAmount = (subtotal * invoice.taxPercent) / 100;
     invoice.subtotal = subtotal;
     invoice.taxAmount = taxAmount;
-    invoice.grandTotal = subtotal + taxAmount;
+    invoice.grandTotal = subtotal + taxAmount - (invoice.retentionAmount || 0) - (invoice.whtDeducted || 0);
     await invoice.save();
     void auditLog(session.user.id, "UPDATE", "Invoice", id, `Removed line item from ${invoice.invoiceNumber}`);
     return ok({ success: true });

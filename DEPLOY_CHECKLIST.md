@@ -1,18 +1,28 @@
 # 🚀 Construction ERP — Pre-Deployment Checklist
 
-**Project:** Construction ERP (Next.js 15 / Prisma / PostgreSQL)
-**Date:** 2026-06-26
+**Project:** Construction ERP (Next.js 15 / Mongoose / MongoDB)
+**Date:** 2026-07-09
 **Deployer:** ___________________
+
+> See [DEPLOY.md](./DEPLOY.md) for the full step-by-step Vercel + MongoDB Atlas guide. This file is
+> the sign-off checklist to run through before/after each production deploy.
 
 ---
 
 ## 🔐 CRITICAL — Do Before Anything Else
 
-- [ ] **Rotate NEXTAUTH_SECRET** — current value is a weak predictable string. Run:
+- [ ] **Rotate AUTH_SECRET** — current value is a weak predictable string. Run:
   ```bash
   openssl rand -base64 32
   ```
-  Copy output into Vercel env var `NEXTAUTH_SECRET`.
+  Copy output into Vercel env var `AUTH_SECRET`.
+
+- [ ] **Set CRON_SECRET** — required for the Vercel Cron job (`vercel.json`) to authenticate
+  against `/api/cron/daily-jobs` (equipment costing + overdue invoice sweep). Run:
+  ```bash
+  openssl rand -base64 32
+  ```
+  Copy output into Vercel env var `CRON_SECRET`.
 
 - [ ] **Rotate GEMINI_API_KEY** — key in `.env` was exposed in session context. Go to https://aistudio.google.com and revoke + regenerate.
 
@@ -32,11 +42,12 @@
 
 ### Environment Variables (Vercel → Settings → Environment Variables)
 
-- [ ] `DATABASE_URL` — Neon / Supabase / Railway PostgreSQL connection string (with `?sslmode=require`)
+- [ ] `MONGODB_URI` — MongoDB Atlas connection string (`mongodb+srv://...`)
 - [ ] `NEXTAUTH_URL` — Production URL exactly, e.g. `https://your-app.vercel.app`
-- [ ] `NEXTAUTH_SECRET` — New random 32-byte secret (see above)
-- [ ] `GOOGLE_CLIENT_ID` — From Google Cloud Console (OAuth 2.0)
-- [ ] `GOOGLE_CLIENT_SECRET` — From Google Cloud Console (rotated)
+- [ ] `AUTH_SECRET` — New random 32-byte secret (see above)
+- [ ] `CRON_SECRET` — New random 32-byte secret (see above)
+- [ ] `GOOGLE_CLIENT_ID` — From Google Cloud Console (OAuth 2.0, optional)
+- [ ] `GOOGLE_CLIENT_SECRET` — From Google Cloud Console (rotated, optional)
 - [ ] `GEMINI_API_KEY` — New key from Google AI Studio (rotated)
 - [ ] `CLOUDINARY_CLOUD_NAME` — From Cloudinary dashboard
 - [ ] `CLOUDINARY_API_KEY` — From Cloudinary dashboard
@@ -53,17 +64,14 @@
 
 ### Database
 
-- [ ] PostgreSQL instance is provisioned and accessible from Vercel (check connection string with `?sslmode=require`)
-- [ ] Run migrations (NOT `db push` — use the migration runner):
-  ```bash
-  npx prisma migrate deploy
-  ```
+- [ ] MongoDB Atlas cluster is provisioned; Network Access allows Vercel's serverless functions
+      (`0.0.0.0/0`, or the Atlas↔Vercel integration)
 - [ ] Optionally seed initial admin user:
   ```bash
-  npx prisma db seed
+  MONGODB_URI="your-production-uri" npm run db:seed
   ```
   **IMPORTANT:** Change seeded passwords immediately after first login. Default seeds are `Admin@1234` etc. — these are publicly documented.
-- [ ] Verify database connection: `npx prisma db pull` returns schema without error
+- [ ] Verify database connection: app boots and `/login` loads without a connection error in logs
 
 ### Cloudinary
 
@@ -170,13 +178,10 @@
 4. Rollback takes effect in ~30 seconds
 
 **Database rollback:**
-```bash
-# List available migrations
-npx prisma migrate status
-
-# Roll back one migration (caution — destructive if migration added columns)
-npx prisma migrate resolve --rolled-back <migration-name>
-```
+MongoDB/Mongoose has no migration-history concept — schema changes are additive/optional fields by
+convention in this codebase, so there is normally nothing to roll back. For a destructive data
+issue, restore from the most recent Atlas automated backup (Atlas → Cluster → Backup →
+Point-in-Time Restore).
 
 ---
 

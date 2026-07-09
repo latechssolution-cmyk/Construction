@@ -33,7 +33,7 @@ export default function AttendancePage() {
   const { toast } = useToast();
   const [month, setMonth] = useState(currentMonth());
   const { data: records, mutate, isLoading } = useSWR(`/api/attendance?month=${month}`, fetcher);
-  const { data: employees } = useSWR("/api/employees", fetcher);
+  const { data: employees } = useSWR("/api/employees?limit=500", fetcher);
   const { data: projects } = useSWR("/api/projects", fetcher);
 
   // Single-record add form
@@ -65,8 +65,8 @@ export default function AttendancePage() {
 
   const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
   const list: any[] = Array.isArray(records) ? records : [];
-  const empList: any[] = Array.isArray(employees) ? employees : [];
-  const activeEmps = empList.filter((e: any) => e.isActive);
+  const empList: any[] = employees?.data ? employees.data : (Array.isArray(employees) ? employees : []);
+  const activeEmps = empList.filter((e: any) => e.isActive !== false);
 
   const filtered = list.filter((r: any) => {
     if (statusFilter && r.status !== statusFilter) return false;

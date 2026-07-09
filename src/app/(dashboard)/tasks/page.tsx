@@ -6,6 +6,7 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { ClipboardList, Trash2, Pencil, AlertTriangle } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -144,25 +145,24 @@ export default function TasksPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tasks</h1>
-          <p className="text-sm text-gray-500">{filtered.length} tasks</p>
-        </div>
-        <div className="flex gap-2 shrink-0">
-          <button onClick={() => setView("kanban")} className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${view === "kanban" ? "bg-blue-100 text-blue-700" : "border border-gray-200 text-gray-700 hover:bg-gray-50"}`}>Kanban</button>
-          <button onClick={() => setView("list")} className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${view === "list" ? "bg-blue-100 text-blue-700" : "border border-gray-200 text-gray-700 hover:bg-gray-50"}`}>List</button>
+      <PageHeader
+        title="Tasks"
+        subtitle={`${filtered.length} task${filtered.length !== 1 ? "s" : ""}`}
+        actions={<>
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+            <button onClick={() => setView("kanban")} className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${view === "kanban" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>Kanban</button>
+            <button onClick={() => setView("list")} className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${view === "list" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>List</button>
+          </div>
           {canCreate && (
             <button
               onClick={() => { setShowForm(!showForm); setEditingTask(null); }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0 shadow-sm"
             >
               {showForm ? "Cancel" : "+ Add Task"}
             </button>
           )}
-        </div>
-      </div>
+        </>}
+      />
 
       <div className="flex gap-3 flex-wrap">
         <select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
@@ -201,7 +201,7 @@ export default function TasksPage() {
               {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
             </select>
             <input type="date" value={form.dueDate || ""} onChange={e => setForm({ ...form, dueDate: e.target.value })} placeholder="Due Date" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
-            <input type="number" step="0.5" value={form.estimatedHours || ""} onChange={e => setForm({ ...form, estimatedHours: e.target.value })} placeholder="Estimated Hours" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            <input type="number" min="0" step="0.5" value={form.estimatedHours || ""} onChange={e => setForm({ ...form, estimatedHours: e.target.value })} placeholder="Estimated Hours" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             
             {/* Weight input field (Issue #44) */}
             <div className="flex flex-col sm:col-span-2">
@@ -238,7 +238,7 @@ export default function TasksPage() {
               {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
             </select>
             <input type="date" value={editForm.dueDate || ""} onChange={e => setEditForm({ ...editForm, dueDate: e.target.value })} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
-            <input type="number" step="0.5" value={editForm.estimatedHours || ""} onChange={e => setEditForm({ ...editForm, estimatedHours: e.target.value })} placeholder="Estimated Hours" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            <input type="number" min="0" step="0.5" value={editForm.estimatedHours || ""} onChange={e => setEditForm({ ...editForm, estimatedHours: e.target.value })} placeholder="Estimated Hours" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             
             {/* Weight input field (Issue #44) */}
             <div className="flex flex-col sm:col-span-2">

@@ -5,7 +5,9 @@ import { useSession } from "next-auth/react";
 import { StatsSkeleton, TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard } from "lucide-react";
+import { CreditCard, Lock, TrendingUp, TrendingDown, Scale } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -22,7 +24,12 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(false);
 
   if (session && !["admin","ceo","accountant"].includes(session.user?.role||"")) {
-    return <div className="p-6 text-center text-gray-500"><p className="text-4xl mb-2">&#x1F512;</p><p className="font-medium">Access Restricted</p></div>;
+    return (
+      <div className="p-6 text-center text-gray-500">
+        <Lock className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+        <p className="font-medium text-gray-700">Access Restricted</p>
+      </div>
+    );
   }
 
   const canManage = ["admin","ceo","accountant"].includes(session?.user?.role||"");
@@ -43,25 +50,16 @@ export default function PaymentsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
-        {canManage && <button onClick={()=>setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0">+ Record Payment</button>}
-      </div>
+      <PageHeader
+        title="Payments"
+        actions={canManage && <button onClick={()=>setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shrink-0 shadow-sm">+ Record Payment</button>}
+      />
 
       {isLoading ? <StatsSkeleton count={3} /> : (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-          <p className="text-xs text-green-700 font-medium">Money In</p>
-          <p className="text-2xl font-bold text-green-800">PKR {totalIn.toLocaleString()}</p>
-        </div>
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-          <p className="text-xs text-red-700 font-medium">Money Out</p>
-          <p className="text-2xl font-bold text-red-800">PKR {totalOut.toLocaleString()}</p>
-        </div>
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-          <p className="text-xs text-gray-600 font-medium">Net Flow</p>
-          <p className={`text-2xl font-bold ${totalIn-totalOut>=0?"text-blue-800":"text-orange-700"}`}>PKR {(totalIn-totalOut).toLocaleString()}</p>
-        </div>
+        <StatCard label="Money In" value={`PKR ${totalIn.toLocaleString()}`} tone="green" icon={<TrendingUp className="w-4 h-4" />} />
+        <StatCard label="Money Out" value={`PKR ${totalOut.toLocaleString()}`} tone="red" icon={<TrendingDown className="w-4 h-4" />} />
+        <StatCard label="Net Flow" value={`PKR ${(totalIn-totalOut).toLocaleString()}`} tone={totalIn-totalOut>=0?"blue":"orange"} icon={<Scale className="w-4 h-4" />} />
       </div>
       )}
 
@@ -81,7 +79,7 @@ export default function PaymentsPage() {
               <option value="income">Money Received</option>
               <option value="expense">Money Paid Out</option>
             </select>
-            <input required type="number" step="0.01" value={form.amount||""} onChange={e=>setForm({...form,amount:e.target.value})} placeholder="Amount (PKR) *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            <input required type="number" min="0.01" step="0.01" value={form.amount||""} onChange={e=>setForm({...form,amount:e.target.value})} placeholder="Amount (PKR) *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <input required type="date" value={form.date||""} onChange={e=>setForm({...form,date:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <select value={form.bankAccountId||""} onChange={e=>setForm({...form,bankAccountId:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40">
               <option value="">Select Bank Account</option>

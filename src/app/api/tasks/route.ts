@@ -45,6 +45,11 @@ export async function POST(req: NextRequest) {
     requireRole(session, "admin", "ceo", "manager");
     const data = await req.json();
     if (!data.title || !data.projectId) throw new Error("Title and projectId are required");
+    const est = data.estimatedHours ? parseFloat(data.estimatedHours) : null;
+    if (est !== null && est < 0) throw new Error("Estimated hours cannot be negative");
+    const weightVal = data.weight !== undefined ? parseFloat(data.weight) || 1 : 1;
+    if (weightVal < 0) throw new Error("Task weight cannot be negative");
+
     await connectDB();
     const parsedHours = data.estimatedHours ? parseFloat(data.estimatedHours) : null;
     if (parsedHours !== null && parsedHours < 0) throw new ApiError(400, "Estimated hours cannot be negative");

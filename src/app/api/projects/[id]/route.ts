@@ -123,7 +123,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     const [ledgerCount, invoiceCount] = await Promise.all([
       LedgerEntry.countDocuments({ projectId: id }),
-      Invoice.countDocuments({ projectId: id }),
+      Invoice.countDocuments({ projectId: id, deletedAt: null }),
     ]);
     if (ledgerCount > 0 || invoiceCount > 0) {
       throw new ApiError(

@@ -9,7 +9,6 @@ import MaterialUsage from "@/models/MaterialUsage";
 import LedgerEntry from "@/models/LedgerEntry";
 import BankAccount from "@/models/BankAccount";
 import Vendor from "@/models/Vendor";
-import mongoose from "mongoose";
 
 export async function GET(req: NextRequest) {
   try {
@@ -71,10 +70,16 @@ export async function POST(req: NextRequest) {
     const qty = parseFloat(data.quantity || "0");
     const price = parseFloat(data.unitPrice || "0");
     if (!Number.isFinite(qty) || qty <= 0) throw new ApiError(400, "quantity must be a positive number");
-    if (!Number.isFinite(price) || price < 0) throw new ApiError(400, "unitPrice cannot be negative");
-    await connectDB();
-    const totalPrice = qty * price;
+    if (!Number.isFinite(price) || price <= 0) throw new ApiError(400, "Unit price must be greater than 0");
     const minStock = parseFloat(data.minStockLevel || "5");
+    if (!Number.isFinite(minStock) || minStock < 0) throw new ApiError(400, "Minimum stock level cannot be negative");
+    await connectDB();
+    if (data.vendorId) {
+      const vendor = await Vendor.findById(toId(data.vendorId));
+      if (!vendor) throw new ApiError(404, "Vendor not found");
+      if (vendor.isActive === false) throw new ApiError(400, "Vendor is deactivated and cannot be used.");
+    }
+    const totalPrice = qty * price;
     const receivedDate = data.receivedDate ? new Date(data.receivedDate) : new Date();
     const bankAccountId = toId(data.bankAccountId);
     const vendorId = toId(data.vendorId);

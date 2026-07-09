@@ -1,6 +1,6 @@
 "use client";
 import useSWR from "swr";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -22,6 +22,13 @@ export default function ProjectsPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const q = new URLSearchParams(window.location.search).get("q");
+      if (q) setSearch(q);
+    }
+  }, []);
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -43,10 +50,12 @@ export default function ProjectsPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (form.budget !== undefined && form.budget !== "" && parseFloat(form.budget) < 0) {
-      toast({ title: "Error", description: "Budget cannot be negative", variant: "destructive" }); return;
+      toast({ title: "Validation Error", description: "Budget cannot be negative.", variant: "destructive" });
+      return;
     }
-    if (form.startDate && form.endDate && form.endDate < form.startDate) {
-      toast({ title: "Error", description: "End date cannot be before start date", variant: "destructive" }); return;
+    if (form.startDate && form.endDate && new Date(form.endDate) < new Date(form.startDate)) {
+      toast({ title: "Validation Error", description: "End date cannot be before start date.", variant: "destructive" });
+      return;
     }
     setLoading(true);
     try {

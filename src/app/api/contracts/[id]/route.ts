@@ -43,6 +43,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
     if (data.startDate !== undefined) contract.startDate = data.startDate ? new Date(data.startDate) : null;
     if (data.endDate !== undefined) contract.endDate = data.endDate ? new Date(data.endDate) : null;
+
+    const start = contract.startDate;
+    const end = contract.endDate;
+    if (start && end && end < start) {
+      throw new ApiError(400, "End date cannot be before start date");
+    }
     // Issue #67: Strict contract status transition machine
     if (data.status !== undefined) {
       const CONTRACT_TRANSITIONS: Record<string, string[]> = {

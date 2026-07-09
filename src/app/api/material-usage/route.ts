@@ -6,6 +6,7 @@ import { connectDB } from "@/lib/mongoose";
 import { withTransaction } from "@/lib/db-transaction";
 import Material from "@/models/Material";
 import MaterialUsage from "@/models/MaterialUsage";
+import LedgerEntry from "@/models/LedgerEntry";
 
 export async function GET(req: NextRequest) {
   try {
@@ -37,7 +38,11 @@ export async function POST(req: NextRequest) {
     const qty = parseFloat(data.quantityUsed);
     if (qty <= 0) throw new ApiError(400, "quantityUsed must be greater than 0");
 
+    const usageDate = data.date ? new Date(data.date) : new Date();
+    if (usageDate > new Date()) throw new ApiError(400, "Usage date cannot be in the future");
+
     const usage = await withTransaction(async (dbSession) => {
+      // Atomic check-and-decrement inside the transaction prevents race conditions
       const updated = await Material.findOneAndUpdate(
         { _id: data.materialId, stockQuantity: { $gte: qty } },
         { $inc: { stockQuantity: -qty } },
@@ -52,14 +57,37 @@ export async function POST(req: NextRequest) {
         materialId: data.materialId,
         projectId: destProjectId,
         quantityUsed: qty,
-        date: data.date ? new Date(data.date) : new Date(),
+        date: usageDate,
         purpose: data.purpose || null,
         notes: data.notes || null,
         usedById: session.user.id,
       }], { session: dbSession });
+
+      const cost = qty * material.unitPrice;
+      await LedgerEntry.create([{
+        date: usageDate,
+        type: "expense",
+        amount: cost,
+        category: "material_usage",
+        description: `Usage of ${qty} ${material.unit} of ${material.itemName}`,
+        projectId: destProjectId,
+        createdById: session.user.id,
+        referenceNumber: createdUsage._id?.toString() || createdUsage.id,
+      }], { session: dbSession });
+
+      await LedgerEntry.create([{
+        date: usageDate,
+        type: "income",
+        amount: cost,
+        category: "inventory_asset",
+        description: `Inventory offset: Consumption of ${qty} ${material.unit} of ${material.itemName}`,
+        projectId: material.projectId,
+        createdById: session.user.id,
+        referenceNumber: createdUsage._id?.toString() || createdUsage.id,
+      }], { session: dbSession });
+
       return createdUsage;
     });
-
 
     const updated = await Material.findById(data.materialId);
     if (updated && updated.stockQuantity <= updated.minStockLevel) {

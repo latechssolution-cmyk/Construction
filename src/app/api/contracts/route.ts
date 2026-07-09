@@ -33,14 +33,19 @@ export async function POST(req: NextRequest) {
     if (!data.title || !data.clientId) throw new Error("Title and client are required");
     const contractValue = parseFloat(data.contractValue || data.value || "0");
     if (contractValue < 0) throw new ApiError(400, "Contract value cannot be negative");
+    const startDate = data.startDate ? new Date(data.startDate) : null;
+    const endDate = data.endDate ? new Date(data.endDate) : null;
+    if (startDate && endDate && endDate < startDate) {
+      throw new ApiError(400, "End date cannot be before start date");
+    }
     await connectDB();
     const contract = await Contract.create({
       contractNumber: data.contractNumber || (await nextContractNumber()),
       title: data.title,
       scope: data.scope || null,
       contractValue,
-      startDate: data.startDate ? new Date(data.startDate) : null,
-      endDate: data.endDate ? new Date(data.endDate) : null,
+      startDate,
+      endDate,
       status: data.status || "draft",
       clientId: toId(data.clientId),
       paymentTerms: data.paymentTerms || null,

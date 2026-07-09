@@ -113,17 +113,19 @@ export default function ProjectDetailPage() {
   if (project.error) return <div className="p-6 text-red-500">Project not found</div>;
 
   async function saveProject(extra?: any) {
-    if (!extra) {
-      if (edit.budget !== "" && edit.budget !== undefined && parseFloat(edit.budget) < 0) {
-        toast({ title: "Error", description: "Budget cannot be negative", variant: "destructive" }); return;
-      }
-      if (edit.startDate && edit.endDate && edit.endDate < edit.startDate) {
-        toast({ title: "Error", description: "End date cannot be before start date", variant: "destructive" }); return;
-      }
+    const payload = extra ?? edit;
+    if (payload.budget !== undefined && payload.budget !== "" && parseFloat(payload.budget) < 0) {
+      toast({ title: "Validation Error", description: "Budget cannot be negative.", variant: "destructive" });
+      return;
+    }
+    const start = payload.startDate !== undefined ? payload.startDate : (project.startDate ? project.startDate.slice(0, 10) : "");
+    const end = payload.endDate !== undefined ? payload.endDate : (project.endDate ? project.endDate.slice(0, 10) : "");
+    if (start && end && new Date(end) < new Date(start)) {
+      toast({ title: "Validation Error", description: "End date cannot be before start date.", variant: "destructive" });
+      return;
     }
     setSaving(true);
     try {
-      const payload = extra ?? edit;
       const res = await fetch(`/api/projects/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -1856,7 +1858,7 @@ export default function ProjectDetailPage() {
         const assignedIds = new Set(activeTeam.map((pe: any) => pe.employee?.id || pe.employeeId));
         const empData: any[] = employeesList?.data ? employeesList.data : (Array.isArray(employeesList) ? employeesList : []);
         const assignableEmployees = empData
-          .filter((e: any) => e.isActive && !assignedIds.has(e.id));
+          .filter((e: any) => e.isActive !== false && !assignedIds.has(e.id));
         return (
           <div className="space-y-4">
             <div className="flex justify-between items-center">

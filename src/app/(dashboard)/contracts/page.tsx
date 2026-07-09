@@ -1,6 +1,6 @@
 "use client";
 import useSWR from "swr";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { CardGridSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -21,6 +21,13 @@ export default function ContractsPage() {
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const q = new URLSearchParams(window.location.search).get("q");
+      if (q) setSearch(q);
+    }
+  }, []);
 
   // Edit / Delete states
   const [editingContract, setEditingContract] = useState<any>(null);
@@ -52,11 +59,13 @@ export default function ContractsPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (form.contractValue !== undefined && parseFloat(form.contractValue) <= 0) {
-      toast({ title: "Error", description: "Contract value must be greater than 0", variant: "destructive" }); return;
+    if (form.contractValue && parseFloat(form.contractValue) < 0) {
+      toast({ title: "Validation Error", description: "Contract value cannot be negative.", variant: "destructive" });
+      return;
     }
-    if (form.startDate && form.endDate && form.endDate < form.startDate) {
-      toast({ title: "Error", description: "End date cannot be before start date", variant: "destructive" }); return;
+    if (form.startDate && form.endDate && new Date(form.endDate) < new Date(form.startDate)) {
+      toast({ title: "Validation Error", description: "End date cannot be before start date.", variant: "destructive" });
+      return;
     }
     setLoading(true);
     try {
@@ -95,11 +104,13 @@ export default function ContractsPage() {
 
   async function handleEditSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (editForm.contractValue !== undefined && parseFloat(editForm.contractValue) <= 0) {
-      toast({ title: "Error", description: "Contract value must be greater than 0", variant: "destructive" }); return;
+    if (editForm.contractValue && parseFloat(editForm.contractValue) < 0) {
+      toast({ title: "Validation Error", description: "Contract value cannot be negative.", variant: "destructive" });
+      return;
     }
-    if (editForm.startDate && editForm.endDate && editForm.endDate < editForm.startDate) {
-      toast({ title: "Error", description: "End date cannot be before start date", variant: "destructive" }); return;
+    if (editForm.startDate && editForm.endDate && new Date(editForm.endDate) < new Date(editForm.startDate)) {
+      toast({ title: "Validation Error", description: "End date cannot be before start date.", variant: "destructive" });
+      return;
     }
     setEditLoading(true);
     try {

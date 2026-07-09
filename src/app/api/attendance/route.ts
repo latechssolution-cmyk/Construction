@@ -44,8 +44,14 @@ export async function POST(req: NextRequest) {
       // Validation pass
       for (const item of data) {
         if (!item.employeeId || !item.date) throw new ApiError(400, "Each attendance record must include employeeId and date");
+        const date = new Date(item.date);
+        if (date > new Date()) throw new ApiError(400, "Attendance date cannot be in the future");
         const status = item.status || "present";
         if (!VALID_STATUSES_BULK.includes(status)) throw new ApiError(400, `Invalid status "${status}". Must be one of: ${VALID_STATUSES_BULK.join(", ")}`);
+        if (item.hoursWorked !== undefined && item.hoursWorked !== "") {
+          const parsed = Number(item.hoursWorked);
+          if (isNaN(parsed) || parsed < 0) throw new ApiError(400, "Hours worked cannot be negative");
+        }
         const hoursWorked = item.hoursWorked !== undefined && item.hoursWorked !== ""
           ? Math.max(0, Number(item.hoursWorked) || 0)
           : defaultHours(status);
@@ -100,8 +106,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (!data.employeeId || !data.date) throw new Error("employeeId and date are required");
+    const date = new Date(data.date);
+    if (date > new Date()) throw new ApiError(400, "Attendance date cannot be in the future");
     const status = data.status || "present";
     if (!["present", "absent", "half_day"].includes(status)) throw new Error("status must be present, absent, or half_day");
+    if (data.hoursWorked !== undefined && data.hoursWorked !== "") {
+      const parsed = Number(data.hoursWorked);
+      if (isNaN(parsed) || parsed < 0) throw new ApiError(400, "Hours worked cannot be negative");
+    }
     const hoursWorked = data.hoursWorked !== undefined && data.hoursWorked !== ""
       ? Math.max(0, Number(data.hoursWorked) || 0)
       : defaultHours(status);
@@ -112,7 +124,6 @@ export async function POST(req: NextRequest) {
     if (!emp.isActive) throw new ApiError(400, `Employee ${emp.name} is deactivated. Cannot record attendance.`);
 
     const notes = data.notes?.trim() ? data.notes.trim() : null;
-    const date = new Date(data.date);
     const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
     const existing = await Attendance.findOne({ employeeId: data.employeeId, date: { $gte: dayStart, $lte: dayEnd } });

@@ -1,6 +1,6 @@
 "use client";
 import useSWR from "swr";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -26,7 +26,15 @@ export default function TasksPage() {
   const [projectFilter, setProjectFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [view, setView] = useState<"kanban" | "list">("kanban");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const q = new URLSearchParams(window.location.search).get("q");
+      if (q) setSearch(q);
+    }
+  }, []);
 
   const [showForm, setShowForm] = useState(false);
   // Initial weight defaults to 1 (Issue #44)
@@ -46,7 +54,11 @@ export default function TasksPage() {
 
   const list: any[] = Array.isArray(tasks) ? tasks : [];
   const filtered = list.filter((t: any) => {
+    const matchesSearch = !search ||
+      t.title?.toLowerCase().includes(search.toLowerCase()) ||
+      t.description?.toLowerCase().includes(search.toLowerCase());
     return (
+      matchesSearch &&
       (!projectFilter || t.projectId === projectFilter) &&
       (!priorityFilter || t.priority === priorityFilter) &&
       (!statusFilter || t.status === statusFilter)
@@ -55,6 +67,14 @@ export default function TasksPage() {
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
+    if (form.estimatedHours && parseFloat(form.estimatedHours) < 0) {
+      toast({ title: "Validation Error", description: "Estimated hours cannot be negative.", variant: "destructive" });
+      return;
+    }
+    if (form.weight && parseFloat(form.weight) < 0) {
+      toast({ title: "Validation Error", description: "Task weight cannot be negative.", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/tasks", {
@@ -95,7 +115,8 @@ export default function TasksPage() {
     setEditForm({
       title: t.title,
       description: t.description || "",
-      projectId: t.projectId,
+      projectId: t.projectId || "",
+      phaseId: t.phaseId || "",
       assignedToId: t.assignedToId || "",
       priority: t.priority || "medium",
       status: t.status,
@@ -108,6 +129,14 @@ export default function TasksPage() {
 
   async function handleEditSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (editForm.estimatedHours && parseFloat(editForm.estimatedHours) < 0) {
+      toast({ title: "Validation Error", description: "Estimated hours cannot be negative.", variant: "destructive" });
+      return;
+    }
+    if (editForm.weight && parseFloat(editForm.weight) < 0) {
+      toast({ title: "Validation Error", description: "Task weight cannot be negative.", variant: "destructive" });
+      return;
+    }
     setEditLoading(true);
     try {
       const res = await fetch(`/api/tasks/${editingTask.id}`, {
@@ -165,6 +194,12 @@ export default function TasksPage() {
       />
 
       <div className="flex gap-3 flex-wrap">
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search tasks..."
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full sm:w-56 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+        />
         <select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
           <option value="">All Projects</option>
           {(Array.isArray(projects) ? projects : []).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}

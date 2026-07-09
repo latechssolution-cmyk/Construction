@@ -51,11 +51,11 @@ export function StatCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide truncate">{label}</p>
-          <p className={cn("text-2xl sm:text-3xl font-bold mt-1 truncate", TONE_VALUE[tone])} title={String(value)}>
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide truncate" title={label}>{label}</p>
+          <p className={cn("text-xl sm:text-2xl lg:text-3xl font-bold mt-1 truncate", TONE_VALUE[tone])} title={String(value)}>
             {value}
           </p>
-          {sub && <p className="text-xs text-gray-400 mt-1 truncate">{sub}</p>}
+          {sub && <p className="text-xs text-gray-400 mt-1 truncate" title={sub}>{sub}</p>}
         </div>
         {icon && (
           <div className={cn("shrink-0 w-9 h-9 rounded-lg flex items-center justify-center", TONE_ICON[tone])}>

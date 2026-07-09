@@ -116,12 +116,14 @@ npm run dev               # Start development server
 
 ---
 
-## Deploy to Netlify / Vercel
+## Deploy to Vercel
 
 1. Push to GitHub
-2. Go to Netlify/Vercel → New Project → Import repo
-3. Add environment variables (`MONGODB_URI`, `NEXTAUTH_URL`, `AUTH_SECRET`, `GEMINI_API_KEY`)
+2. Go to [vercel.com](https://vercel.com) → New Project → Import repo
+3. Add environment variables (`MONGODB_URI`, `NEXTAUTH_URL`, `AUTH_SECRET`, `GEMINI_API_KEY`, `CRON_SECRET`, ...)
 4. Deploy
+
+See [DEPLOY.md](./DEPLOY.md) for the full step-by-step guide.
 
 ---
 

@@ -1,5 +1,5 @@
 
-const BASE = process.env.NEXTAUTH_URL || process.env.BASE_URL || "https://construction00.netlify.app";
+const BASE = process.env.NEXTAUTH_URL || process.env.BASE_URL || "http://localhost:3000";
 let cookies = "";
 
 async function login() {

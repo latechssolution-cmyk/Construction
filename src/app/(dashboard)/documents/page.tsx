@@ -58,7 +58,7 @@ export default function DocumentsPage() {
           return;
         }
 
-        // Upload directly from browser to Cloudinary (bypasses Netlify timeout)
+        // Upload directly from browser to Cloudinary (bypasses serverless function timeout/payload limits)
         const fd = new FormData();
         fd.append("file", file);
         fd.append("api_key", apiKey);

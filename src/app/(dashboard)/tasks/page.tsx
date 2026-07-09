@@ -97,6 +97,14 @@ export default function TasksPage() {
   }
 
   async function updateStatus(id: string, status: string) {
+    // Optimistic update — flip the status in the local cache immediately so
+    // the kanban/list UI responds on click instead of waiting for the full
+    // (up to 500-row, 3x populated) task list to re-fetch.
+    mutate((current: any) => {
+      const list = Array.isArray(current) ? current : [];
+      return list.map((t: any) => (t.id === id ? { ...t, status } : t));
+    }, { revalidate: false });
+
     const res = await fetch(`/api/tasks/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -105,6 +113,7 @@ export default function TasksPage() {
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
       toast({ title: "Error", description: e.error || "Failed to update task", variant: "destructive" });
+      mutate();
       return;
     }
     mutate();

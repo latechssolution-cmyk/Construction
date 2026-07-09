@@ -171,12 +171,32 @@ export default function ProjectDetailPage() {
   }
 
   async function updateTask(taskId: string, updates: any) {
+    // Optimistic update: patch the task in the local cache immediately so
+    // the checkbox flips on click, instead of waiting for a full re-fetch of
+    // the whole project payload (materials, ledger, invoices, documents,
+    // subcontracts, ...) just to reflect one task's status. Falls back to a
+    // real refetch on error to undo the optimistic change.
+    mutate((current: any) => {
+      if (!current) return current;
+      const patchTask = (t: any) => (t.id === taskId ? { ...t, ...updates } : t);
+      return {
+        ...current,
+        tasks: (current.tasks || []).map(patchTask),
+        phases: (current.phases || []).map((ph: any) => ({ ...ph, tasks: (ph.tasks || []).map(patchTask) })),
+      };
+    }, { revalidate: false });
+
     const res = await fetch(`/api/tasks/${taskId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
     });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to update task", variant: "destructive" }); return; }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || "Failed to update task", variant: "destructive" });
+      mutate();
+      return;
+    }
     mutate();
   }
 
@@ -238,13 +258,30 @@ export default function ProjectDetailPage() {
   }
 
   async function toggleMilestone(m: any) {
+    const optimisticCompletedAt = m.completedAt ? null : new Date().toISOString();
+    // Same optimistic-update reasoning as updateTask() above — flip it in
+    // the local cache immediately, don't block the checkbox on a full
+    // project refetch.
+    mutate((current: any) => {
+      if (!current) return current;
+      return {
+        ...current,
+        milestones: (current.milestones || []).map((x: any) => (x.id === m.id ? { ...x, completedAt: optimisticCompletedAt } : x)),
+      };
+    }, { revalidate: false });
+
     const res = await fetch(`/api/milestones/${m.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       // Only send completed flag — do NOT spread the whole object to avoid overwriting fields
       body: JSON.stringify({ completed: !m.completedAt }),
     });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to update milestone", variant: "destructive" }); return; }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || "Failed to update milestone", variant: "destructive" });
+      mutate();
+      return;
+    }
     mutate();
   }
 

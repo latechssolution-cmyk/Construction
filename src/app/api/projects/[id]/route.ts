@@ -31,10 +31,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       throw new ApiError(403, "You can only view your assigned projects");
     }
     const [phases, tasks, milestones, materials, employees, equipment, ledgerEntries, invoices, documents, subcontracts] = await Promise.all([
-      ProjectPhase.find({ projectId: id }).sort({ order: 1 }).then(async (phases) => {
-        await Promise.all(phases.map((ph) => ph.populate({ path: "tasks", populate: { path: "assignedTo", select: "id name" } })));
-        return phases;
-      }),
+      ProjectPhase.find({ projectId: id }).sort({ order: 1 }),
       Task.find({ projectId: id }).populate("assignedTo", "id name").sort({ createdAt: 1 }),
       Milestone.find({ projectId: id }).sort({ dueDate: 1 }),
       Material.find({ projectId: id }).populate("vendor", "id name"),
@@ -45,9 +42,27 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       Doc.find({ projectId: id }).populate("uploadedBy", "name").sort({ createdAt: -1 }),
       Subcontract.find({ projectId: id }).populate("vendor", "id name category contactPerson phone").sort({ createdAt: -1 }),
     ]);
+
+    // Attach each phase's tasks by grouping the already-fetched flat `tasks`
+    // array instead of re-querying per phase — the old code called
+    // ph.populate("tasks", {populate: "assignedTo"}) once per phase, which
+    // is an N+1 query pattern (2 extra round trips per phase) for data this
+    // route was already fetching flat above. This is the query the "toggle
+    // a task checkbox" mutate() was waiting on.
+    const tasksByPhase: Record<string, any[]> = {};
+    for (const t of tasks as any[]) {
+      const key = t.phaseId?.toString();
+      if (!key) continue;
+      (tasksByPhase[key] ||= []).push(t);
+    }
+    const phasesWithTasks = (phases as any[]).map((ph) => ({
+      ...ph.toJSON(),
+      tasks: tasksByPhase[ph.id] || [],
+    }));
+
     return ok({
       ...project.toJSON(),
-      phases,
+      phases: phasesWithTasks,
       tasks,
       milestones,
       materials,

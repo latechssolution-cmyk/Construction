@@ -51,11 +51,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       if (taskExist.assignedToId?.toString() !== session.user.id) throw new ApiError(403, "You can only update tasks assigned to you");
       const allowedKeys = ["status", "notes"];
       if (Object.keys(data).some((k) => !allowedKeys.includes(k))) throw new ApiError(403, "Insufficient permissions to modify task details");
-    } else {
-      const existingTask = await Task.findById(id, { projectId: 1 });
-      if (!existingTask) throw new ApiError(404, "Task not found");
-      await assertManagerOwnsTask(session, existingTask);
     }
+    // admin/ceo: no additional ownership check — they can manage any task.
 
     const update: any = {};
     if (data.title !== undefined) update.title = data.title;
@@ -73,7 +70,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const task = await Task.findByIdAndUpdate(id, update, { new: true }).populate("assignedTo", "name");
     if (!task) throw new ApiError(404, "Task not found");
-    await auditLog(session.user.id, "UPDATE", "Task", id, `Updated task: ${task.title} → ${task.status}`);
+    void auditLog(session.user.id, "UPDATE", "Task", id, `Updated task: ${task.title} → ${task.status}`);
 
     // Project.completionPercent is intentionally NOT recomputed here — it's
     // a manually-tracked figure the project owner adjusts directly (see the

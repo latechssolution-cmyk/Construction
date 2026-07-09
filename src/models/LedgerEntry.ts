@@ -95,6 +95,12 @@ ledgerEntrySchema.index({ date: -1 });
 ledgerEntrySchema.index({ createdAt: -1 });
 // Index for idempotency checks (duplicate salary, invoice payment lookups) — Issue #82
 ledgerEntrySchema.index({ referenceNumber: 1, category: 1 });
+// category/employeeId/vendorId are all real filters (Salary History,
+// Payments-by-vendor, P&L-by-category) that had no supporting index —
+// each fell back to a full collection scan.
+ledgerEntrySchema.index({ category: 1, date: -1 });
+ledgerEntrySchema.index({ employeeId: 1, date: -1 });
+ledgerEntrySchema.index({ vendorId: 1, date: -1 });
 
 const LedgerEntry: Model<ILedgerEntry> =
   mongoose.models.LedgerEntry || mongoose.model<ILedgerEntry>("LedgerEntry", ledgerEntrySchema);

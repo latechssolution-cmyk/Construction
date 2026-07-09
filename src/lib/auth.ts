@@ -14,6 +14,24 @@ if (!process.env.AUTH_SECRET && !process.env.NEXTAUTH_SECRET) {
   );
 }
 
+// AUTH_URL/NEXTAUTH_URL isn't required — trustHost below makes NextAuth infer
+// the URL from the request's Host header instead. But if someone sets it to
+// a non-URL value by mistake (e.g. pastes the app display name into the
+// wrong env var field), Auth.js's own internal parsing throws and takes the
+// whole build down with it. Strip a malformed value here so it falls back
+// to the working trustHost inference instead of crashing.
+for (const key of ["AUTH_URL", "NEXTAUTH_URL"]) {
+  const val = process.env[key];
+  if (val) {
+    try {
+      new URL(val.startsWith("http") ? val : `https://${val}`);
+    } catch {
+      console.warn(`[Auth] ${key} is not a valid URL ("${val}") — ignoring it; relying on trustHost inference instead.`);
+      delete process.env[key];
+    }
+  }
+}
+
 const providers: any[] = [
   CredentialsProvider({
     name: "credentials",

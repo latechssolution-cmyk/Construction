@@ -72,6 +72,7 @@ contractSchema.virtual("totalValue").get(function(this: any) {
 
 contractSchema.index({ clientId: 1 });
 contractSchema.index({ status: 1 });
+contractSchema.index({ createdAt: -1 });
 
 const Contract: Model<IContract> =
   mongoose.models.Contract || mongoose.model<IContract>("Contract", contractSchema);

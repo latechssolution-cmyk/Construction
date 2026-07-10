@@ -1,4 +1,4 @@
-import { requireAuth, handleApiError, ok } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/mongoose";
 import Invoice from "@/models/Invoice";
 
@@ -7,7 +7,8 @@ import Invoice from "@/models/Invoice";
 // which silently drifted from reality once invoice volume passed the cap.
 export async function GET() {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    requireRole(session, "admin", "ceo", "accountant");
     await connectDB();
     const agg = await Invoice.aggregate([
       { $match: { deletedAt: null } },

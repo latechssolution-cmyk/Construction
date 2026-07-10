@@ -1,6 +1,7 @@
 "use client";
 import useSWR from "swr";
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ExportButton } from "@/components/export-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -17,6 +18,7 @@ const fetcher = (url: string) => fetch(url).then(r => r.json());
 export default function BillingPage() {
   const { data: session } = useSession();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const { data: invoices, mutate, isLoading } = useSWR("/api/invoices", fetcher);
   const { data: stats, mutate: mutateStats } = useSWR("/api/invoices/stats", fetcher);
   const { data: clients } = useSWR("/api/clients", fetcher);
@@ -25,11 +27,8 @@ export default function BillingPage() {
   const [statusFilter, setStatusFilter] = useState("");
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const status = new URLSearchParams(window.location.search).get("status");
-      if (status) setStatusFilter(status);
-    }
-  }, []);
+    setStatusFilter(searchParams.get("status") || "");
+  }, [searchParams]);
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>({ status:"draft", taxPercent:"" });

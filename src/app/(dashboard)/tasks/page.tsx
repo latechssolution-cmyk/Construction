@@ -1,6 +1,7 @@
 "use client";
 import useSWR from "swr";
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -19,6 +20,7 @@ const PRIORITY_COLORS: Record<string, string> = { low: "bg-gray-100 text-gray-60
 export default function TasksPage() {
   const { data: session } = useSession();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const { data: tasks, mutate, isLoading } = useSWR("/api/tasks", fetcher);
   const { data: projects } = useSWR("/api/projects", fetcher);
   const { data: users } = useSWR("/api/users/assignable", fetcher);
@@ -31,13 +33,12 @@ export default function TasksPage() {
   const [view, setView] = useState<"kanban" | "list">("kanban");
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const q = params.get("q");
-      if (q) setSearch(q);
-      if (params.get("overdue") === "1") { setOverdueOnly(true); setView("list"); }
-    }
-  }, []);
+    const q = searchParams.get("q");
+    if (q) setSearch(q);
+    const overdue = searchParams.get("overdue") === "1";
+    setOverdueOnly(overdue);
+    if (overdue) setView("list");
+  }, [searchParams]);
 
   const [showForm, setShowForm] = useState(false);
   // Initial weight defaults to 1 (Issue #44)

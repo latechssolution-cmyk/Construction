@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, ApiError, toId } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, ApiError, toId, assertManagerOwnsProject } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { notifyAdminsAndManagers, checkBudgetAlert } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
@@ -9,16 +9,21 @@ import MaterialUsage from "@/models/MaterialUsage";
 import LedgerEntry from "@/models/LedgerEntry";
 import BankAccount from "@/models/BankAccount";
 import Vendor from "@/models/Vendor";
+import Project from "@/models/Project";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const { id } = await params;
     await connectDB();
     const material = await Material.findById(id)
       .populate("project", "id name")
       .populate("vendor", "id name");
     if (!material) throw new ApiError(404, "Material not found");
+    if (session.user.role === "manager") {
+      const project = await Project.findById(material.projectId, { assignedManagerId: 1 });
+      assertManagerOwnsProject(session, project);
+    }
     const usageLogs = await MaterialUsage.find({ materialId: id }).sort({ date: -1 });
     return ok({ ...material.toJSON(), usageLogs });
   } catch (e) {
@@ -42,6 +47,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const material = await Material.findById(id);
     if (!material) throw new ApiError(404, "Material not found");
+    if (session.user.role === "manager") {
+      const project = await Project.findById(material.projectId, { assignedManagerId: 1 });
+      assertManagerOwnsProject(session, project);
+    }
 
     // ── Restock: add quantity at a (potentially new) price ──────────────────
     if (data.restockQuantity !== undefined) {
@@ -188,6 +197,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     await connectDB();
     const material = await Material.findById(id);
     if (!material) throw new ApiError(404, "Material not found");
+    if (session.user.role === "manager") {
+      const project = await Project.findById(material.projectId, { assignedManagerId: 1 });
+      assertManagerOwnsProject(session, project);
+    }
 
     const usages = await MaterialUsage.find({ materialId: id });
     const usageIds = usages.map(u => u._id.toString());

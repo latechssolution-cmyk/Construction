@@ -11,7 +11,8 @@ import Counter from "@/models/Counter";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    requireRole(session, "admin", "ceo", "accountant");
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
     const clientId = searchParams.get("clientId");

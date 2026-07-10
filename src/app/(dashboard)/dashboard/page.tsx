@@ -264,7 +264,7 @@ function AccountantDashboard({ data }: { data: any }) {
     <div className="space-y-6">
       <Link href="/finance/accounts" className="block bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-5 text-white min-w-0 hover:from-blue-700 hover:to-blue-800 transition-colors">
         <p className="text-sm font-medium opacity-80 truncate">Total Cash Position</p>
-        <p className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-1 truncate" title={pkr(totalCash)}>{pkr(totalCash)}</p>
+        <p className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-1 break-words" title={pkr(totalCash)}>{pkr(totalCash)}</p>
         <p className="text-xs opacity-70 mt-1">Across {bankAccounts.length} bank account{bankAccounts.length !== 1 ? "s" : ""}</p>
       </Link>
 

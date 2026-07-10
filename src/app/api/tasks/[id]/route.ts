@@ -8,7 +8,7 @@ import Project from "@/models/Project";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const { id } = await params;
     await connectDB();
     const task = await Task.findById(id)
@@ -16,6 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       .populate("assignedTo", "id name")
       .populate("phase", "id name");
     if (!task) throw new ApiError(404, "Task not found");
+    await assertManagerOwnsTask(session, task);
     return ok(task);
   } catch (e) {
     return handleApiError(e);

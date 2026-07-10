@@ -2,7 +2,7 @@
 import useSWR from "swr";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/hooks/use-toast";
 import { HardHat, Search, ClipboardList, Wallet } from "lucide-react";
@@ -17,6 +17,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 export default function ProjectsPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: projects, mutate, isLoading: projectsLoading } = useSWR("/api/projects", fetcher);
   const { data: clients } = useSWR("/api/clients", fetcher);
   const [showForm, setShowForm] = useState(false);
@@ -26,14 +27,10 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const q = params.get("q");
-      if (q) setSearch(q);
-      const status = params.get("status");
-      if (status) setStatusFilter(status);
-    }
-  }, []);
+    const q = searchParams.get("q");
+    if (q) setSearch(q);
+    setStatusFilter(searchParams.get("status") || "all");
+  }, [searchParams]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 

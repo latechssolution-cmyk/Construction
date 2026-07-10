@@ -8,6 +8,8 @@ import "@/models/Vendor";
 import "@/models/BankAccount";
 import "@/models/Project";
 import "@/models/Contract";
+import "@/models/ContractVariation";
+import "@/models/Subcontract";
 import "@/models/ProjectPhase";
 import "@/models/Milestone";
 import "@/models/Task";

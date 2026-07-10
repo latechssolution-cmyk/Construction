@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, ApiError } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, ApiError, assertManagerOwnsProject } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/mongoose";
 import ProjectPhase from "@/models/ProjectPhase";
 import Task from "@/models/Task";
+import Project from "@/models/Project";
 
 export async function PUT(
   req: NextRequest,
@@ -17,6 +18,10 @@ export async function PUT(
 
     const phase = await ProjectPhase.findById(phaseId);
     if (!phase) throw new ApiError(404, "Project phase not found");
+    if (session.user.role === "manager") {
+      const project = await Project.findById(phase.projectId, { assignedManagerId: 1 });
+      assertManagerOwnsProject(session, project);
+    }
 
     if (data.name !== undefined) phase.name = data.name;
     if (data.status !== undefined) phase.status = data.status;
@@ -43,6 +48,10 @@ export async function DELETE(
 
     const phase = await ProjectPhase.findById(phaseId);
     if (!phase) throw new ApiError(404, "Project phase not found");
+    if (session.user.role === "manager") {
+      const project = await Project.findById(phase.projectId, { assignedManagerId: 1 });
+      assertManagerOwnsProject(session, project);
+    }
 
     // Nullify phaseId on tasks that belong to this phase
     await Task.updateMany({ phaseId }, { $set: { phaseId: null } });

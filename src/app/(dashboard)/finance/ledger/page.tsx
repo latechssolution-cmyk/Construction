@@ -1,6 +1,7 @@
 "use client";
 import useSWR from "swr";
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ExportButton } from "@/components/export-button";
 import { StatsSkeleton, TableSkeleton } from "@/components/ui/skeleton";
@@ -15,6 +16,7 @@ const CATEGORIES = ["material_purchase","salary","maintenance","invoice_payment"
 
 export default function LedgerPage() {
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
   const [page, setPage] = useState(1);
   const { data: entries, mutate, isLoading } = useSWR(`/api/ledger?page=${page}&limit=50`, fetcher);
   const { data: projects } = useSWR("/api/projects", fetcher);
@@ -28,14 +30,10 @@ export default function LedgerPage() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const q = params.get("q");
-      if (q) setSearch(q);
-      const type = params.get("type");
-      if (type) setTypeFilter(type);
-    }
-  }, []);
+    const q = searchParams.get("q");
+    if (q) setSearch(q);
+    setTypeFilter(searchParams.get("type") || "");
+  }, [searchParams]);
 
   if (session && !["admin","ceo","accountant"].includes(session.user?.role||"")) {
     return (

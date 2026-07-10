@@ -1,6 +1,7 @@
 "use client";
 import useSWR from "swr";
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ExportButton } from "@/components/export-button";
 import { TableSkeleton } from "@/components/ui/skeleton";
@@ -55,6 +56,7 @@ function UsageHistoryContent({ materialId, unit }: { materialId: string; unit: s
 export default function MaterialsPage() {
   const { data: session } = useSession();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const [page, setPage] = useState(1);
   const { data: materials, mutate, isLoading } = useSWR(`/api/materials?page=${page}&limit=50`, fetcher);
   const { data: vendors } = useSWR("/api/vendors", fetcher);
@@ -75,13 +77,10 @@ export default function MaterialsPage() {
   const [search, setSearch] = useState("");
   const [lowStockOnly, setLowStockOnly] = useState(false);
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const q = params.get("q");
-      if (q) setSearch(q);
-      if (params.get("lowStock") === "1") setLowStockOnly(true);
-    }
-  }, []);
+    const q = searchParams.get("q");
+    if (q) setSearch(q);
+    setLowStockOnly(searchParams.get("lowStock") === "1");
+  }, [searchParams]);
 
   const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
   const canView = ["admin", "ceo", "manager"].includes(session?.user?.role || "");

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, handleApiError, ApiError } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ApiError } from "@/lib/api-helpers";
 import { generateInvoicePDF } from "@/lib/pdf-generator";
 import { connectDB } from "@/lib/mongoose";
 import Invoice from "@/models/Invoice";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    requireRole(session, "admin", "ceo", "accountant");
     const { id } = await params;
     await connectDB();
     const invoice = await Invoice.findById(id, { invoiceNumber: 1 });

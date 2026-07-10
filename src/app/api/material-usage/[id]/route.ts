@@ -1,10 +1,11 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, ApiError, toId } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, ApiError, toId, assertManagerOwnsProject } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/mongoose";
 import { withTransaction } from "@/lib/db-transaction";
 import Material from "@/models/Material";
 import MaterialUsage from "@/models/MaterialUsage";
 import LedgerEntry from "@/models/LedgerEntry";
+import Project from "@/models/Project";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,6 +20,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const material = await Material.findById(usage.materialId);
     if (!material) throw new ApiError(404, "Associated material not found");
+    if (session.user.role === "manager") {
+      const project = await Project.findById(usage.projectId || material.projectId, { assignedManagerId: 1 });
+      assertManagerOwnsProject(session, project);
+    }
 
     const oldQty = usage.quantityUsed;
     const newQty = data.quantityUsed !== undefined ? parseFloat(data.quantityUsed) : oldQty;
@@ -82,6 +87,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     const usage = await MaterialUsage.findById(id);
     if (!usage) throw new ApiError(404, "Material usage log not found");
+    if (session.user.role === "manager") {
+      const material = await Material.findById(usage.materialId, { projectId: 1 });
+      const project = await Project.findById(usage.projectId || material?.projectId, { assignedManagerId: 1 });
+      assertManagerOwnsProject(session, project);
+    }
 
     await withTransaction(async (dbSession) => {
       // Return quantity to stock

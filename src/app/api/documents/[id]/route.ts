@@ -1,18 +1,23 @@
 import { NextRequest } from "next/server";
-import { requireAuth, handleApiError, ok, ApiError, toId } from "@/lib/api-helpers";
+import { requireAuth, handleApiError, ok, ApiError, toId, assertManagerOwnsProject } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Doc from "@/models/Document";
+import Project from "@/models/Project";
 import fs from "fs";
 import path from "path";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const { id } = await params;
     await connectDB();
     const doc = await Doc.findById(id).populate("project", "id name").populate("uploadedBy", "name");
     if (!doc) throw new ApiError(404, "Document not found");
+    if (session.user.role === "manager" && doc.projectId) {
+      const project = await Project.findById(doc.projectId, { assignedManagerId: 1 });
+      assertManagerOwnsProject(session, project);
+    }
     return ok(doc);
   } catch (e) {
     return handleApiError(e);

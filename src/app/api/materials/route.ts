@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError, assertManagerOwnsProject } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { notifyAdminsAndManagers, checkBudgetAlert } from "@/lib/notifications";
 import { connectDB } from "@/lib/mongoose";
@@ -9,15 +9,24 @@ import MaterialUsage from "@/models/MaterialUsage";
 import LedgerEntry from "@/models/LedgerEntry";
 import BankAccount from "@/models/BankAccount";
 import Vendor from "@/models/Vendor";
+import Project from "@/models/Project";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const { searchParams } = new URL(req.url);
     const projectId = searchParams.get("projectId");
     const filter: any = {};
     if (projectId) filter.projectId = projectId;
     await connectDB();
+    if (session.user.role === "manager") {
+      const ownProjectIds = (await Project.find({ assignedManagerId: session.user.id }, { _id: 1 }).lean())
+        .map((p: any) => p._id.toString());
+      if (projectId && !ownProjectIds.includes(projectId)) {
+        throw new ApiError(403, "You can only view materials for your assigned projects");
+      }
+      filter.projectId = projectId || { $in: ownProjectIds };
+    }
     const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
     const limit = Math.max(1, parseInt(searchParams.get("limit") || "50"));
     const skip = (page - 1) * limit;
@@ -74,6 +83,10 @@ export async function POST(req: NextRequest) {
     const minStock = parseFloat(data.minStockLevel || "5");
     if (!Number.isFinite(minStock) || minStock < 0) throw new ApiError(400, "Minimum stock level cannot be negative");
     await connectDB();
+    if (session.user.role === "manager") {
+      const project = await Project.findById(toId(data.projectId), { assignedManagerId: 1 });
+      assertManagerOwnsProject(session, project);
+    }
     if (data.vendorId) {
       const vendor = await Vendor.findById(toId(data.vendorId));
       if (!vendor) throw new ApiError(404, "Vendor not found");

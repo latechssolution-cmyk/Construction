@@ -8,12 +8,15 @@ import Invoice from "@/models/Invoice";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const { id } = await params;
     await connectDB();
     const contract = await Contract.findById(id).populate("client").populate("variations");
     if (!contract) throw new ApiError(404, "Contract not found");
     const projects = await Project.find({ contractId: id }).populate("assignedManager", "name");
+    if (session.user.role === "manager" && !projects.some((p: any) => p.assignedManagerId?.toString() === session.user.id)) {
+      throw new ApiError(403, "You can only access contracts for your assigned projects");
+    }
     return ok({ ...contract.toJSON(), projects });
   } catch (e) {
     return handleApiError(e);
@@ -29,6 +32,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await connectDB();
     const contract = await Contract.findById(id);
     if (!contract) throw new ApiError(404, "Contract not found");
+    if (session.user.role === "manager") {
+      const ownsAny = await Project.exists({ contractId: id, assignedManagerId: session.user.id });
+      if (!ownsAny) throw new ApiError(403, "You can only manage contracts for your assigned projects");
+    }
     if (data.contractValue !== undefined && contract.status !== "draft") {
       throw new ApiError(400, "Base contract value is locked. Please log a Contract Variation Order to amend the contract value.");
     }

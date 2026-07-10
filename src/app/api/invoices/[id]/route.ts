@@ -10,7 +10,8 @@ import mongoose from "mongoose";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    requireRole(session, "admin", "ceo", "accountant");
     const { id } = await params;
     await connectDB();
     const invoice = await Invoice.findById(id)

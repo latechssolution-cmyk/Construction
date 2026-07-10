@@ -20,10 +20,10 @@ export function requireRole(session: AuthSession, ...roles: string[]): void {
 }
 
 // A manager may only touch data that hangs off a project assigned to them.
-// Several project sub-resource routes (summary/stock/report/phases/
-// milestones/tasks/employees) fetch a project without this check, letting
-// a manager read or edit another manager's project via those endpoints even
-// though the main project detail route already enforces it.
+// Applied at every route that fetches project-scoped data by ID (tasks,
+// materials, material-usage, subcontracts, contracts, documents, project
+// phases) — call this (or an equivalent inline check) after loading the
+// parent project whenever session.user.role === "manager".
 export function assertManagerOwnsProject<T extends { assignedManagerId?: { toString(): string } | null } | null>(
   session: AuthSession,
   project: T,

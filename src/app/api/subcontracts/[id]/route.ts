@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAuth, requireRole, handleApiError, ok, ApiError } from "@/lib/api-helpers";
+import { requireAuth, requireRole, handleApiError, ok, ApiError, assertManagerOwnsProject } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Subcontract from "@/models/Subcontract";
@@ -7,7 +7,7 @@ import Project from "@/models/Project";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const { id } = await params;
     await connectDB();
     const subcontract = await Subcontract.findById(id)
@@ -15,6 +15,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       .populate("vendor", "id name category contactPerson phone email")
       .populate("createdBy", "name");
     if (!subcontract) throw new ApiError(404, "Subcontract not found");
+    if (session.user.role === "manager") {
+      const project = await Project.findById(subcontract.projectId, { assignedManagerId: 1 });
+      assertManagerOwnsProject(session, project);
+    }
     return ok(subcontract);
   } catch (e) {
     return handleApiError(e);

@@ -5,8 +5,9 @@ import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/hooks/use-toast";
-import { Pencil, Trash2, X, Download, FileText, BarChart2, Boxes, Wallet, HardHat, FolderOpen, Users } from "lucide-react";
+import { Pencil, Trash2, X, Download, FileText, BarChart2, Boxes, Wallet, HardHat, FolderOpen, Users, CheckCircle2, Circle } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -99,7 +100,6 @@ export default function ProjectDetailPage() {
         type: project.type ?? "residential",
         location: project.location ?? "",
         budget: project.budget ?? 0,
-        completionPercent: Math.round(project.completionPercent ?? 0),
         startDate: project.startDate ? project.startDate.slice(0, 10) : "",
         endDate: project.endDate ? project.endDate.slice(0, 10) : "",
         clientId: project.clientId ?? "",
@@ -142,12 +142,6 @@ export default function ProjectDetailPage() {
     } finally {
       setSaving(false);
     }
-  }
-
-  // Quick-save just the completion percentage (used by the progress slider)
-  async function saveCompletion(pct: number) {
-    const clamped = Math.max(0, Math.min(100, Math.round(pct)));
-    await saveProject({ completionPercent: clamped });
   }
 
   // Use the server-side aggregate totals from /summary rather than summing
@@ -546,6 +540,31 @@ export default function ProjectDetailPage() {
     }
   }
 
+  async function toggleSubcontractStatus(sc: any) {
+    const newStatus = sc.status === "completed" ? "in_progress" : "completed";
+    mutate((current: any) => {
+      if (!current) return current;
+      return {
+        ...current,
+        subcontracts: (current.subcontracts || []).map((x: any) => (x.id === sc.id ? { ...x, status: newStatus } : x)),
+      };
+    }, { revalidate: false });
+
+    const res = await fetch(`/api/subcontracts/${sc.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || "Failed to update status", variant: "destructive" });
+      mutate();
+      return;
+    }
+    mutateSummary();
+    mutate();
+  }
+
   async function deleteSubcontract(scId: string) {
     const res = await fetch(`/api/subcontracts/${scId}`, { method: "DELETE" });
     if (res.ok) {
@@ -700,14 +719,17 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-      {/* Completion progress — editable */}
+      {/* Completion progress — fully derived from tasks, no manual override */}
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <div className="flex items-center justify-between mb-2">
           <div>
             <h3 className="font-semibold text-gray-900 text-sm">Overall Completion</h3>
             <p className="text-xs text-gray-400">
-              Manually tracked progress
-              {summary && typeof summary.taskProgress === "number" ? ` · Tasks auto: ${summary.taskProgress}% (${summary.completedTasks}/${summary.totalTasks})` : ""}
+              {summary && typeof summary.totalTasks === "number"
+                ? summary.totalTasks > 0
+                  ? `Based on ${summary.completedTasks}/${summary.totalTasks} tasks (weighted)`
+                  : "No tasks yet — add tasks in the Phases & Tasks tab to track progress"
+                : "Based on task completion (weighted)"}
             </p>
           </div>
           <span className="text-2xl font-bold text-blue-600">{Math.round(project.completionPercent || 0)}%</span>
@@ -718,35 +740,6 @@ export default function ProjectDetailPage() {
             style={{ width: `${Math.min(project.completionPercent || 0, 100)}%` }}
           />
         </div>
-        {canManage && (
-          <div className="mt-4 flex items-center gap-3">
-            <input
-              type="range" min={0} max={100} step={5}
-              defaultValue={Math.round(project.completionPercent || 0)}
-              key={Math.round(project.completionPercent || 0)}
-              onPointerUp={(e) => saveCompletion(Number((e.target as HTMLInputElement).value))}
-              disabled={saving}
-              className="flex-1 accent-blue-600 cursor-pointer"
-            />
-            <div className="flex items-center gap-1">
-              <input
-                type="number" min={0} max={100}
-                defaultValue={Math.round(project.completionPercent || 0)}
-                key={Math.round(project.completionPercent || 0)}
-                onBlur={(e) => { const v = Number(e.target.value); if (v !== Math.round(project.completionPercent || 0)) saveCompletion(v); }}
-                onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                className="w-16 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right"
-              />
-              <span className="text-sm text-gray-500">%</span>
-            </div>
-            <div className="flex gap-1">
-              {[25, 50, 75, 100].map((q) => (
-                <button key={q} onClick={() => saveCompletion(q)} disabled={saving}
-                  className="text-xs px-2 py-1 border border-gray-200 rounded-md text-gray-600 hover:bg-gray-50">{q}%</button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Summary Cards */}
@@ -873,6 +866,17 @@ export default function ProjectDetailPage() {
                   <span className={`font-bold ${c}`}>PKR {v.toLocaleString()}</span>
                 </div>
               ))}
+              {summary && summary.totalSubcontracts > 0 && (
+                <div className="flex justify-between text-sm pt-3 mt-1 border-t border-gray-100">
+                  <span className="text-gray-500">Subcontracted ({summary.totalSubcontracts})</span>
+                  <span className="font-bold text-purple-600">
+                    PKR {summary.totalSubcontractValue.toLocaleString()}
+                    <span className="text-xs text-gray-400 font-normal ml-1">
+                      ({summary.completedSubcontractValue.toLocaleString()} completed)
+                    </span>
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1061,7 +1065,10 @@ export default function ProjectDetailPage() {
                         <>
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <p className="font-semibold text-gray-900">{sc.vendor?.name || "Unknown vendor"}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold text-gray-900">{sc.vendor?.name || "Unknown vendor"}</p>
+                                <StatusBadge status={sc.status || "in_progress"} />
+                              </div>
                               <p className="text-xs text-gray-500 capitalize">{sc.vendor?.category ? `${sc.vendor.category} · ` : ""}{sc.vendor?.contactPerson || sc.vendor?.phone || "—"}</p>
                             </div>
                             <p className="text-lg font-bold text-gray-900 shrink-0">PKR {(sc.contractValue || 0).toLocaleString()}</p>
@@ -1070,13 +1077,26 @@ export default function ProjectDetailPage() {
                           <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
                             {sc.startDate && <span>Start: {new Date(sc.startDate).toLocaleDateString()}</span>}
                             {sc.endDate && <span>End: {new Date(sc.endDate).toLocaleDateString()}</span>}
+                            {sc.completedAt && <span>Completed: {new Date(sc.completedAt).toLocaleDateString()}</span>}
                           </div>
-                          {canManage && (
-                            <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+                          <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100 flex-wrap">
+                            {canManage && (
+                              <button
+                                onClick={() => toggleSubcontractStatus(sc)}
+                                className={`text-xs px-2 py-1 rounded-lg border ${sc.status === "completed" ? "border-gray-200 text-gray-600 hover:bg-gray-50" : "border-green-200 text-green-700 hover:bg-green-50"}`}
+                              >
+                                <span className="flex items-center gap-1">
+                                  {sc.status === "completed" ? <><Circle className="w-3 h-3" /> Mark Incomplete</> : <><CheckCircle2 className="w-3 h-3" /> Mark Completed</>}
+                                </span>
+                              </button>
+                            )}
+                            {canManage && (
                               <button onClick={() => startEditSubcontract(sc)} className="text-xs px-2 py-1 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50">
                                 <span className="flex items-center gap-1"><Pencil className="w-3 h-3" /> Edit</span>
                               </button>
-                              {deletingSubcontractId === sc.id ? (
+                            )}
+                            {canManage && (
+                              deletingSubcontractId === sc.id ? (
                                 <div className="flex items-center gap-1">
                                   <button onClick={() => deleteSubcontract(sc.id)} className="text-xs px-2 py-1 bg-red-600 text-white rounded-lg font-medium">Confirm Remove</button>
                                   <button onClick={() => setDeletingSubcontractId(null)} className="text-xs px-1.5 py-1 border border-gray-300 rounded-lg"><X className="w-3 h-3" /></button>
@@ -1085,9 +1105,9 @@ export default function ProjectDetailPage() {
                                 <button onClick={() => setDeletingSubcontractId(sc.id)} className="text-xs px-2 py-1 border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
                                   <span className="flex items-center gap-1"><Trash2 className="w-3 h-3" /> Remove</span>
                                 </button>
-                              )}
-                            </div>
-                          )}
+                              )
+                            )}
+                          </div>
                         </>
                       )}
                     </div>

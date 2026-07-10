@@ -49,6 +49,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       subcontract.contractValue = value;
     }
 
+    if (data.status !== undefined) {
+      if (!["in_progress", "completed"].includes(data.status)) {
+        throw new ApiError(400, "status must be 'in_progress' or 'completed'");
+      }
+      subcontract.status = data.status;
+      subcontract.completedAt = data.status === "completed" ? new Date() : null;
+    }
+
     if (data.startDate !== undefined) subcontract.startDate = data.startDate ? new Date(data.startDate) : undefined;
     if (data.endDate !== undefined) subcontract.endDate = data.endDate ? new Date(data.endDate) : undefined;
 

@@ -73,13 +73,15 @@ export default function MaterialsPage() {
   const [modalError, setModalError] = useState("");
 
   const [search, setSearch] = useState("");
+  const [lowStockOnly, setLowStockOnly] = useState(false);
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const q = new URLSearchParams(window.location.search).get("q");
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get("q");
       if (q) setSearch(q);
+      if (params.get("lowStock") === "1") setLowStockOnly(true);
     }
   }, []);
-  const [lowStockOnly, setLowStockOnly] = useState(false);
 
   const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
   const canView = ["admin", "ceo", "manager"].includes(session?.user?.role || "");

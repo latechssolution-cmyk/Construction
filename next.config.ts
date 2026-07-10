@@ -16,6 +16,15 @@ const nextConfig: NextConfig = {
   },
   // Prevent bundling of server-only native modules into the client/edge bundles
   serverExternalPackages: ["mongoose", "pdfkit", "fontkit", "iconv-lite"],
+  // pdfkit reads its built-in font metrics (Helvetica.afm etc.) from disk at
+  // runtime via fs, not via require/import — Vercel's file tracer can't see
+  // that dependency automatically, so the two PDF-generating routes throw
+  // ENOENT for the .afm files in production even though `npm run build`
+  // and local dev both work fine (dev reads straight from node_modules).
+  outputFileTracingIncludes: {
+    "/api/projects/[id]/report": ["./node_modules/pdfkit/js/data/**"],
+    "/api/invoices/[id]/pdf": ["./node_modules/pdfkit/js/data/**"],
+  },
   async headers() {
     return [
       {

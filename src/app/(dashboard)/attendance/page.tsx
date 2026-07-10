@@ -45,6 +45,10 @@ export default function AttendancePage() {
   // Filters
   const [statusFilter, setStatusFilter] = useState("");
   const [employeeFilter, setEmployeeFilter] = useState("");
+  // Jump straight to one day instead of scrolling through every date group
+  // in the month to find it — this was the main complaint: checking the 2nd
+  // while today is the 27th meant scrolling past 25 date blocks.
+  const [dateFilter, setDateFilter] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   // ── Mark Attendance Modal ────────────────────────────────────────────────
@@ -71,6 +75,7 @@ export default function AttendancePage() {
   const filtered = list.filter((r: any) => {
     if (statusFilter && r.status !== statusFilter) return false;
     if (employeeFilter && r.employee?.id !== employeeFilter) return false;
+    if (dateFilter && r.date && new Date(r.date).toISOString().slice(0, 10) !== dateFilter) return false;
     return true;
   });
 
@@ -265,12 +270,40 @@ export default function AttendancePage() {
             <button key={s} onClick={() => setStatusFilter(s)} className={"px-3 py-1.5 text-sm rounded-lg capitalize " + (statusFilter === s ? "bg-blue-100 text-blue-700" : "border border-gray-200 text-gray-600 hover:bg-gray-50")}>{s.replace("_", " ") || "All"}</button>
           ))}
         </div>
-        <div className="flex gap-2 flex-wrap sm:ml-auto">
+        <div className="flex gap-2 flex-wrap sm:ml-auto items-center">
           <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
             <option value="">All employees</option>
             {activeEmps.map((emp: any) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
           </select>
-          <input type="month" value={month} onChange={(e) => setMonth(e.target.value || currentMonth())} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          {/* Jump to a specific day — replaces scrolling through the whole month */}
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={dateFilter}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setDateFilter(v);
+                if (v) setMonth(v.slice(0, 7));
+              }}
+              className={`border rounded-lg px-3 py-2 text-sm ${dateFilter ? "border-blue-400 bg-blue-50" : "border-gray-200"}`}
+              title="Jump to a specific date"
+            />
+            {dateFilter && (
+              <button onClick={() => setDateFilter("")} className="text-gray-400 hover:text-gray-600 p-1" title="Clear date filter">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          {!dateFilter && (
+            <input type="month" value={month} onChange={(e) => setMonth(e.target.value || currentMonth())} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          )}
+          <button
+            onClick={() => { const t = new Date().toISOString().slice(0, 10); setDateFilter(t); setMonth(t.slice(0, 7)); }}
+            className="text-xs px-3 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+          >
+            Today
+          </button>
         </div>
       </div>
 
@@ -307,8 +340,12 @@ export default function AttendancePage() {
       ) : groupKeys.length === 0 ? (
         <div className="text-center py-16 text-gray-400 bg-white border border-gray-200 rounded-xl">
           <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <p className="font-medium text-gray-600">No attendance records for this view</p>
-          <p className="text-sm mt-1">Pick another month, or {canManage ? "use \"Mark Attendance\" to record today's attendance." : "check back later."}</p>
+          <p className="font-medium text-gray-600">
+            {dateFilter ? `No attendance records for ${new Date(dateFilter + "T00:00:00").toLocaleDateString("en-PK", { weekday: "long", month: "long", day: "numeric" })}` : "No attendance records for this view"}
+          </p>
+          <p className="text-sm mt-1">
+            {dateFilter ? "Try clearing the date filter or picking another day." : `Pick another month, or ${canManage ? 'use "Mark Attendance" to record today\'s attendance.' : "check back later."}`}
+          </p>
         </div>
       ) : (
         <div className="space-y-5">

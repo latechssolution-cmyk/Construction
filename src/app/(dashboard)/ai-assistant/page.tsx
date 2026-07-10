@@ -14,10 +14,13 @@ export default function AIAssistantPage() {
   const [image, setImage] = useState<File|null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [loading, setLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const lastMessageRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[messages]);
+  // Scroll so the TOP of the newest message is in view, not the bottom of
+  // the whole thread — for a long AI response that means landing on its
+  // first line instead of jumping past the end of it.
+  useEffect(()=>{ lastMessageRef.current?.scrollIntoView({behavior:"smooth", block:"start"}); },[messages]);
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -102,7 +105,7 @@ export default function AIAssistantPage() {
         )}
 
         {messages.map((m,i)=>(
-          <div key={i} className={`flex gap-3 ${m.role==="user"?"justify-end":""}`}>
+          <div key={i} ref={i===messages.length-1 ? lastMessageRef : undefined} className={`flex gap-3 ${m.role==="user"?"justify-end":""}`}>
             {m.role==="model" && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white flex-shrink-0"><Bot className="w-4 h-4" /></div>}
             <div className={`max-w-3xl rounded-2xl px-4 py-3 ${m.role==="user"?"bg-blue-600 text-white ml-auto":"bg-white border border-gray-200 text-gray-800"}`}>
               {m.image && <img src={m.image} className="max-h-48 rounded-lg mb-2 object-contain" alt="uploaded" />}
@@ -121,7 +124,6 @@ export default function AIAssistantPage() {
             </div>
           </div>
         )}
-        <div ref={bottomRef} />
       </div>
 
       <div className="bg-white border-t border-gray-200 p-4">

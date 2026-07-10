@@ -73,8 +73,8 @@ export async function POST(req: NextRequest) {
       throw new Error("date, type, amount, and category are required");
     }
     const amount = parseFloat(data.amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new ApiError(400, "amount must be a positive number");
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 100_000_000_000) {
+      throw new ApiError(400, "amount must be a positive number no greater than 100,000,000,000");
     }
     if (!["income", "expense"].includes(data.type)) {
       throw new ApiError(400, "type must be 'income' or 'expense'");

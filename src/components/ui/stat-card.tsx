@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 type StatCardTone = "blue" | "green" | "red" | "purple" | "orange" | "gray";
@@ -32,6 +33,7 @@ export function StatCard({
   tone = "blue",
   urgent = false,
   className,
+  href,
 }: {
   label: string;
   value: string | number;
@@ -40,29 +42,39 @@ export function StatCard({
   tone?: StatCardTone;
   urgent?: boolean;
   className?: string;
+  href?: string;
 }) {
-  return (
-    <div
-      className={cn(
-        "bg-white border border-gray-200 rounded-xl p-4 sm:p-5 shadow-sm transition-shadow hover:shadow-md",
-        urgent && "ring-1 ring-red-300 border-red-200",
-        className
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide truncate" title={label}>{label}</p>
-          <p className={cn("text-xl sm:text-2xl lg:text-3xl font-bold mt-1 truncate", TONE_VALUE[tone])} title={String(value)}>
-            {value}
-          </p>
-          {sub && <p className="text-xs text-gray-400 mt-1 truncate" title={sub}>{sub}</p>}
-        </div>
-        {icon && (
-          <div className={cn("shrink-0 w-9 h-9 rounded-lg flex items-center justify-center", TONE_ICON[tone])}>
-            {icon}
-          </div>
-        )}
+  const body = (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide truncate" title={label}>{label}</p>
+        <p className={cn("text-lg sm:text-xl lg:text-2xl font-bold mt-1 break-words", TONE_VALUE[tone])} title={String(value)}>
+          {value}
+        </p>
+        {sub && <p className="text-xs text-gray-400 mt-1 truncate" title={sub}>{sub}</p>}
       </div>
+      {icon && (
+        <div className={cn("shrink-0 w-9 h-9 rounded-lg flex items-center justify-center", TONE_ICON[tone])}>
+          {icon}
+        </div>
+      )}
     </div>
   );
+
+  const cardClassName = cn(
+    "bg-white border border-gray-200 rounded-xl p-4 sm:p-5 shadow-sm transition-shadow hover:shadow-md",
+    urgent && "ring-1 ring-red-300 border-red-200",
+    href && "hover:border-blue-300 cursor-pointer",
+    className
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={cardClassName}>
+        {body}
+      </Link>
+    );
+  }
+
+  return <div className={cardClassName}>{body}</div>;
 }

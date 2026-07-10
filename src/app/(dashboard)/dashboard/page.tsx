@@ -61,16 +61,16 @@ function AdminDashboard({ data }: { data: any }) {
     <div className="space-y-6">
       {/* KPI Row */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-        <StatCard label="Total Projects" value={data?.totalProjects || 0} tone="blue" icon={<FolderOpen className="w-4 h-4" />} />
-        <StatCard label="Active Projects" value={data?.activeProjects || 0} tone="green" icon={<FolderKanban className="w-4 h-4" />} />
-        <StatCard label="Overdue Tasks" value={data?.overdueTasks || 0} tone={data?.overdueTasks > 0 ? "red" : "green"} urgent={data?.overdueTasks > 0} sub={data?.overdueTasks > 0 ? "Need attention" : undefined} icon={<ClipboardList className="w-4 h-4" />} />
-        <StatCard label="Unpaid Invoices" value={data?.overdueInvoices || 0} tone={data?.overdueInvoices > 0 ? "orange" : "green"} urgent={data?.overdueInvoices > 0} sub={data?.overdueInvoices > 0 ? "Overdue" : undefined} icon={<Receipt className="w-4 h-4" />} />
-        <StatCard label="Employees" value={data?.totalEmployees || 0} tone="purple" icon={<Users2 className="w-4 h-4" />} />
+        <StatCard label="Total Projects" value={data?.totalProjects || 0} tone="blue" icon={<FolderOpen className="w-4 h-4" />} href="/projects" />
+        <StatCard label="Active Projects" value={data?.activeProjects || 0} tone="green" icon={<FolderKanban className="w-4 h-4" />} href="/projects?status=in_progress" />
+        <StatCard label="Overdue Tasks" value={data?.overdueTasks || 0} tone={data?.overdueTasks > 0 ? "red" : "green"} urgent={data?.overdueTasks > 0} sub={data?.overdueTasks > 0 ? "Need attention" : undefined} icon={<ClipboardList className="w-4 h-4" />} href="/tasks?overdue=1" />
+        <StatCard label="Unpaid Invoices" value={data?.overdueInvoices || 0} tone={data?.overdueInvoices > 0 ? "orange" : "green"} urgent={data?.overdueInvoices > 0} sub={data?.overdueInvoices > 0 ? "Overdue" : undefined} icon={<Receipt className="w-4 h-4" />} href="/billing?status=overdue" />
+        <StatCard label="Employees" value={data?.totalEmployees || 0} tone="purple" icon={<Users2 className="w-4 h-4" />} href="/people?tab=employees" />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard label="Total Income" value={pkr(data?.totalIncome || 0)} tone="green" icon={<TrendingUp className="w-4 h-4" />} />
-        <StatCard label="Total Expense" value={pkr(data?.totalExpense || 0)} tone="red" icon={<TrendingDown className="w-4 h-4" />} />
-        <StatCard label="Net Profit" value={pkr((data?.totalIncome || 0) - (data?.totalExpense || 0))} tone={(data?.totalIncome || 0) >= (data?.totalExpense || 0) ? "blue" : "orange"} icon={<Wallet className="w-4 h-4" />} />
+        <StatCard label="Total Income" value={pkr(data?.totalIncome || 0)} tone="green" icon={<TrendingUp className="w-4 h-4" />} href="/finance/ledger?type=income" />
+        <StatCard label="Total Expense" value={pkr(data?.totalExpense || 0)} tone="red" icon={<TrendingDown className="w-4 h-4" />} href="/finance/ledger?type=expense" />
+        <StatCard label="Net Profit" value={pkr((data?.totalIncome || 0) - (data?.totalExpense || 0))} tone={(data?.totalIncome || 0) >= (data?.totalExpense || 0) ? "blue" : "orange"} icon={<Wallet className="w-4 h-4" />} href="/finance/profit-sheets" />
       </div>
 
       {/* Charts */}
@@ -181,10 +181,10 @@ function ManagerDashboard({ data }: { data: any }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="My Projects" value={data?.myProjectsCount || 0} tone="blue" icon={<FolderOpen className="w-4 h-4" />} />
-        <StatCard label="Active Projects" value={data?.activeProjectsCount || 0} tone="green" icon={<FolderKanban className="w-4 h-4" />} />
-        <StatCard label="Tasks Due in 7 Days" value={dueSoon.length} tone={dueSoon.length > 0 ? "orange" : "green"} sub={dueSoon.length > 0 ? "Action needed" : undefined} urgent={dueSoon.length > 0} icon={<ClipboardList className="w-4 h-4" />} />
-        <StatCard label="Low Stock Alerts" value={lowStock.length} tone={lowStock.length > 0 ? "red" : "green"} sub={lowStock.length > 0 ? "Reorder required" : undefined} urgent={lowStock.length > 0} icon={<Boxes className="w-4 h-4" />} />
+        <StatCard label="My Projects" value={data?.myProjectsCount || 0} tone="blue" icon={<FolderOpen className="w-4 h-4" />} href="/projects" />
+        <StatCard label="Active Projects" value={data?.activeProjectsCount || 0} tone="green" icon={<FolderKanban className="w-4 h-4" />} href="/projects?status=in_progress" />
+        <StatCard label="Tasks Due in 7 Days" value={dueSoon.length} tone={dueSoon.length > 0 ? "orange" : "green"} sub={dueSoon.length > 0 ? "Action needed" : undefined} urgent={dueSoon.length > 0} icon={<ClipboardList className="w-4 h-4" />} href="/tasks" />
+        <StatCard label="Low Stock Alerts" value={lowStock.length} tone={lowStock.length > 0 ? "red" : "green"} sub={lowStock.length > 0 ? "Reorder required" : undefined} urgent={lowStock.length > 0} icon={<Boxes className="w-4 h-4" />} href="/materials?lowStock=1" />
       </div>
 
       {/* Project progress chart — real data */}
@@ -209,10 +209,10 @@ function ManagerDashboard({ data }: { data: any }) {
           {dueSoon.length === 0 ? <div className="text-center py-6"><CheckCircle2 className="w-6 h-6 text-green-400 mx-auto mb-1" /><p className="text-sm text-gray-400">No tasks due this week — great work!</p></div> : (
             <div className="space-y-2">
               {dueSoon.map((t: any) => (
-                <div key={t.id} className="flex items-center justify-between py-2 border-b border-gray-50">
+                <Link key={t.id} href={t.projectId ? `/projects/${t.projectId}` : "/tasks"} className="flex items-center justify-between py-2 border-b border-gray-50 hover:bg-gray-50 -mx-1 px-1 rounded">
                   <div><p className="text-sm font-medium text-gray-900">{t.title}</p><p className="text-xs text-gray-400">{t.project?.name}</p></div>
                   <span className="text-xs text-orange-600 font-medium">{new Date(t.dueDate).toLocaleDateString()}</span>
-                </div>
+                </Link>
               ))}
             </div>
           )}
@@ -221,10 +221,10 @@ function ManagerDashboard({ data }: { data: any }) {
           {milestones.length === 0 ? <div className="text-center py-6"><Calendar className="w-6 h-6 text-gray-300 mx-auto mb-1" /><p className="text-sm text-gray-400">No milestones due in the next 30 days.</p></div> : (
             <div className="space-y-2">
               {milestones.map((m: any) => (
-                <div key={m.id} className="flex items-center justify-between py-2 border-b border-gray-50">
+                <Link key={m.id} href={m.projectId ? `/projects/${m.projectId}` : "/projects"} className="flex items-center justify-between py-2 border-b border-gray-50 hover:bg-gray-50 -mx-1 px-1 rounded">
                   <div><p className="text-sm font-medium text-gray-900">{m.name}</p><p className="text-xs text-gray-400">{m.project?.name}</p></div>
                   <span className="text-xs text-blue-600 font-medium">{m.dueDate ? new Date(m.dueDate).toLocaleDateString() : "—"}</span>
-                </div>
+                </Link>
               ))}
             </div>
           )}
@@ -239,11 +239,11 @@ function ManagerDashboard({ data }: { data: any }) {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {lowStock.map((m: any) => (
-              <div key={m.id} className="bg-white rounded-lg p-3 border border-red-100">
+              <Link key={m.id} href="/materials?lowStock=1" className="bg-white rounded-lg p-3 border border-red-100 hover:border-red-300 transition-colors">
                 <p className="text-sm font-medium text-gray-900">{m.itemName}</p>
                 <p className="text-xs text-gray-500">{m.project?.name}</p>
                 <p className="text-xs text-red-600 font-medium mt-1">{m.stockQuantity} {m.unit} left (min: {m.minStockLevel})</p>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -262,17 +262,17 @@ function AccountantDashboard({ data }: { data: any }) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-5 text-white min-w-0">
+      <Link href="/finance/accounts" className="block bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-5 text-white min-w-0 hover:from-blue-700 hover:to-blue-800 transition-colors">
         <p className="text-sm font-medium opacity-80 truncate">Total Cash Position</p>
         <p className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-1 truncate" title={pkr(totalCash)}>{pkr(totalCash)}</p>
         <p className="text-xs opacity-70 mt-1">Across {bankAccounts.length} bank account{bankAccounts.length !== 1 ? "s" : ""}</p>
-      </div>
+      </Link>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Month Income" value={pkr(data?.monthIncome || 0)} tone="green" icon={<TrendingUp className="w-4 h-4" />} />
-        <StatCard label="Month Expense" value={pkr(data?.monthExpense || 0)} tone="red" icon={<TrendingDown className="w-4 h-4" />} />
-        <StatCard label="Total Income" value={pkr(data?.totalIncome || 0)} tone="green" icon={<TrendingUp className="w-4 h-4" />} />
-        <StatCard label="Total Expense" value={pkr(data?.totalExpense || 0)} tone="red" icon={<TrendingDown className="w-4 h-4" />} />
+        <StatCard label="Month Income" value={pkr(data?.monthIncome || 0)} tone="green" icon={<TrendingUp className="w-4 h-4" />} href="/finance/ledger?type=income" />
+        <StatCard label="Month Expense" value={pkr(data?.monthExpense || 0)} tone="red" icon={<TrendingDown className="w-4 h-4" />} href="/finance/ledger?type=expense" />
+        <StatCard label="Total Income" value={pkr(data?.totalIncome || 0)} tone="green" icon={<TrendingUp className="w-4 h-4" />} href="/finance/profit-sheets" />
+        <StatCard label="Total Expense" value={pkr(data?.totalExpense || 0)} tone="red" icon={<TrendingDown className="w-4 h-4" />} href="/finance/profit-sheets" />
       </div>
 
       <ChartCard title="Monthly Cash Flow (This Year)">
@@ -296,10 +296,10 @@ function AccountantDashboard({ data }: { data: any }) {
           <div className="flex items-center justify-between mb-4"><h2 className="font-semibold">Bank Accounts</h2><Link href="/finance/accounts" className="text-xs text-blue-600 hover:underline">View all</Link></div>
           <div className="space-y-3">
             {bankAccounts.map((b: any) => (
-              <div key={b.id} className="flex items-center justify-between py-2 border-b border-gray-50">
+              <Link key={b.id} href="/finance/accounts" className="flex items-center justify-between py-2 border-b border-gray-50 hover:bg-gray-50 -mx-1 px-1 rounded">
                 <div><p className="text-sm font-medium text-gray-900">{b.name}</p><p className="text-xs text-gray-400">{b.bankName}</p></div>
                 <p className={"text-sm font-bold " + (b.balance >= 0 ? "text-green-700" : "text-red-600")}>{pkr(b.balance)}</p>
-              </div>
+              </Link>
             ))}
             {bankAccounts.length === 0 && <div className="text-center py-6"><Landmark className="w-6 h-6 text-gray-300 mx-auto mb-1" /><p className="text-sm text-gray-400">No bank accounts yet. <Link href="/finance/accounts" className="text-blue-600 hover:underline">Add one</Link></p></div>}
           </div>
@@ -308,10 +308,10 @@ function AccountantDashboard({ data }: { data: any }) {
           <div className="flex items-center justify-between mb-4"><h2 className="font-semibold text-orange-700">Pending Invoices</h2><Link href="/billing" className="text-xs text-blue-600 hover:underline">View all</Link></div>
           <div className="space-y-2">
             {pendingInvoices.map((inv: any) => (
-              <div key={inv.id} className="flex items-center justify-between py-2 border-b border-gray-50">
+              <Link key={inv.id} href={`/billing?status=${inv.status}`} className="flex items-center justify-between py-2 border-b border-gray-50 hover:bg-gray-50 -mx-1 px-1 rounded">
                 <div><p className="text-sm font-medium text-gray-900">{inv.invoiceNumber}</p><p className="text-xs text-gray-400">{inv.client?.name}</p></div>
                 <div className="text-right"><p className="text-sm font-bold text-gray-800">{pkr(inv.grandTotal)}</p><span className="text-xs text-orange-500 capitalize">{inv.status}</span></div>
-              </div>
+              </Link>
             ))}
             {pendingInvoices.length === 0 && <div className="text-center py-6"><CheckCircle2 className="w-6 h-6 text-green-400 mx-auto mb-1" /><p className="text-sm text-green-600">All invoices are settled!</p></div>}
           </div>

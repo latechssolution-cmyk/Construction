@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
+import { recomputeProjectCompletion } from "@/lib/project-progress";
 import Task from "@/models/Task";
 import Project from "@/models/Project";
 
@@ -70,12 +71,7 @@ export async function POST(req: NextRequest) {
     });
     await task.populate("project", "id name");
     await task.populate("assignedTo", "id name");
-
-    const allTasks = await Task.find({ projectId: task.projectId }, { status: 1, weight: 1 });
-    const totalWeight = allTasks.reduce((sum, t) => sum + (t.weight || 1), 0);
-    const completedWeight = allTasks.filter(t => t.status === "completed").reduce((sum, t) => sum + (t.weight || 1), 0);
-    const pct = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
-    await Project.findByIdAndUpdate(task.projectId, { completionPercent: pct });
+    await recomputeProjectCompletion(task.projectId);
 
     void auditLog(session.user.id, "CREATE", "Task", task.id, `Created task: ${task.title}`);
     return created(task);

@@ -91,11 +91,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (session.user.role === "manager" && existing.assignedManagerId?.toString() !== session.user.id) {
       throw new ApiError(403, "You can only edit your assigned projects");
     }
-    const clampPct = (v: any) => Math.max(0, Math.min(100, Math.round(Number(v)) || 0));
     const update: any = {};
     if (data.name !== undefined) update.name = data.name;
     if (data.status !== undefined) update.status = data.status;
-    if (data.completionPercent !== undefined) update.completionPercent = clampPct(data.completionPercent);
+    // completionPercent is intentionally not settable here — it's derived
+    // entirely from task weights/status via recomputeProjectCompletion(),
+    // there is no manual override anymore.
     if (data.budget !== undefined) update.budget = parseOptionalNonNegativeNumber(data.budget, "Budget");
     if (data.location !== undefined) update.location = data.location;
     if (data.description !== undefined) update.description = data.description;

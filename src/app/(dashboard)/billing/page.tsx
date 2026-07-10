@@ -1,6 +1,6 @@
 "use client";
 import useSWR from "swr";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { ExportButton } from "@/components/export-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -23,6 +23,14 @@ export default function BillingPage() {
   const { data: projects } = useSWR("/api/projects", fetcher);
   const { data: bankAccounts } = useSWR("/api/bank-accounts", fetcher);
   const [statusFilter, setStatusFilter] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const status = new URLSearchParams(window.location.search).get("status");
+      if (status) setStatusFilter(status);
+    }
+  }, []);
+
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>({ status:"draft", taxPercent:"" });
   const [items, setItems] = useState([{ description:"", quantity:"", unitPrice:"" }]);

@@ -29,8 +29,11 @@ export default function LedgerPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const q = new URLSearchParams(window.location.search).get("q");
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get("q");
       if (q) setSearch(q);
+      const type = params.get("type");
+      if (type) setTypeFilter(type);
     }
   }, []);
 

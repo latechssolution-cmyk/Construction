@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, ApiError, toId } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
+import { recomputeProjectCompletion } from "@/lib/project-progress";
 import Task from "@/models/Task";
 import Project from "@/models/Project";
 
@@ -72,12 +73,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!task) throw new ApiError(404, "Task not found");
     void auditLog(session.user.id, "UPDATE", "Task", id, `Updated task: ${task.title} → ${task.status}`);
 
-    // Project.completionPercent is intentionally NOT recomputed here — it's
-    // a manually-tracked figure the project owner adjusts directly (see the
-    // slider on the project detail page). Task-based progress is already
-    // surfaced separately as "taskProgress" via /api/projects/[id]/summary;
-    // overwriting completionPercent from it here silently clobbered manual
-    // updates every time any task's status changed.
+    // Project completion is derived entirely from tasks now (no manual
+    // override) — any update that could change the weighted total (status
+    // or weight) needs to recompute it here, not just on task create.
+    if (data.status !== undefined || data.weight !== undefined) {
+      await recomputeProjectCompletion(task.projectId);
+    }
+
     return ok(task);
   } catch (e) {
     return handleApiError(e);
@@ -94,6 +96,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     if (!existingTask) throw new ApiError(404, "Task not found");
     await assertManagerOwnsTask(session, existingTask);
     const task = await Task.findByIdAndDelete(id);
+    if (task?.projectId) await recomputeProjectCompletion(task.projectId);
     void auditLog(session.user.id, "DELETE", "Task", id, "Deleted task");
     return ok({ success: true });
   } catch (e) {

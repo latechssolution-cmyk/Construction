@@ -33,8 +33,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const data = await req.json();
     if (data.amount !== undefined) {
       const parsedAmount = parseFloat(data.amount);
-      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-        throw new ApiError(400, "amount must be a positive number");
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || parsedAmount > 100_000_000_000) {
+        throw new ApiError(400, "amount must be a positive number no greater than 100,000,000,000");
       }
     }
     if (data.type !== undefined && !["income", "expense"].includes(data.type)) {

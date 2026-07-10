@@ -26,13 +26,16 @@ export default function TasksPage() {
   const [projectFilter, setProjectFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [overdueOnly, setOverdueOnly] = useState(false);
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"kanban" | "list">("kanban");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const q = new URLSearchParams(window.location.search).get("q");
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get("q");
       if (q) setSearch(q);
+      if (params.get("overdue") === "1") { setOverdueOnly(true); setView("list"); }
     }
   }, []);
 
@@ -57,11 +60,13 @@ export default function TasksPage() {
     const matchesSearch = !search ||
       t.title?.toLowerCase().includes(search.toLowerCase()) ||
       t.description?.toLowerCase().includes(search.toLowerCase());
+    const isOverdue = t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "completed";
     return (
       matchesSearch &&
       (!projectFilter || t.projectId === projectFilter) &&
       (!priorityFilter || t.priority === priorityFilter) &&
-      (!statusFilter || t.status === statusFilter)
+      (!statusFilter || t.status === statusFilter) &&
+      (!overdueOnly || isOverdue)
     );
   });
 
@@ -221,6 +226,16 @@ export default function TasksPage() {
           <option value="">All Statuses</option>
           {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
         </select>
+        {overdueOnly && (
+          <button
+            type="button"
+            onClick={() => setOverdueOnly(false)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-red-50 text-red-600 border border-red-200"
+          >
+            Overdue only
+            <span className="text-red-400 hover:text-red-600">×</span>
+          </button>
+        )}
       </div>
 
       {/* New Task Form */}

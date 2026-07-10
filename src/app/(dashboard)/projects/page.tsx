@@ -23,13 +23,17 @@ export default function ProjectsPage() {
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
 
+  const [statusFilter, setStatusFilter] = useState("all");
+
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const q = new URLSearchParams(window.location.search).get("q");
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get("q");
       if (q) setSearch(q);
+      const status = params.get("status");
+      if (status) setStatusFilter(status);
     }
   }, []);
-  const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 

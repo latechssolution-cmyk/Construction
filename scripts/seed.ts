@@ -31,7 +31,7 @@ async function seed() {
     "projects","projectphases","milestones","tasks","projectemployees",
     "projectequipments","equipmentmaintenances","materials","materialusages",
     "invoices","ledgerentries","contracts","documents","attendances",
-    "notifications","auditlogs","counters",
+    "notifications","auditlogs","counters","subcontracts",
   ];
   for (const c of cols) {
     try { await db.collection(c).deleteMany({}); } catch {}
@@ -445,7 +445,7 @@ async function seed() {
   for (const month of months) {
     const totalSalary = empDocs.reduce((s, e) => s + e.salary, 0);
     await db.collection("ledgerentries").insertOne({
-      date: daysAgo(rand(1, 180)), type: "expense", category: "salaries",
+      date: daysAgo(rand(1, 180)), type: "expense", category: "salary",
       bankAccountId: ublBank._id, amount: totalSalary,
       description: `Employee payroll disbursement — ${month} 2026`,
       paymentMode: "bank_transfer", partyType: "employee",
@@ -495,6 +495,39 @@ async function seed() {
       notes: `Contract awarded after competitive tendering. All works to comply with NESPAK / consultant specifications.`,
       createdById: admin._id, createdAt: now(), updatedAt: now(),
     });
+  }
+
+  // ── 15b. SUBCONTRACTS ────────────────────────────────────────────────────
+  console.log("🤝 Seeding subcontracts...");
+  const scopeTemplates = [
+    "Electrical works — first and second fix, panel installation",
+    "Plumbing and HVAC installation",
+    "Structural steel fabrication and erection",
+    "Aluminium and glazing works — curtain wall system",
+    "Landscaping and external works",
+    "Tiling and flooring works",
+    "Painting and finishing works",
+    "Fire fighting and fire alarm system installation",
+  ];
+  for (const proj of projectDocs.filter(p => p.status !== "planning")) {
+    const numSc = rand(1, 3);
+    const chosenVendors = vendorDocs.sort(() => 0.5 - Math.random()).slice(0, numSc);
+    for (const vendor of chosenVendors) {
+      const contractValue = Math.round(proj.budget * rand(3, 12) / 100 / 1000) * 1000;
+      const isCompleted = proj.pct === 100 || (proj.pct > 55 && Math.random() > 0.5);
+      await db.collection("subcontracts").insertOne({
+        projectId: proj._id, vendorId: vendor._id,
+        contractValue,
+        status: isCompleted ? "completed" : "in_progress",
+        scopeOfWork: pick(scopeTemplates),
+        notes: `Sub-contract awarded to ${vendor.name} for ${proj.name}.`,
+        startDate: proj.start,
+        endDate: proj.status === "completed" ? proj.end : undefined,
+        completedAt: isCompleted ? daysAgo(rand(2, 25)) : null,
+        createdById: pick(managers)._id,
+        createdAt: now(), updatedAt: now(),
+      });
+    }
   }
 
   // ── 16. DOCUMENTS ────────────────────────────────────────────────────────

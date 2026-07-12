@@ -1,9 +1,11 @@
 ﻿import mongoose, { Schema, Document as MongooseDocument, Model, Types } from "mongoose";
+import { DOCUMENT_CATEGORIES } from "@/lib/document-categories";
 
 export interface IDocument extends MongooseDocument {
   projectId?: Types.ObjectId;
   name: string;
   type: string;
+  category: string;
   fileUrl?: string;
   fileType?: string;
   fileSize?: number;
@@ -18,6 +20,7 @@ const documentSchema = new Schema<IDocument>(
     projectId: { type: Schema.Types.ObjectId, ref: "Project" },
     name: { type: String, required: true, trim: true },
     type: { type: String, default: "other" },
+    category: { type: String, enum: DOCUMENT_CATEGORIES, default: "general" },
     fileUrl: { type: String },
     fileType: { type: String },
     fileSize: { type: Number },

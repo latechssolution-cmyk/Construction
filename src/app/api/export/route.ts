@@ -44,9 +44,16 @@ export async function GET(req: NextRequest) {
     await connectDB();
 
     // Build reusable filter objects (Issue #83)
+    // `to` comes from a date-only <input type="date"> (e.g. "2026-07-12"),
+    // which Date() parses as midnight UTC — a plain $lte would exclude the
+    // entire cutoff day's records. Push it to the end of that day instead.
     const dateFilter: any = {};
     if (fromDate) dateFilter.$gte = new Date(fromDate);
-    if (toDate) dateFilter.$lte = new Date(toDate);
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setUTCHours(23, 59, 59, 999);
+      dateFilter.$lte = end;
+    }
 
     const hasDateFilter = fromDate || toDate;
 

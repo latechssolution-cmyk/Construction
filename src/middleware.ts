@@ -54,7 +54,12 @@ const { auth } = NextAuth({
   },
 });
 
-const PUBLIC_PATHS = ["/login", "/api/auth"];
+// /api/cron is unauthenticated at the middleware layer because Vercel Cron
+// calls it with an `Authorization: Bearer $CRON_SECRET` header, not a
+// session cookie — the route handlers themselves verify that secret (or
+// fall back to requireRole admin/ceo for manual triggers), so this doesn't
+// weaken auth, it just moves the check to where the real secret lives.
+const PUBLIC_PATHS = ["/login", "/api/auth", "/api/cron"];
 
 // Issue #57: Role-based route protection — defense-in-depth (API routes are also individually guarded)
 const ROLE_RESTRICTED_PATHS: { prefix: string; roles: string[] }[] = [

@@ -363,7 +363,7 @@ export default function EquipmentPage() {
                         <div className="flex gap-2 w-full mt-1">
                           <select value={assignProjectId} onChange={e => setAssignProjectId(e.target.value)} className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/40">
                             <option value="">Select project</option>
-                            {(Array.isArray(projects) ? projects : []).filter((p: any) => ["planning", "in_progress", "on_hold"].includes(p.status)).map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.status.replace("_", " ")})</option>)}
+                            {(Array.isArray(projects) ? projects : []).filter((p: any) => !["financially_closed", "cancelled"].includes(p.status)).map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.status.replace(/_/g, " ")})</option>)}
                           </select>
                           <button onClick={() => handleAssign(eq.id)} disabled={!assignProjectId} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-50">Assign</button>
                           <button onClick={() => setAssigning(null)} className="px-2 py-1 border border-gray-200 rounded text-xs">Cancel</button>

@@ -17,7 +17,12 @@ export async function createNotification(
   }
 }
 
-export async function checkBudgetAlert(projectId: string | null | undefined, newExpenseAmount: number) {
+// Callers always create the triggering LedgerEntry *before* calling this
+// (so the alert reflects the true post-write balance) — the aggregation
+// below already includes it. Do not add the caller's amount again here;
+// that previously double-counted every triggering expense and pushed the
+// computed % above the real value.
+export async function checkBudgetAlert(projectId: string | null | undefined, _triggeringAmount?: number) {
   if (!projectId) return;
   try {
     await connectDB();
@@ -30,14 +35,25 @@ export async function checkBudgetAlert(projectId: string | null | undefined, new
       { $match: { projectId: project._id, type: "expense", category: { $ne: "inventory_asset" } } },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
-    const totalExpense = (agg[0]?.total || 0) + newExpenseAmount;
+    const totalExpense = agg[0]?.total || 0;
     const pct = (totalExpense / project.budget) * 100;
     if (pct >= 90) {
-      await notifyAdminsAndManagers(
-        "Budget Alert",
-        `Project "${project.name}" has used ${pct.toFixed(0)}% of budget`,
-        "warning"
-      );
+      // Every material/maintenance/restock entry on an already-over-budget
+      // project would otherwise re-fire this for every admin/manager on
+      // every transaction. Debounce to one alert per project per 24h.
+      const Notification = mongoose.models.Notification;
+      const recentAlert = Notification && await Notification.findOne({
+        title: "Budget Alert",
+        message: { $regex: `^Project "${project.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"` },
+        createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      }).lean();
+      if (!recentAlert) {
+        await notifyAdminsAndManagers(
+          "Budget Alert",
+          `Project "${project.name}" has used ${pct.toFixed(0)}% of budget`,
+          "warning"
+        );
+      }
     }
   } catch {
     // Non-critical — don't break the request

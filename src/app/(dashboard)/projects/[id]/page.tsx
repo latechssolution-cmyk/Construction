@@ -7,11 +7,12 @@ import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/hooks/use-toast";
-import { Pencil, Trash2, X, Download, FileText, BarChart2, Boxes, Wallet, HardHat, FolderOpen, Users, CheckCircle2, Circle } from "lucide-react";
+import { Pencil, Trash2, X, Download, FileText, BarChart2, Boxes, Wallet, HardHat, FolderOpen, Users, CheckCircle2, Circle, Upload } from "lucide-react";
+import { TENDER_DOC_CHECKLIST, DOCUMENT_CATEGORY_LABELS } from "@/lib/document-categories";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-const PROJECT_STATUSES = ["planning", "in_progress", "on_hold", "completed", "cancelled"];
+const PROJECT_STATUSES = ["planning", "ongoing", "physically_closed", "financially_closed", "sick", "cancelled"];
 const PROJECT_TYPES = ["residential", "commercial", "industrial", "renovation", "infrastructure", "other"];
 
 const TABS = ["Overview", "Contract", "Phases & Tasks", "Materials", "Team", "Finance", "Billing", "Documents", "Milestones", "Report"];
@@ -76,6 +77,12 @@ export default function ProjectDetailPage() {
   const [paidInvoiceModal, setPaidInvoiceModal] = useState<any>(null);
   const [paidInvoiceBankId, setPaidInvoiceBankId] = useState("");
 
+  // Tender/contract document checklist upload (which category slot is open)
+  const [docUploadCategory, setDocUploadCategory] = useState<string | null>(null);
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docName, setDocName] = useState("");
+  const [docUploading, setDocUploading] = useState(false);
+
   // Inline editing of project details
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -100,6 +107,8 @@ export default function ProjectDetailPage() {
         type: project.type ?? "residential",
         location: project.location ?? "",
         budget: project.budget ?? 0,
+        caValue: project.caValue ?? 0,
+        salients: project.salients ?? "",
         startDate: project.startDate ? project.startDate.slice(0, 10) : "",
         endDate: project.endDate ? project.endDate.slice(0, 10) : "",
         clientId: project.clientId ?? "",
@@ -150,6 +159,49 @@ export default function ProjectDetailPage() {
   // silently disagree.
   const income = summary?.income ?? 0;
   const expense = summary?.expense ?? 0;
+
+  // Upload a document into a specific tender/contract category slot for this
+  // project. Reuses the same Cloudinary signed-upload flow as /documents.
+  async function uploadProjectDocument(e: React.FormEvent) {
+    e.preventDefault();
+    if (!docUploadCategory) return;
+    if (!docFile && !docName.trim()) { toast({ title: "Validation", description: "Attach a file or enter a name.", variant: "destructive" }); return; }
+    setDocUploading(true);
+    try {
+      let fileUrl: string | null = null;
+      let fileType: string | null = docFile?.type || null;
+      let fileSize: number | null = docFile?.size || null;
+      if (docFile) {
+        const signRes = await fetch("/api/upload");
+        if (!signRes.ok) { toast({ title: "Error", description: "Could not get upload token", variant: "destructive" }); return; }
+        const { signature, timestamp, apiKey, cloudName, folder, maxFileSize } = await signRes.json();
+        if (maxFileSize && docFile.size > maxFileSize) { toast({ title: "Error", description: `File too large (max ${Math.round(maxFileSize / 1024 / 1024)}MB)`, variant: "destructive" }); return; }
+        const fd = new FormData();
+        fd.append("file", docFile); fd.append("api_key", apiKey); fd.append("timestamp", timestamp);
+        fd.append("folder", folder); fd.append("max_file_size", String(maxFileSize)); fd.append("signature", signature);
+        const upRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: fd });
+        if (!upRes.ok) { toast({ title: "Error", description: "File upload failed", variant: "destructive" }); return; }
+        const json = await upRes.json();
+        fileUrl = json.secure_url || null; fileSize = json.bytes || fileSize;
+      }
+      const name = docName.trim() || (DOCUMENT_CATEGORY_LABELS[docUploadCategory] || docFile?.name || "Document");
+      const res = await fetch("/api/documents", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, category: docUploadCategory, projectId: id, fileUrl, fileType, fileSize, type: "other" }),
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to save document", variant: "destructive" }); return; }
+      toast({ title: "Document uploaded" });
+      setDocUploadCategory(null); setDocFile(null); setDocName("");
+      await mutate();
+    } finally { setDocUploading(false); }
+  }
+
+  async function deleteProjectDocument(docId: string) {
+    const res = await fetch(`/api/documents/${docId}`, { method: "DELETE" });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to delete", variant: "destructive" }); return; }
+    toast({ title: "Document deleted" });
+    await mutate();
+  }
 
   async function createTask(e: React.FormEvent) {
     e.preventDefault();
@@ -713,9 +765,7 @@ export default function ProjectDetailPage() {
           <button onClick={downloadReport} className="px-3 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-50">
             <span className="flex items-center gap-1.5"><Download className="w-4 h-4" /> Download Report</span>
           </button>
-          <span className={`px-3 py-2 rounded-lg text-sm font-medium ${project.status === "in_progress" ? "bg-blue-100 text-blue-800" : project.status === "completed" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
-            {project.status?.replace("_", " ").toUpperCase()}
-          </span>
+          <StatusBadge status={project.status} className="px-3 py-2 text-sm" />
         </div>
       </div>
 
@@ -800,6 +850,10 @@ export default function ProjectDetailPage() {
                     <input value={edit.location} onChange={(e) => setEdit({ ...edit, location: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                   </div>
                   <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">CA Value (PKR)</label>
+                    <input type="number" min="0" step="0.01" value={edit.caValue} onChange={(e) => setEdit({ ...edit, caValue: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="Contract Agreement value" />
+                  </div>
+                  <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Budget (PKR)</label>
                     <input type="number" min="0" step="0.01" value={edit.budget} onChange={(e) => setEdit({ ...edit, budget: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                   </div>
@@ -830,6 +884,10 @@ export default function ProjectDetailPage() {
                   <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
                   <textarea value={edit.description} onChange={(e) => setEdit({ ...edit, description: e.target.value })} rows={3} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                 </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Salient Features</label>
+                  <textarea value={edit.salients} onChange={(e) => setEdit({ ...edit, salients: e.target.value })} rows={4} placeholder="Key project specs / scope highlights (e.g. 4-lane 320m bridge, 200 housing units, 8-story RCC frame…)" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                </div>
               </div>
             ) : (
               <>
@@ -840,6 +898,7 @@ export default function ProjectDetailPage() {
                   ["Start Date", project.startDate ? new Date(project.startDate).toLocaleDateString() : "—"],
                   ["End Date", project.endDate ? new Date(project.endDate).toLocaleDateString() : "—"],
                   ["Contract", project.contract?.contractNumber],
+                  ["CA Value", `PKR ${(project.caValue || project.budget || 0).toLocaleString()}`],
                   ["Budget", `PKR ${(project.budget || 0).toLocaleString()}`],
                   ["Completion", `${Math.round(project.completionPercent || 0)}%`],
                 ].map(([l, v]) => v && (
@@ -848,6 +907,12 @@ export default function ProjectDetailPage() {
                     <span className="font-medium text-gray-900">{v}</span>
                   </div>
                 ))}
+                {project.salients && (
+                  <div className="mt-3 pt-3 border-t">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Salient Features</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-line">{project.salients}</p>
+                  </div>
+                )}
                 {project.description && <p className="text-sm text-gray-600 mt-3 pt-3 border-t">{project.description}</p>}
               </>
             )}
@@ -1963,26 +2028,98 @@ export default function ProjectDetailPage() {
         );
       })()}
 
-      {tab === "Documents" && (
-        <div className="space-y-3">
-          <h3 className="font-semibold text-gray-900">Documents</h3>
-          {(project.documents || []).map((doc: any) => (
-            <div key={doc.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
-              <FileText className="w-6 h-6 text-gray-400" />
-              <div className="flex-1">
-                <p className="font-medium text-sm text-gray-900">{doc.name}</p>
-                <p className="text-xs text-gray-500">{doc.type} · {doc.uploadedBy?.name}</p>
+      {tab === "Documents" && (() => {
+        const docs: any[] = project.documents || [];
+        const byCategory: Record<string, any[]> = {};
+        for (const d of docs) { (byCategory[d.category || "general"] ||= []).push(d); }
+        const uploadedCount = TENDER_DOC_CHECKLIST.filter((c) => (byCategory[c] || []).length > 0).length;
+        const generalDocs = byCategory["general"] || [];
+
+        const UploadInline = ({ category }: { category: string }) => (
+          docUploadCategory === category ? (
+            <form onSubmit={uploadProjectDocument} className="mt-2 flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-gray-50 border border-gray-200 rounded-lg p-2">
+              <input type="file" onChange={(e) => setDocFile(e.target.files?.[0] || null)} className="text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700" />
+              <input value={docName} onChange={(e) => setDocName(e.target.value)} placeholder="Label (optional)" className="border border-gray-200 rounded px-2 py-1 text-xs flex-1 min-w-0" />
+              <div className="flex gap-1.5">
+                <button type="submit" disabled={docUploading} className="px-2.5 py-1 bg-blue-600 text-white rounded text-xs font-medium disabled:opacity-50">{docUploading ? "Uploading…" : "Save"}</button>
+                <button type="button" onClick={() => { setDocUploadCategory(null); setDocFile(null); setDocName(""); }} className="px-2.5 py-1 border border-gray-200 text-gray-600 rounded text-xs">Cancel</button>
               </div>
-              <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline">Download</a>
+            </form>
+          ) : (
+            canManage && <button onClick={() => { setDocUploadCategory(category); setDocFile(null); setDocName(""); }} className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"><Upload className="w-3 h-3" /> Upload</button>
+          )
+        );
+
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Tender & Contract Documents</h3>
+              <span className="text-xs text-gray-500">{uploadedCount}/{TENDER_DOC_CHECKLIST.length} provided</span>
             </div>
-          ))}
-          {(project.documents || []).length === 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl">
-              <EmptyState icon={<FolderOpen className="w-10 h-10" />} title="No documents uploaded yet" hint="Upload contracts, blueprints, permits and other project files here." />
+
+            <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+              {TENDER_DOC_CHECKLIST.map((category) => {
+                const items = byCategory[category] || [];
+                const has = items.length > 0;
+                return (
+                  <div key={category} className="p-4">
+                    <div className="flex items-start gap-3">
+                      {has ? <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" /> : <Circle className="w-5 h-5 text-gray-300 shrink-0 mt-0.5" />}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">{DOCUMENT_CATEGORY_LABELS[category]}</p>
+                        {items.map((doc) => (
+                          <div key={doc.id} className="flex items-center gap-2 mt-1.5">
+                            <FileText className="w-4 h-4 text-gray-400 shrink-0" />
+                            <span className="text-xs text-gray-700 truncate flex-1">{doc.name}</span>
+                            {doc.fileUrl && <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">Download</a>}
+                            {canManage && <button onClick={() => deleteProjectDocument(doc.id)} className="text-xs text-red-400 hover:text-red-600 shrink-0">Delete</button>}
+                          </div>
+                        ))}
+                        {!has && <p className="text-xs text-gray-400 mt-0.5">Not provided</p>}
+                        <UploadInline category={category} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </div>
-      )}
+
+            {/* Other / general project documents */}
+            <div className="bg-white border border-gray-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-gray-900 text-sm">Other Documents</h3>
+                {canManage && docUploadCategory !== "general" && (
+                  <button onClick={() => { setDocUploadCategory("general"); setDocFile(null); setDocName(""); }} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"><Upload className="w-3 h-3" /> Upload</button>
+                )}
+              </div>
+              {docUploadCategory === "general" && (
+                <form onSubmit={uploadProjectDocument} className="mb-3 flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-gray-50 border border-gray-200 rounded-lg p-2">
+                  <input type="file" onChange={(e) => setDocFile(e.target.files?.[0] || null)} className="text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700" />
+                  <input value={docName} onChange={(e) => setDocName(e.target.value)} placeholder="Document name" className="border border-gray-200 rounded px-2 py-1 text-xs flex-1 min-w-0" />
+                  <div className="flex gap-1.5">
+                    <button type="submit" disabled={docUploading} className="px-2.5 py-1 bg-blue-600 text-white rounded text-xs font-medium disabled:opacity-50">{docUploading ? "Uploading…" : "Save"}</button>
+                    <button type="button" onClick={() => { setDocUploadCategory(null); setDocFile(null); setDocName(""); }} className="px-2.5 py-1 border border-gray-200 text-gray-600 rounded text-xs">Cancel</button>
+                  </div>
+                </form>
+              )}
+              {generalDocs.length === 0 ? (
+                <p className="text-xs text-gray-400">No other documents uploaded.</p>
+              ) : (
+                <div className="space-y-2">
+                  {generalDocs.map((doc) => (
+                    <div key={doc.id} className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span className="text-xs text-gray-700 truncate flex-1">{doc.name}</span>
+                      {doc.fileUrl && <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">Download</a>}
+                      {canManage && <button onClick={() => deleteProjectDocument(doc.id)} className="text-xs text-red-400 hover:text-red-600 shrink-0">Delete</button>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {tab === "Report" && (
         <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">

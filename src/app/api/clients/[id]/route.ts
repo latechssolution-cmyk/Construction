@@ -43,7 +43,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       requireRole(session, "admin", "ceo");
       if (data.isActive === false) {
         const [activeProjects, activeContracts] = await Promise.all([
-          Project.countDocuments({ clientId: id, status: { $in: ["planning", "in_progress", "on_hold"] } }),
+          Project.countDocuments({ clientId: id, status: { $nin: ["financially_closed", "cancelled"] } }),
           Contract.countDocuments({ clientId: id, status: { $in: ["draft", "active", "on_hold"] } }),
         ]);
         if (activeProjects > 0) throw new ApiError(400, `Cannot deactivate client: ${activeProjects} active project(s) still linked. Complete or cancel those projects first.`);
@@ -66,7 +66,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     await connectDB();
     const [activeProjects, activeContracts] = await Promise.all([
-      Project.countDocuments({ clientId: id, status: { $in: ["planning","in_progress","on_hold"] } }),
+      Project.countDocuments({ clientId: id, status: { $nin: ["financially_closed","cancelled"] } }),
       Contract.countDocuments({ clientId: id, status: { $in: ["draft","active","on_hold"] } }),
     ]);
     if (activeProjects > 0) throw new ApiError(400, `Cannot deactivate client: ${activeProjects} active project(s) still linked. Complete or cancel those projects first.`);

@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   CheckCircle2, Calendar, BarChart2, Landmark,
   FolderOpen, FolderKanban, Receipt, Users2, TrendingUp, TrendingDown,
-  Wallet, ClipboardList, Boxes, Sparkles,
+  Wallet, ClipboardList, Boxes, Sparkles, AlertTriangle, Wrench,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -50,32 +50,66 @@ function EmptyChart({ msg }: { msg: string }) {
 }
 
 /* ------------------------------ ADMIN / CEO ------------------------------ */
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{children}</h2>;
+}
+
 function AdminDashboard({ data }: { data: any }) {
   const recentActivity = data?.recentActivity || [];
   const revenueTrend = data?.revenueTrend || [];
-  const statusBreakdown = (data?.statusBreakdown || []).map((s: any) => ({ name: (s.status || "").replace("_", " "), value: s.count }));
-  const portfolio: any[] = data?.portfolio || [];
+  const p = data?.projects || {};
+  const f = data?.finances || {};
+  const staff = data?.staff || {};
+  const eq = data?.equipment || {};
+  const assets = data?.assets || {};
+  const activeProjects: any[] = data?.activeProjects || [];
   const hasTrend = revenueTrend.some((r: any) => (r.income || 0) > 0 || (r.expense || 0) > 0);
+  const statusChart = (p.byStatusChart || []).filter((s: any) => s.count > 0);
+  const noAndCost = (bucket: any) => `${bucket?.count || 0}`;
 
   return (
-    <div className="space-y-6">
-      {/* KPI Row */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-        <StatCard label="Total Projects" value={data?.totalProjects || 0} tone="blue" icon={<FolderOpen className="w-4 h-4" />} href="/projects" />
-        <StatCard label="Active Projects" value={data?.activeProjects || 0} tone="green" icon={<FolderKanban className="w-4 h-4" />} href="/projects?status=in_progress" />
-        <StatCard label="Overdue Tasks" value={data?.overdueTasks || 0} tone={data?.overdueTasks > 0 ? "red" : "green"} urgent={data?.overdueTasks > 0} sub={data?.overdueTasks > 0 ? "Need attention" : undefined} icon={<ClipboardList className="w-4 h-4" />} href="/tasks?overdue=1" />
-        <StatCard label="Unpaid Invoices" value={data?.overdueInvoices || 0} tone={data?.overdueInvoices > 0 ? "orange" : "green"} urgent={data?.overdueInvoices > 0} sub={data?.overdueInvoices > 0 ? "Overdue" : undefined} icon={<Receipt className="w-4 h-4" />} href="/billing?status=overdue" />
-        <StatCard label="Employees" value={data?.totalEmployees || 0} tone="purple" icon={<Users2 className="w-4 h-4" />} href="/people?tab=employees" />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard label="Total Income" value={pkr(data?.totalIncome || 0)} tone="green" icon={<TrendingUp className="w-4 h-4" />} href="/finance/ledger?type=income" />
-        <StatCard label="Total Expense" value={pkr(data?.totalExpense || 0)} tone="red" icon={<TrendingDown className="w-4 h-4" />} href="/finance/ledger?type=expense" />
-        <StatCard label="Net Profit" value={pkr((data?.totalIncome || 0) - (data?.totalExpense || 0))} tone={(data?.totalIncome || 0) >= (data?.totalExpense || 0) ? "blue" : "orange"} icon={<Wallet className="w-4 h-4" />} href="/finance/profit-sheets" />
-      </div>
+    <div className="space-y-8">
+      {/* ── PROJECTS ── */}
+      <section className="space-y-3">
+        <SectionTitle>Projects</SectionTitle>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+          <StatCard label="Total Projects" value={noAndCost(p.total)} sub={pkr(p.total?.cost || 0)} tone="blue" icon={<FolderOpen className="w-4 h-4" />} href="/projects" />
+          <StatCard label="Ongoing" value={noAndCost(p.ongoing)} sub={pkr(p.ongoing?.cost || 0)} tone="green" icon={<FolderKanban className="w-4 h-4" />} href="/projects?status=ongoing" />
+          <StatCard label="Physically Closed" value={noAndCost(p.physically_closed)} sub={pkr(p.physically_closed?.cost || 0)} tone="blue" icon={<CheckCircle2 className="w-4 h-4" />} href="/projects?status=physically_closed" />
+          <StatCard label="Financially Closed" value={noAndCost(p.financially_closed)} sub={pkr(p.financially_closed?.cost || 0)} tone="green" icon={<CheckCircle2 className="w-4 h-4" />} href="/projects?status=financially_closed" />
+          <StatCard label="Sick Projects" value={noAndCost(p.sick)} sub={pkr(p.sick?.cost || 0)} tone={p.sick?.count > 0 ? "red" : "gray"} urgent={p.sick?.count > 0} icon={<AlertTriangle className="w-4 h-4" />} href="/projects?status=sick" />
+        </div>
+        <ChartCard title="Projects by Status (count & CA value)">
+          {statusChart.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={statusChart} margin={{ left: -10, right: 10, top: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} className="capitalize" />
+                <YAxis yAxisId="left" tick={{ fontSize: 11 }} allowDecimals={false} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} tickFormatter={compact} />
+                <Tooltip formatter={(v: number, n: string) => n === "CA Value" ? pkr(v) : v} />
+                <Legend />
+                <Bar yAxisId="left" dataKey="count" name="Projects" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={22} />
+                <Bar yAxisId="right" dataKey="cost" name="CA Value" fill="#10b981" radius={[4, 4, 0, 0]} barSize={22} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <EmptyChart msg="No projects yet." />}
+        </ChartCard>
+      </section>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <ChartCard title="Revenue vs Expense (Last 6 Months)" className="lg:col-span-2">
+      {/* ── FINANCES ── */}
+      <section className="space-y-3">
+        <SectionTitle>Finances</SectionTitle>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+          <StatCard label="Total Contract Value" value={pkr(f.totalContractValue)} tone="blue" icon={<Landmark className="w-4 h-4" />} href="/projects" />
+          <StatCard label="Total Revenue Earned" value={pkr(f.totalRevenue)} tone="green" icon={<TrendingUp className="w-4 h-4" />} href="/finance/ledger?type=income" />
+          <StatCard label="Total Expenses" value={pkr(f.totalExpense)} tone="red" icon={<TrendingDown className="w-4 h-4" />} href="/finance/ledger?type=expense" />
+          <StatCard label="Gross Profit" value={pkr(f.grossProfit)} tone={(f.grossProfit || 0) >= 0 ? "green" : "orange"} icon={<Wallet className="w-4 h-4" />} href="/finance/profit-sheets" />
+          <StatCard label="Cash in Bank" value={pkr(f.cashInBank)} tone="blue" icon={<Landmark className="w-4 h-4" />} href="/finance/accounts" />
+          <StatCard label="Accounts Receivable" value={pkr(f.accountsReceivable)} sub="Billed, unpaid" tone="orange" icon={<Receipt className="w-4 h-4" />} href="/billing?status=sent" />
+          <StatCard label="Accounts Payable" value={pkr(f.accountsPayable)} sub="Open commitments" tone="purple" icon={<Receipt className="w-4 h-4" />} />
+        </div>
+        <ChartCard title="Revenue vs Expense (Last 6 Months)">
           {hasTrend ? (
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={revenueTrend} margin={{ left: -10, right: 10, top: 5 }}>
@@ -94,60 +128,77 @@ function AdminDashboard({ data }: { data: any }) {
             </ResponsiveContainer>
           ) : <EmptyChart msg="No ledger activity yet — add income/expense entries to see the trend." />}
         </ChartCard>
+      </section>
 
-        <ChartCard title="Projects by Status">
-          {statusBreakdown.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie data={statusBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={85} label={({ name, value }) => `${name}: ${value}`} labelLine={false}>
-                  {statusBreakdown.map((_: any, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : <EmptyChart msg="No projects yet." />}
-        </ChartCard>
-      </div>
-
-      {/* Portfolio Health */}
-      {portfolio.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900">Portfolio Health</h2>
-            <Link href="/projects" className="text-xs text-blue-600 hover:underline">View all</Link>
+      {/* ── STAFF · EQUIPMENT · ASSETS ── */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="space-y-3">
+          <SectionTitle>Staff</SectionTitle>
+          <div className="grid grid-cols-1 gap-3">
+            <StatCard label="Total Employees" value={staff.totalEmployees || 0} tone="blue" icon={<Users2 className="w-4 h-4" />} href="/people?tab=employees" />
+            <StatCard label="Active Employees" value={staff.activeEmployees || 0} tone="green" icon={<Users2 className="w-4 h-4" />} href="/people?tab=employees" />
+            <StatCard label="Gross Salary (Active)" value={pkr(staff.grossSalary)} tone="purple" icon={<Wallet className="w-4 h-4" />} href="/people?tab=salary" />
           </div>
+        </div>
+        <div className="space-y-3">
+          <SectionTitle>Equipment</SectionTitle>
+          <div className="grid grid-cols-1 gap-3">
+            <StatCard label="Total Equipment" value={eq.total || 0} sub={pkr(eq.totalCost || 0)} tone="blue" icon={<Wrench className="w-4 h-4" />} href="/equipment" />
+            <StatCard label="Working" value={eq.working || 0} tone="green" icon={<Wrench className="w-4 h-4" />} href="/equipment" />
+            <StatCard label="Idle" value={eq.idle || 0} tone={eq.idle > 0 ? "orange" : "gray"} icon={<Wrench className="w-4 h-4" />} href="/equipment" />
+          </div>
+        </div>
+        <div className="space-y-3">
+          <SectionTitle>Assets</SectionTitle>
+          <div className="grid grid-cols-1 gap-3">
+            <StatCard label="Total Assets" value={assets.total || 0} sub={`Value ${pkr(assets.totalValue || 0)}`} tone="blue" icon={<Boxes className="w-4 h-4" />} href="/assets" />
+            <StatCard label="Current Book Value" value={pkr(assets.bookValue)} tone="green" icon={<TrendingDown className="w-4 h-4" />} href="/assets" />
+            <div className="grid grid-cols-2 gap-3">
+              <StatCard label="Idle / Maint." value={assets.idleOrMaintenance || 0} tone={assets.idleOrMaintenance > 0 ? "orange" : "gray"} href="/assets" />
+              <StatCard label="Due Maint." value={assets.dueMaintenance || 0} tone={assets.dueMaintenance > 0 ? "red" : "green"} urgent={assets.dueMaintenance > 0} href="/assets" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── ACTIVE PROJECTS TABLE ── */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <SectionTitle>Active Projects</SectionTitle>
+          <Link href="/projects?status=ongoing" className="text-xs text-blue-600 hover:underline">View all</Link>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="text-xs text-gray-500 border-b border-gray-100">
-                <th className="text-left py-2 pr-4 font-medium">Project</th>
-                <th className="text-left py-2 pr-4 font-medium">Status</th>
-                <th className="text-left py-2 pr-4 font-medium w-32">Task Progress</th>
-                <th className="text-left py-2 pr-4 font-medium w-32">Budget Used</th>
-                <th className="text-left py-2 font-medium">Health</th>
+              <thead><tr className="text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
+                <th className="text-left py-2.5 px-4 font-medium">Project Name</th>
+                <th className="text-right py-2.5 px-4 font-medium">CA Value</th>
+                <th className="text-right py-2.5 px-4 font-medium">Work Done</th>
+                <th className="text-left py-2.5 px-4 font-medium w-40">Progress %</th>
+                <th className="text-right py-2.5 px-4 font-medium">Payment Received</th>
               </tr></thead>
               <tbody>
-                {portfolio.map((p: any) => (
-                  <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="py-3 pr-4"><Link href={`/projects/${p.id}`} className="font-medium text-gray-900 hover:text-blue-600">{p.name}</Link></td>
-                    <td className="py-3 pr-4"><span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize">{p.status?.replace(/_/g, " ")}</span></td>
-                    <td className="py-3 pr-4">
-                      <div className="space-y-1"><ProgressBar pct={p.pct} color="bg-blue-500" /><p className="text-xs text-gray-400">{p.tasksDone}/{p.tasksTotal} tasks ({p.pct}%)</p></div>
+                {activeProjects.map((row: any) => (
+                  <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="py-3 px-4"><Link href={`/projects/${row.id}`} className="font-medium text-gray-900 hover:text-blue-600">{row.name}</Link></td>
+                    <td className="py-3 px-4 text-right text-gray-800">{pkr(row.caValue)}</td>
+                    <td className="py-3 px-4 text-right text-gray-800">{pkr(row.workDone)}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2"><ProgressBar pct={row.progress} color="bg-blue-500" /><span className="text-xs text-gray-500 w-9 text-right">{row.progress}%</span></div>
                     </td>
-                    <td className="py-3 pr-4">
-                      {p.budget ? (
-                        <div className="space-y-1"><ProgressBar pct={p.budgetPct} color={p.budgetPct > 100 ? "bg-red-500" : p.budgetPct > 80 ? "bg-yellow-400" : "bg-green-500"} /><p className="text-xs text-gray-400">{pkr(p.spent)} of {pkr(p.budget)}</p></div>
-                      ) : <span className="text-xs text-gray-300">No budget set</span>}
-                    </td>
-                    <td className="py-3"><span className={`flex items-center gap-1 text-xs font-medium ${RAG_TEXT[p.rag] || "text-gray-500"}`}><span className={"w-2 h-2 rounded-full inline-block " + (RAG[p.rag] || "bg-gray-300")}></span>{RAG_LABEL[p.rag] || "Unknown"}</span></td>
+                    <td className="py-3 px-4 text-right font-medium text-green-700">{pkr(row.paymentReceived)}</td>
                   </tr>
                 ))}
+                {activeProjects.length === 0 && (
+                  <tr><td colSpan={5} className="py-8 text-center text-gray-400 text-sm">No active projects.</td></tr>
+                )}
               </tbody>
             </table>
           </div>
         </div>
-      )}
+      </section>
 
-      {/* Recent Activity */}
+      {/* ── RECENT ACTIVITY ── */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
         <h2 className="font-semibold mb-4 text-gray-900">Recent Activity</h2>
         <div className="space-y-2">
@@ -182,7 +233,7 @@ function ManagerDashboard({ data }: { data: any }) {
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="My Projects" value={data?.myProjectsCount || 0} tone="blue" icon={<FolderOpen className="w-4 h-4" />} href="/projects" />
-        <StatCard label="Active Projects" value={data?.activeProjectsCount || 0} tone="green" icon={<FolderKanban className="w-4 h-4" />} href="/projects?status=in_progress" />
+        <StatCard label="Active Projects" value={data?.activeProjectsCount || 0} tone="green" icon={<FolderKanban className="w-4 h-4" />} href="/projects?status=ongoing" />
         <StatCard label="Tasks Due in 7 Days" value={dueSoon.length} tone={dueSoon.length > 0 ? "orange" : "green"} sub={dueSoon.length > 0 ? "Action needed" : undefined} urgent={dueSoon.length > 0} icon={<ClipboardList className="w-4 h-4" />} href="/tasks" />
         <StatCard label="Low Stock Alerts" value={lowStock.length} tone={lowStock.length > 0 ? "red" : "green"} sub={lowStock.length > 0 ? "Reorder required" : undefined} urgent={lowStock.length > 0} icon={<Boxes className="w-4 h-4" />} href="/materials?lowStock=1" />
       </div>

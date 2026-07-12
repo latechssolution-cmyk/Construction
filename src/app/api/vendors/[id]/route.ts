@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/mongoose";
 import Vendor from "@/models/Vendor";
 import Material from "@/models/Material";
 import LedgerEntry from "@/models/LedgerEntry";
+import Subcontract from "@/models/Subcontract";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -38,6 +39,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     // role requirement instead of letting a manager flip it via PUT.
     if (data.isActive !== undefined) {
       requireRole(session, "admin", "ceo");
+      if (data.isActive === false) {
+        const openSubcontracts = await Subcontract.countDocuments({ vendorId: id, status: "in_progress" });
+        if (openSubcontracts > 0) {
+          throw new ApiError(400, `Cannot deactivate vendor: ${openSubcontracts} open subcontract(s) still assigned. Complete or reassign those first.`);
+        }
+      }
       vendor.isActive = data.isActive;
     }
     await vendor.save();
@@ -54,6 +61,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     requireRole(session, "admin", "ceo");
     const { id } = await params;
     await connectDB();
+    const openSubcontracts = await Subcontract.countDocuments({ vendorId: id, status: "in_progress" });
+    if (openSubcontracts > 0) {
+      throw new ApiError(400, `Cannot deactivate vendor: ${openSubcontracts} open subcontract(s) still assigned. Complete or reassign those first.`);
+    }
     await Vendor.findByIdAndUpdate(id, { isActive: false });
     void auditLog(session.user.id, "DELETE", "Vendor", id, "Deactivated vendor");
     return ok({ success: true });

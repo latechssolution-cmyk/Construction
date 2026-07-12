@@ -3,6 +3,7 @@ import { requireAuth, requireRole, handleApiError, ok, created, ApiError, toId }
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Doc from "@/models/Document";
+import { DOCUMENT_CATEGORIES } from "@/lib/document-categories";
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,9 +11,11 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const projectId = searchParams.get("projectId");
     const type = searchParams.get("type");
+    const category = searchParams.get("category");
     const filter: any = {};
     if (projectId) filter.projectId = projectId;
     if (type) filter.type = type;
+    if (category) filter.category = category;
     await connectDB();
     const documents = await Doc.find(filter)
       .populate("project", "id name")
@@ -31,11 +34,20 @@ export async function POST(req: NextRequest) {
     requireRole(session, "admin", "ceo", "manager");
     const data = await req.json();
     if (!data.name?.trim()) throw new ApiError(400, "Document name is required");
+    const category = data.category && DOCUMENT_CATEGORIES.includes(data.category) ? data.category : "general";
+    // fileUrl is rendered directly as an <a href> on the frontend — reject
+    // javascript:/data: URIs so a planted document can't run script when
+    // another user clicks "Download".
+    const fileUrl = data.fileUrl?.trim() || null;
+    if (fileUrl && !/^(https?:\/\/|\/uploads\/)/i.test(fileUrl)) {
+      throw new ApiError(400, "fileUrl must be an http(s) URL or an internal /uploads/ path");
+    }
     await connectDB();
     const doc = await Doc.create({
       name: data.name,
       type: data.type || "other",
-      fileUrl: data.fileUrl || null,
+      category,
+      fileUrl,
       fileType: data.fileType || null,
       fileSize: data.fileSize ? parseInt(data.fileSize) : null,
       description: data.description || null,

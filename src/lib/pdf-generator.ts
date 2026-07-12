@@ -303,25 +303,32 @@ export async function generateProjectReportPDF(projectId: string): Promise<Buffe
 
     doc.fillColor("#111827").font("Helvetica-Bold").fontSize(11).text("Tasks", 50, y);
     y += 15;
+    doc.font("Helvetica").fontSize(9);
     (p.tasks || []).forEach((t: any) => {
       if (y > 730) { doc.addPage(); y = 50; }
       const statusColor = t.status === "completed" ? "#15803d" : t.status === "in_progress" ? "#1d4ed8" : "#6b7280";
+      // Long titles wrap inside the fixed 380pt column — advance y by the
+      // actual rendered height instead of a flat 16px, or a 2-line title
+      // overlaps the next row.
+      const rowHeight = Math.max(16, doc.heightOfString(t.title || "", { width: 380 }) + 6);
       doc.rect(50, y, 8, 8).fill(statusColor);
-      doc.fillColor("#111827").font("Helvetica").fontSize(9).text(t.title, 65, y - 1, { width: 380 });
+      doc.fillColor("#111827").text(t.title, 65, y - 1, { width: 380 });
       doc.fillColor(statusColor).text((t.status || "").replace("_", " "), 450, y - 1);
-      y += 16;
+      y += rowHeight;
     });
 
     y += 10;
     doc.fillColor("#111827").font("Helvetica-Bold").fontSize(11).text("Milestones", 50, y);
     y += 15;
+    doc.font("Helvetica").fontSize(9);
     (p.milestones || []).forEach((m: any) => {
       if (y > 730) { doc.addPage(); y = 50; }
       const done = !!m.completedAt;
+      const rowHeight = Math.max(16, doc.heightOfString(m.name || "", { width: 380 }) + 6);
       doc.rect(50, y, 8, 8).fill(done ? "#15803d" : "#6b7280");
-      doc.fillColor("#111827").font("Helvetica").fontSize(9).text(m.name, 65, y - 1, { width: 380 });
+      doc.fillColor("#111827").text(m.name, 65, y - 1, { width: 380 });
       doc.fillColor(done ? "#15803d" : "#6b7280").text(done ? "Completed" : "Pending", 450, y - 1);
-      y += 16;
+      y += rowHeight;
     });
 
     doc.end();

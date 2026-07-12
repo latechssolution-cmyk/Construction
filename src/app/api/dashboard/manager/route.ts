@@ -68,7 +68,7 @@ export async function GET() {
 
     return ok({
       myProjectsCount: projects.length,
-      activeProjectsCount: (projects as any[]).filter((p: any) => p.status === "in_progress").length,
+      activeProjectsCount: (projects as any[]).filter((p: any) => p.status === "ongoing").length,
       dueSoonTasks,
       upcomingMilestones,
       lowStockItems,

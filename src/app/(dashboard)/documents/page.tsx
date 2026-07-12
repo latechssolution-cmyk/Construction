@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { FolderOpen, FileText, Ruler, BarChart2, Receipt, Scale, ImageIcon, File } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS } from "@/lib/document-categories";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -28,15 +29,16 @@ export default function DocumentsPage() {
   const { data: projects } = useSWR("/api/projects", fetcher);
   const [projectFilter, setProjectFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<any>({ type:"other" });
+  const [form, setForm] = useState<any>({ type:"other", category:"general" });
   const [file, setFile] = useState<File|null>(null);
   const [loading, setLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const canManage = ["admin","ceo","manager"].includes(session?.user?.role||"");
   const list: any[] = Array.isArray(documents) ? documents : [];
-  const filtered = list.filter((d:any)=>(!projectFilter||d.projectId===projectFilter)&&(!typeFilter||d.type===typeFilter));
+  const filtered = list.filter((d:any)=>(!projectFilter||d.projectId===projectFilter)&&(!typeFilter||d.type===typeFilter)&&(!categoryFilter||d.category===categoryFilter));
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
@@ -76,7 +78,7 @@ export default function DocumentsPage() {
 
       const res = await fetch("/api/documents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, fileUrl, fileType, fileSize }) });
       if (!res.ok) { const e = await res.json(); toast({ title: "Error", description: e.error || "Failed to save document", variant: "destructive" }); return; }
-      mutate(); setShowForm(false); setForm({ type: "other" }); setFile(null);
+      mutate(); setShowForm(false); setForm({ type: "other", category: "general" }); setFile(null);
     } finally { setLoading(false); }
   }
 
@@ -104,6 +106,10 @@ export default function DocumentsPage() {
           <option value="">All Types</option>
           {Object.keys(TYPE_ICONS).map(t=><option key={t} value={t}>{t}</option>)}
         </select>
+        <select value={categoryFilter} onChange={e=>setCategoryFilter(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full sm:w-auto focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+          <option value="">All Categories</option>
+          {DOCUMENT_CATEGORIES.map(c=><option key={c} value={c}>{DOCUMENT_CATEGORY_LABELS[c]}</option>)}
+        </select>
       </div>
 
       {showForm && (
@@ -113,6 +119,9 @@ export default function DocumentsPage() {
             <input required value={form.name||""} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Document Name *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             <select value={form.type||"other"} onChange={e=>setForm({...form,type:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
               {Object.keys(TYPE_ICONS).map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
+            <select value={form.category||"general"} onChange={e=>setForm({...form,category:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:col-span-2">
+              {DOCUMENT_CATEGORIES.map(c=><option key={c} value={c}>{DOCUMENT_CATEGORY_LABELS[c]}</option>)}
             </select>
             <select value={form.projectId||""} onChange={e=>setForm({...form,projectId:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
               <option value="">Select Project (opt)</option>
@@ -150,6 +159,9 @@ export default function DocumentsPage() {
               </div>
             </div>
             <h3 className="font-medium text-gray-900 text-sm line-clamp-2">{d.name}</h3>
+            {d.category && d.category !== "general" && (
+              <span className="inline-block mt-1.5 text-[11px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium">{DOCUMENT_CATEGORY_LABELS[d.category] || d.category}</span>
+            )}
             <p className="text-xs text-gray-500 mt-1 capitalize">{d.type}</p>
             {d.project && <p className="text-xs text-blue-600 mt-1">{d.project.name}</p>}
             {d.description && <p className="text-xs text-gray-400 mt-2 line-clamp-2">{d.description}</p>}

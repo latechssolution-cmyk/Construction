@@ -18,6 +18,7 @@ import "@/models/ProjectEmployee";
 import "@/models/Equipment";
 import "@/models/ProjectEquipment";
 import "@/models/EquipmentMaintenance";
+import "@/models/Asset";
 import "@/models/Material";
 import "@/models/MaterialUsage";
 import "@/models/LedgerEntry";

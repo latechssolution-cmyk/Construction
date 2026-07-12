@@ -85,15 +85,28 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const data = await req.json();
     await connectDB();
-    const existing = await Project.findById(id, { assignedManagerId: 1, startDate: 1, endDate: 1 });
+    const existing = await Project.findById(id, { assignedManagerId: 1, startDate: 1, endDate: 1, status: 1 });
     if (!existing) throw new ApiError(404, "Project not found");
     const currentManagerId = existing.assignedManagerId?.toString() || null;
     if (session.user.role === "manager" && existing.assignedManagerId?.toString() !== session.user.id) {
       throw new ApiError(403, "You can only edit your assigned projects");
     }
+    // Access limited per status (client requirement): managers cannot edit a
+    // project once it is in a terminal state — that's an admin/ceo decision.
+    if (session.user.role === "manager" && ["financially_closed", "cancelled"].includes(existing.status)) {
+      throw new ApiError(403, "This project is closed. Ask an admin to reopen it before editing.");
+    }
     const update: any = {};
     if (data.name !== undefined) update.name = data.name;
-    if (data.status !== undefined) update.status = data.status;
+    if (data.status !== undefined) {
+      const PROJECT_STATUSES = ["planning", "ongoing", "physically_closed", "financially_closed", "sick", "cancelled"];
+      if (!PROJECT_STATUSES.includes(data.status)) {
+        throw new ApiError(400, `Invalid status. Must be one of: ${PROJECT_STATUSES.join(", ")}`);
+      }
+      update.status = data.status;
+    }
+    if (data.caValue !== undefined) update.caValue = parseOptionalNonNegativeNumber(data.caValue, "CA Value");
+    if (data.salients !== undefined) update.salients = data.salients;
     // completionPercent is intentionally not settable here — it's derived
     // entirely from task weights/status via recomputeProjectCompletion(),
     // there is no manual override anymore.

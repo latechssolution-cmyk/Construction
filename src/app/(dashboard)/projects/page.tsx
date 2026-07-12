@@ -101,10 +101,12 @@ export default function ProjectsPage() {
         </div>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
           <option value="all">All Status</option>
-          <option value="planning">Planning</option>
-          <option value="in_progress">In Progress</option>
-          <option value="on_hold">On Hold</option>
-          <option value="completed">Completed</option>
+          <option value="planning">Planning / Tender</option>
+          <option value="ongoing">Ongoing</option>
+          <option value="physically_closed">Physically Closed</option>
+          <option value="financially_closed">Financially Closed</option>
+          <option value="sick">Sick</option>
+          <option value="cancelled">Cancelled</option>
         </select>
       </div>
 
@@ -140,8 +142,12 @@ export default function ProjectsPage() {
               <input value={form.location || ""} onChange={(e) => setForm({...form, location: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="City, Area" />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">CA Value (PKR)</label>
+              <input type="number" min="0" step="0.01" value={form.caValue || ""} onChange={(e) => setForm({...form, caValue: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="Contract Agreement value" />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Budget (PKR)</label>
-              <input type="number" min="0" step="0.01" value={form.budget || ""} onChange={(e) => setForm({...form, budget: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g., 5000000" />
+              <input type="number" min="0" step="0.01" value={form.budget || ""} onChange={(e) => setForm({...form, budget: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="Internal cost budget" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>

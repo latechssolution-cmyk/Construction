@@ -31,7 +31,7 @@ async function seed() {
     "projects","projectphases","milestones","tasks","projectemployees",
     "projectequipments","equipmentmaintenances","materials","materialusages",
     "invoices","ledgerentries","contracts","documents","attendances",
-    "notifications","auditlogs","counters","subcontracts",
+    "notifications","auditlogs","counters","subcontracts","assets",
   ];
   for (const c of cols) {
     try { await db.collection(c).deleteMany({}); } catch {}
@@ -210,16 +210,29 @@ async function seed() {
     { name: "Askari Commercial Center",           location: "Askari 11, Lahore Cantt",                 description: "4-story commercial center with retail, food court, and rooftop events space.",             type: "commercial",   client: clientDocs[10], manager: managers[2], budget: 85000000,  pct: 48, status: "in_progress", start: monthsAgo(8),  end: monthsFromNow(8)  },
     { name: "LDA Green Zone Park & Amphitheatre", location: "Lake Road, Lahore",                       description: "Public park with amphitheatre, jogging tracks, fountain, and cafeteria.",                 type: "renovation",   client: clientDocs[9],  manager: managers[0], budget: 42000000,  pct: 0,  status: "planning",    start: daysFromNow(20),end: monthsFromNow(10)},
   ];
+  // Map the old seed statuses onto the client's new project taxonomy.
+  const mapStatus = (old: string, idx: number): string => {
+    if (old === "planning") return "planning";
+    if (old === "on_hold") return "sick";
+    if (old === "in_progress") return "ongoing";
+    if (old === "completed") return idx % 2 === 0 ? "financially_closed" : "physically_closed";
+    return "ongoing";
+  };
   const projectDocs: any[] = [];
-  for (const p of projectsRaw) {
+  projectsRaw.forEach((p, idx) => (p as any)._status = mapStatus(p.status, idx));
+  for (let idx = 0; idx < projectsRaw.length; idx++) {
+    const p = projectsRaw[idx] as any;
+    // CA (awarded contract) value sits ~15% above our internal cost budget.
+    const caValue = Math.round((p.budget * 1.15) / 100000) * 100000;
+    const salients = `${p.type.charAt(0).toUpperCase() + p.type.slice(1)} project · CA value ≈ PKR ${(caValue / 1_000_000).toFixed(0)}M. ${p.description}`;
     const r = await db.collection("projects").insertOne({
       name: p.name, location: p.location, description: p.description,
       type: p.type, clientId: p.client._id, assignedManagerId: p.manager._id,
-      budget: p.budget, completionPercent: p.pct, status: p.status,
+      budget: p.budget, caValue, salients, completionPercent: p.pct, status: p._status,
       startDate: p.start, endDate: p.end,
       createdById: admin._id, createdAt: now(), updatedAt: now(),
     });
-    projectDocs.push({ ...p, _id: r.insertedId });
+    projectDocs.push({ ...p, status: p._status, caValue, _id: r.insertedId });
   }
 
   // ── 8. PROJECT PHASES ────────────────────────────────────────────────────
@@ -234,7 +247,8 @@ async function seed() {
   for (const proj of projectDocs) {
     for (let i = 0; i < 4; i++) {
       const [pName, pDesc, pStatus] = phaseTemplates[i];
-      const st = proj.status === "planning" ? "pending" : i < 2 ? "completed" : proj.status === "completed" ? "completed" : i === 2 ? "in_progress" : "pending";
+      const isClosed = ["physically_closed", "financially_closed"].includes(proj.status);
+      const st = proj.status === "planning" ? "pending" : isClosed ? "completed" : i < 2 ? "completed" : i === 2 ? "in_progress" : "pending";
       const r = await db.collection("projectphases").insertOne({
         projectId: proj._id, name: pName, description: pDesc,
         startDate: proj.start, endDate: proj.end,
@@ -488,9 +502,9 @@ async function seed() {
       title: `Construction Contract — ${proj.name}`,
       clientId: proj.client._id,
       scope: `Full construction works for ${proj.name} including civil, structural, MEP, and finishing works as per BOQ and approved drawings.`,
-      contractValue: proj.budget,
+      contractValue: proj.caValue || proj.budget,
       startDate: proj.start, endDate: proj.end,
-      status: proj.status === "completed" ? "completed" : pick(contractStatuses),
+      status: ["physically_closed", "financially_closed"].includes(proj.status) ? "completed" : pick(contractStatuses),
       paymentTerms: "Monthly progressive billing against certified work. Retention: 5% up to practical completion.",
       notes: `Contract awarded after competitive tendering. All works to comply with NESPAK / consultant specifications.`,
       createdById: admin._id, createdAt: now(), updatedAt: now(),
@@ -522,7 +536,7 @@ async function seed() {
         scopeOfWork: pick(scopeTemplates),
         notes: `Sub-contract awarded to ${vendor.name} for ${proj.name}.`,
         startDate: proj.start,
-        endDate: proj.status === "completed" ? proj.end : undefined,
+        endDate: ["physically_closed", "financially_closed"].includes(proj.status) ? proj.end : undefined,
         completedAt: isCompleted ? daysAgo(rand(2, 25)) : null,
         createdById: pick(managers)._id,
         createdAt: now(), updatedAt: now(),
@@ -531,28 +545,52 @@ async function seed() {
   }
 
   // ── 16. DOCUMENTS ────────────────────────────────────────────────────────
-  console.log("📁 Seeding documents...");
-  const docTypes = [
-    { name: "Structural Drawings - Foundation Layout",         type: "drawing",      tags: ["structural", "foundation"] },
-    { name: "Architectural Floor Plans - All Levels",          type: "drawing",      tags: ["architectural", "floor_plan"] },
-    { name: "BOQ - Preliminary Quantities",                    type: "report",       tags: ["financial", "boq"] },
-    { name: "Soil Investigation Report",                       type: "report",       tags: ["geotechnical", "investigation"] },
-    { name: "Environmental Impact Assessment",                 type: "report",       tags: ["environment", "eia"] },
-    { name: "LDA Building Permit",                             type: "permit",       tags: ["permit", "legal"] },
-    { name: "Site Safety Plan",                                type: "safety",       tags: ["hse", "safety"] },
-    { name: "Sub-Contractor Agreement - MEP Works",            type: "contract",     tags: ["subcontractor", "mep"] },
-    { name: "Material Test Report - Concrete Cube Test",       type: "test_report",  tags: ["quality", "concrete"] },
-    { name: "Progress Report - Monthly",                       type: "report",       tags: ["progress", "monthly"] },
+  console.log("📁 Seeding documents (tender/contract checklist per project)...");
+  // Ordered tender/contract document checklist — mirrors the client guideline.
+  const tenderChecklist: { category: string; label: string }[] = [
+    { category: "tender_notice",           label: "Tender Notice / Invitation" },
+    { category: "tender_documents",        label: "Tender Documents (Engineer Estimate & Blank BOQ)" },
+    { category: "prebid_meeting",          label: "Pre-Bid Meeting Minutes" },
+    { category: "submitted_bid",           label: "Submitted Bid (Filled BOQ & Technical Proposal)" },
+    { category: "bid_comparative",         label: "Bid Comparative Statement" },
+    { category: "work_order",              label: "Work Order" },
+    { category: "signed_boq",              label: "Signed BOQ" },
+    { category: "contract_agreement",      label: "Contract Agreement" },
+    { category: "guarantee_bid",           label: "Bid Guarantee" },
+    { category: "guarantee_mobilization",  label: "Mobilization Advance Guarantee" },
+    { category: "guarantee_performance",   label: "Performance Guarantee" },
   ];
-  for (const proj of projectDocs.filter(p => p.status !== "planning").slice(0, 18)) {
-    const docCount = rand(3, 7);
-    for (let i = 0; i < docCount; i++) {
-      const dt = docTypes[i % docTypes.length];
+  const generalDocs = [
+    { name: "Structural Drawings - Foundation Layout", type: "drawing" },
+    { name: "Architectural Floor Plans - All Levels",  type: "drawing" },
+    { name: "Site Safety Plan",                        type: "safety" },
+    { name: "Progress Report - Monthly",               type: "report" },
+  ];
+  for (const proj of projectDocs.filter(p => p.status !== "planning")) {
+    // Award-stage projects have most tender docs; how many depends on progress.
+    const provided = proj.status === "planning" ? 4 : proj.pct >= 60 ? tenderChecklist.length : rand(6, tenderChecklist.length);
+    for (let i = 0; i < provided; i++) {
+      const slot = tenderChecklist[i];
       await db.collection("documents").insertOne({
         projectId: proj._id,
-        name: `${dt.name} — ${proj.name}`,
-        type: dt.type, tags: dt.tags,
-        description: `${dt.name} prepared for project: ${proj.name}`,
+        name: `${slot.label} — ${proj.name}`,
+        type: slot.category.startsWith("guarantee") ? "contract" : "report",
+        category: slot.category,
+        tags: [slot.category],
+        description: `${slot.label} for project: ${proj.name}`,
+        fileType: "application/pdf", fileSize: rand(200000, 5000000),
+        uploadedById: pick(empDocs.slice(0, 10))._id,
+        createdAt: daysAgo(rand(1, 120)),
+      });
+    }
+    // A couple of general/other docs
+    for (let i = 0; i < rand(1, 3); i++) {
+      const gd = generalDocs[i % generalDocs.length];
+      await db.collection("documents").insertOne({
+        projectId: proj._id,
+        name: `${gd.name} — ${proj.name}`,
+        type: gd.type, category: "general", tags: [gd.type],
+        description: `${gd.name} for project: ${proj.name}`,
         fileType: "application/pdf", fileSize: rand(200000, 5000000),
         uploadedById: pick(empDocs.slice(0, 10))._id,
         createdAt: daysAgo(rand(1, 90)),
@@ -625,6 +663,31 @@ async function seed() {
     });
   }
 
+  // ── 20. ASSETS (fixed-asset register with depreciation) ──────────────────
+  console.log("🏛️  Seeding fixed assets...");
+  const yearsAgo = (n: number) => { const d = new Date(); d.setFullYear(d.getFullYear() - n); return d; };
+  const assetsRaw = [
+    { name: "Head Office Building — Gulberg",     assetCode: "FA-0001", category: "building",      purchaseCost: 185000000, salvageValue: 40000000, usefulLifeYears: 40, purchaseDate: yearsAgo(6),  status: "in_use" },
+    { name: "Office Plot — DHA Phase 6",          assetCode: "FA-0002", category: "land",          purchaseCost: 95000000,  salvageValue: 95000000, usefulLifeYears: 0,  purchaseDate: yearsAgo(8),  status: "in_use" },
+    { name: "Toyota Hilux Revo (LEB-8842)",       assetCode: "FA-0003", category: "vehicle",       purchaseCost: 8500000,   salvageValue: 1500000,  usefulLifeYears: 8,  purchaseDate: yearsAgo(3),  status: "in_use", nextMaintenanceDate: daysFromNow(12) },
+    { name: "Toyota Land Cruiser (LEA-1101)",     assetCode: "FA-0004", category: "vehicle",       purchaseCost: 32000000,  salvageValue: 6000000,  usefulLifeYears: 10, purchaseDate: yearsAgo(2),  status: "in_use", nextMaintenanceDate: daysAgo(4) },
+    { name: "Suzuki Bolan Cargo Vans (x3)",       assetCode: "FA-0005", category: "vehicle",       purchaseCost: 6900000,   salvageValue: 900000,   usefulLifeYears: 7,  purchaseDate: yearsAgo(4),  status: "idle" },
+    { name: "Total Station Survey Instrument",    assetCode: "FA-0006", category: "machinery",     purchaseCost: 3200000,   salvageValue: 300000,   usefulLifeYears: 6,  purchaseDate: yearsAgo(2),  status: "in_use", nextMaintenanceDate: daysFromNow(45) },
+    { name: "Concrete Batching Plant",            assetCode: "FA-0007", category: "machinery",     purchaseCost: 42000000,  salvageValue: 5000000,  usefulLifeYears: 15, purchaseDate: yearsAgo(5),  status: "under_maintenance", nextMaintenanceDate: daysAgo(2) },
+    { name: "Server & Networking Rack",           assetCode: "FA-0008", category: "it_equipment",  purchaseCost: 2800000,   salvageValue: 200000,   usefulLifeYears: 5,  purchaseDate: yearsAgo(2),  status: "in_use" },
+    { name: "Office Workstations & Laptops (x25)",assetCode: "FA-0009", category: "it_equipment",  purchaseCost: 6250000,   salvageValue: 500000,   usefulLifeYears: 4,  purchaseDate: yearsAgo(1),  status: "in_use" },
+    { name: "Office Furniture & Fixtures",        assetCode: "FA-0010", category: "furniture",     purchaseCost: 4500000,   salvageValue: 300000,   usefulLifeYears: 10, purchaseDate: yearsAgo(6),  status: "in_use" },
+    { name: "Site Portacabins (x6)",              assetCode: "FA-0011", category: "other",         purchaseCost: 5400000,   salvageValue: 600000,   usefulLifeYears: 8,  purchaseDate: yearsAgo(3),  status: "idle" },
+    { name: "Diesel Storage Tanks (x2)",          assetCode: "FA-0012", category: "other",         purchaseCost: 1800000,   salvageValue: 200000,   usefulLifeYears: 12, purchaseDate: yearsAgo(4),  status: "in_use", nextMaintenanceDate: daysFromNow(90) },
+  ];
+  for (const a of assetsRaw) {
+    await db.collection("assets").insertOne({
+      ...a,
+      location: pick(["Head Office", "Central Yard", "Site Store", "Regional Depot"]),
+      createdById: admin._id, createdAt: now(), updatedAt: now(),
+    });
+  }
+
   // ── Done ──────────────────────────────────────────────────────────────────
   console.log("\n" + "=".repeat(60));
   console.log("🎉  SEED COMPLETE — all collections populated!");
@@ -636,6 +699,7 @@ async function seed() {
   console.log(`  Equipment:   ${eqDocs.length}`);
   console.log(`  Materials:   ${materialDocs.length}`);
   console.log(`  Invoices:    ${invoiceDocs.length}`);
+  console.log(`  Assets:      ${assetsRaw.length}`);
   console.log(`  Bank Accts:  ${bankDocs.length}`);
   console.log("\n  Login credentials:");
   console.log("  ─────────────────────────────────────────────────────");

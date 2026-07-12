@@ -68,10 +68,16 @@ export function getProjectProgress(tasks: Array<{ status: string; weight?: numbe
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
     planning: "bg-yellow-100 text-yellow-800",
+    // Project statuses (client taxonomy)
+    ongoing: "bg-blue-100 text-blue-800",
+    physically_closed: "bg-teal-100 text-teal-800",
+    financially_closed: "bg-green-100 text-green-800",
+    sick: "bg-red-100 text-red-800",
+    // Task/other statuses (kept — Task uses todo/in_progress/on_hold/completed)
     in_progress: "bg-blue-100 text-blue-800",
     on_hold: "bg-orange-100 text-orange-800",
     completed: "bg-green-100 text-green-800",
-    cancelled: "bg-red-100 text-red-800",
+    cancelled: "bg-gray-200 text-gray-600",
     active: "bg-green-100 text-green-800",
     terminated: "bg-red-100 text-red-800",
     draft: "bg-gray-100 text-gray-800",

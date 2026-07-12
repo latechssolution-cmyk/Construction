@@ -3,6 +3,7 @@ import { requireAuth, handleApiError, ok, ApiError, toId, assertManagerOwnsProje
 import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Doc from "@/models/Document";
+import { DOCUMENT_CATEGORIES } from "@/lib/document-categories";
 import Project from "@/models/Project";
 import fs from "fs";
 import path from "path";
@@ -40,6 +41,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (data.name !== undefined) doc.name = data.name;
     if (data.description !== undefined) doc.description = data.description;
+    if (data.category !== undefined && DOCUMENT_CATEGORIES.includes(data.category)) doc.category = data.category;
     if (data.tags !== undefined) doc.tags = Array.isArray(data.tags) ? data.tags : data.tags.split(",").map((t: string) => t.trim());
     if (data.projectId !== undefined) {
       doc.projectId = data.projectId ? (typeof data.projectId === "string" ? toId(data.projectId) : data.projectId) : null;

@@ -79,16 +79,21 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
     if (!data.name) throw new Error("Project name is required");
     const budget = parseRequiredNonNegativeNumber(data.budget || "0", "Budget");
+    const caValue = parseRequiredNonNegativeNumber(data.caValue || "0", "CA Value");
     const startDate = parseOptionalDate(data.startDate, "Start date") ?? null;
     const endDate = parseOptionalDate(data.endDate, "End date") ?? null;
     assertDateRange(startDate, endDate);
+    const PROJECT_STATUSES = ["planning", "ongoing", "physically_closed", "financially_closed", "sick", "cancelled"];
+    const status = data.status && PROJECT_STATUSES.includes(data.status) ? data.status : "planning";
     await connectDB();
     const project = await Project.create({
       name: data.name,
       location: data.location || null,
       type: data.type || "residential",
-      status: data.status || "planning",
+      status,
       budget,
+      caValue,
+      salients: data.salients || null,
       description: data.description || null,
       startDate,
       endDate,

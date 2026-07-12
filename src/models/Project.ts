@@ -9,8 +9,10 @@ export interface IProject extends Document {
   assignedManagerId?: Types.ObjectId;
   contractId?: Types.ObjectId;
   budget: number;
+  caValue: number;
+  salients?: string;
   completionPercent: number;
-  status: "planning" | "in_progress" | "on_hold" | "completed" | "cancelled";
+  status: "planning" | "ongoing" | "physically_closed" | "financially_closed" | "sick" | "cancelled";
   startDate?: Date | null;
   endDate?: Date | null;
   createdById?: Types.ObjectId;
@@ -32,10 +34,15 @@ const projectSchema = new Schema<IProject>(
     assignedManagerId: { type: Schema.Types.ObjectId, ref: "User" },
     contractId: { type: Schema.Types.ObjectId, ref: "Contract" },
     budget: { type: Number, default: 0 },
+    // Contract Agreement (awarded) value — the client's "CA Value". Distinct
+    // from `budget` (our internal cost budget). Falls back to budget when 0.
+    caValue: { type: Number, default: 0 },
+    // Salient features of the project (scope highlights, key specs).
+    salients: { type: String },
     completionPercent: { type: Number, default: 0 },
     status: {
       type: String,
-      enum: ["planning", "in_progress", "on_hold", "completed", "cancelled"],
+      enum: ["planning", "ongoing", "physically_closed", "financially_closed", "sick", "cancelled"],
       default: "planning",
     },
     startDate: { type: Date },

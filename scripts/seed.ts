@@ -32,6 +32,7 @@ async function seed() {
     "projectequipments","equipmentmaintenances","materials","materialusages",
     "invoices","ledgerentries","contracts","contractvariations","documents","attendances",
     "notifications","auditlogs","counters","subcontracts","assets",
+    "partners","investments","loans","loanrepayments","storeitems","storeitemusages",
   ];
   for (const c of cols) {
     try { await db.collection(c).deleteMany({}); } catch {}
@@ -725,6 +726,95 @@ async function seed() {
     });
   }
 
+  // ── 21. PARTNERS & PROJECT-WISE INVESTMENTS ──────────────────────────────
+  console.log("🤝 Seeding partners & investments...");
+  const partnersRaw = [
+    { name: "Zahid Iqbal",          contactPerson: "Zahid Iqbal",          phone: "+92 300 1112223", email: "zahid.iqbal@investor.pk",   address: "DHA Phase 5, Lahore",        cnicOrCompanyReg: "35202-1234567-1", equityPercent: 30, notes: "Founding partner, real estate background" },
+    { name: "Al-Kareem Holdings",   contactPerson: "Mansoor Al-Kareem",    phone: "+92 21 3456 7890", email: "info@alkareemholdings.com", address: "Clifton Block 5, Karachi",   cnicOrCompanyReg: "NTN-5567788-2",   equityPercent: 20, notes: "Corporate investment partner" },
+    { name: "Nadia Farooqi",        contactPerson: "Nadia Farooqi",        phone: "+92 333 4445556", email: "nadia.farooqi@gmail.com",   address: "F-10 Markaz, Islamabad",     cnicOrCompanyReg: "61101-7654321-4", equityPercent: 15, notes: "Silent partner, joined 2023" },
+    { name: "Silk Route Capital",   contactPerson: "Farrukh Baig",         phone: "+92 42 3712 4400", email: "contact@silkroutecap.com",  address: "Gulberg III, Lahore",        cnicOrCompanyReg: "NTN-8812340-9",   equityPercent: 10, notes: "Institutional co-investor for large projects" },
+  ];
+  const partnerDocs: any[] = [];
+  for (const p of partnersRaw) {
+    const r = await db.collection("partners").insertOne({ ...p, isActive: true, createdAt: now(), updatedAt: now() });
+    partnerDocs.push({ ...p, _id: r.insertedId });
+  }
+  for (const proj of projectDocs.filter(p => p.status !== "planning").slice(0, 12)) {
+    const numInvestors = rand(1, 2);
+    const chosenPartners = partnerDocs.sort(() => 0.5 - Math.random()).slice(0, numInvestors);
+    for (const partner of chosenPartners) {
+      const amount = Math.round((proj.budget * rand(5, 15)) / 100 / 100000) * 100000;
+      await db.collection("investments").insertOne({
+        partnerId: partner._id, projectId: proj._id, amount,
+        date: daysAgo(rand(30, 300)),
+        bankAccountId: pick([meezanBank, hblBank])._id,
+        notes: `Capital contribution toward ${proj.name}`,
+        createdById: pick([admin, ceo])._id,
+        createdAt: now(), updatedAt: now(),
+      });
+    }
+  }
+
+  // ── 22. LOANS ─────────────────────────────────────────────────────────────
+  console.log("💰 Seeding loans...");
+  const loansRaw = [
+    { borrowerType: "employee", borrowerName: "Usman Ghani",        principalAmount: 200000,  status: "partially_repaid", repaid: 80000 },
+    { borrowerType: "employee", borrowerName: "Rashid Mehmood",     principalAmount: 100000,  status: "repaid",           repaid: 100000 },
+    { borrowerType: "vendor",   borrowerName: "Green Zone Landscaping", principalAmount: 500000, status: "active",        repaid: 0 },
+    { borrowerType: "client",   borrowerName: "Alhamra Arts Council",   principalAmount: 1500000, status: "active",       repaid: 0 },
+    { borrowerType: "other",    borrowerName: "Site Contractor Advance", principalAmount: 350000, status: "written_off",  repaid: 50000 },
+    { borrowerType: "employee", borrowerName: "Ali Hassan",         principalAmount: 80000,   status: "active",           repaid: 0 },
+  ];
+  for (const l of loansRaw) {
+    const issueDate = daysAgo(rand(30, 240));
+    const r = await db.collection("loans").insertOne({
+      borrowerType: l.borrowerType, borrowerName: l.borrowerName,
+      principalAmount: l.principalAmount, issueDate,
+      expectedReturnDate: daysFromNow(rand(30, 180)),
+      bankAccountId: pick([meezanBank, mcbBank])._id,
+      status: l.status,
+      notes: `Loan issued to ${l.borrowerName}`,
+      createdById: pick([admin, ceo, accountant])._id,
+      createdAt: now(), updatedAt: now(),
+    });
+    if (l.repaid > 0) {
+      await db.collection("loanrepayments").insertOne({
+        loanId: r.insertedId, amount: l.repaid,
+        date: daysAgo(rand(1, 25)),
+        bankAccountId: meezanBank._id,
+        notes: "Partial/full repayment",
+        createdById: accountant._id, createdAt: now(),
+      });
+    }
+  }
+
+  // ── 23. STORE (company-wide general inventory) ──────────────────────────
+  console.log("🏬 Seeding store items...");
+  const storeItemsRaw = [
+    { itemName: "Office Chairs (Ergonomic)",      category: "office",  unit: "pcs",   unitPrice: 18500, qty: 40,  minStock: 5  },
+    { itemName: "Safety Helmets (Class G)",       category: "safety",  unit: "pcs",   unitPrice: 950,   qty: 150, minStock: 20 },
+    { itemName: "Reflective Safety Vests",        category: "safety",  unit: "pcs",   unitPrice: 650,   qty: 200, minStock: 30 },
+    { itemName: "First Aid Kits (Site Grade)",    category: "safety",  unit: "boxes", unitPrice: 3200,  qty: 25,  minStock: 5  },
+    { itemName: "A4 Printer Paper (Ream)",        category: "office",  unit: "reams", unitPrice: 850,   qty: 100, minStock: 15 },
+    { itemName: "Desktop Computers",              category: "it",      unit: "pcs",   unitPrice: 145000,qty: 12,  minStock: 2  },
+    { itemName: "Hand Tools Set (Site Toolkit)",  category: "tools",   unit: "sets",  unitPrice: 12500, qty: 30,  minStock: 5  },
+    { itemName: "LED Site Floodlights",           category: "tools",   unit: "pcs",   unitPrice: 8500,  qty: 20,  minStock: 4  },
+  ];
+  for (const s of storeItemsRaw) {
+    const usedFraction = pick([0, 0.1, 0.2, 0.3]);
+    const used = Math.floor(s.qty * usedFraction);
+    const stockQty = s.qty - used;
+    await db.collection("storeitems").insertOne({
+      itemName: s.itemName, category: s.category, unit: s.unit,
+      unitPrice: s.unitPrice, quantity: s.qty,
+      stockQuantity: stockQty, minStockLevel: s.minStock,
+      receivedDate: daysAgo(rand(10, 180)),
+      vendorId: pick(vendorDocs)._id,
+      notes: null,
+      createdAt: now(), updatedAt: now(),
+    });
+  }
+
   // ── Done ──────────────────────────────────────────────────────────────────
   console.log("\n" + "=".repeat(60));
   console.log("🎉  SEED COMPLETE — all collections populated!");
@@ -738,6 +828,9 @@ async function seed() {
   console.log(`  Invoices:    ${invoiceDocs.length}`);
   console.log(`  Assets:      ${assetsRaw.length}`);
   console.log(`  Bank Accts:  ${bankDocs.length}`);
+  console.log(`  Partners:    ${partnerDocs.length}`);
+  console.log(`  Loans:       ${loansRaw.length}`);
+  console.log(`  Store Items: ${storeItemsRaw.length}`);
   console.log("\n  Login credentials:");
   console.log("  ─────────────────────────────────────────────────────");
   console.log("  Admin:      admin@constructionlatech.com   / Admin@1234");

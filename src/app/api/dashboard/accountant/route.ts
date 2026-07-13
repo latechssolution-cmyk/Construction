@@ -5,6 +5,8 @@ import BankAccount from "@/models/BankAccount";
 import Invoice from "@/models/Invoice";
 import Subcontract from "@/models/Subcontract";
 import Asset from "@/models/Asset";
+import Loan from "@/models/Loan";
+import LoanRepayment from "@/models/LoanRepayment";
 
 export async function GET() {
   try {
@@ -19,7 +21,7 @@ export async function GET() {
 
     const [
       totalsAgg, monthTotalsAgg, bankAccounts, pendingInvoices, monthlyAgg,
-      arAgg, openSubcontractsRaw, assetsRaw,
+      arAgg, openSubcontractsRaw, assetsRaw, loanAgg, loanRepaidAgg,
     ] = await Promise.all([
       // All-time totals — expense excludes inventory_asset (a balance-sheet
       // move, not a real P&L cost) to match the definition used everywhere
@@ -56,6 +58,16 @@ export async function GET() {
       ]),
       Subcontract.find({ status: "in_progress" }, { contractValue: 1, projectId: 1, vendorId: 1 }).lean(),
       Asset.find({}, { purchaseCost: 1, salvageValue: 1, usefulLifeYears: 1, purchaseDate: 1 }).lean(),
+      Loan.aggregate([
+        { $match: { status: { $ne: "written_off" } } },
+        { $group: { _id: null, total: { $sum: "$principalAmount" } } },
+      ]),
+      LoanRepayment.aggregate([
+        { $lookup: { from: "loans", localField: "loanId", foreignField: "_id", as: "loan" } },
+        { $unwind: "$loan" },
+        { $match: { "loan.status": { $ne: "written_off" } } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]),
     ]);
 
     const totalRow = (totalsAgg as any[])[0] || {};
@@ -123,9 +135,11 @@ export async function GET() {
     // silently undefined for every bank account and pending invoice row.
     const withId = (rows: any[]) => rows.map((r) => ({ ...r, id: r._id.toString() }));
 
+    const outstandingLoans = Math.max(0, ((loanAgg as any[])[0]?.total || 0) - ((loanRepaidAgg as any[])[0]?.total || 0));
+
     return ok({
       totalIncome, totalExpense, monthIncome, monthExpense,
-      accountsReceivable, accountsPayable, assetBookValue,
+      accountsReceivable, accountsPayable, assetBookValue, outstandingLoans,
       bankAccounts: withId(bankAccounts), pendingInvoices: withId(pendingInvoices), monthlyTrend,
     });
   } catch (e) {

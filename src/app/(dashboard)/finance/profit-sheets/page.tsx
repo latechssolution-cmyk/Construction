@@ -3,7 +3,7 @@ import useSWR from "swr";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { StatsSkeleton, TableSkeleton } from "@/components/ui/skeleton";
-import { Lock, TrendingUp, TrendingDown, Scale } from "lucide-react";
+import { Lock, TrendingUp, TrendingDown, Scale, Search } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 
@@ -13,6 +13,7 @@ export default function ProfitSheetsPage() {
   const { data: session } = useSession();
   const year = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(year);
+  const [projectSearch, setProjectSearch] = useState("");
   const { data: summary, isLoading } = useSWR(`/api/ledger/summary?year=${selectedYear}`, fetcher);
   const { data: projectsRaw } = useSWR("/api/projects", fetcher);
   const projects: any[] = projectsRaw?.data ? projectsRaw.data : (Array.isArray(projectsRaw) ? projectsRaw : []);
@@ -139,9 +140,23 @@ export default function ProfitSheetsPage() {
         </div>
       </div>
 
-      {projects.length>0 && (
+      {projects.length>0 && (() => {
+        const filteredProjects = projects.filter((p: any) =>
+          !projectSearch ||
+          p.name?.toLowerCase().includes(projectSearch.toLowerCase()) ||
+          p.type?.toLowerCase().includes(projectSearch.toLowerCase()) ||
+          p.status?.toLowerCase().includes(projectSearch.toLowerCase())
+        );
+        return (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-gray-200 bg-gray-50"><h2 className="font-semibold">Project Overview</h2></div>
+          <div className="p-4 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h2 className="font-semibold">Project Overview</h2>
+            <div className="relative w-full sm:w-72">
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input value={projectSearch} onChange={e=>setProjectSearch(e.target.value)} placeholder="Search projects..."
+                className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            </div>
+          </div>
           <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b border-gray-200">
@@ -155,7 +170,10 @@ export default function ProfitSheetsPage() {
               <th className="text-right py-2 px-4 text-xs text-gray-500">Task Progress</th>
             </tr></thead>
             <tbody>
-              {projects.map((p:any)=>{
+              {filteredProjects.length===0 && (
+                <tr><td colSpan={8} className="py-6 text-center text-gray-400 text-sm">No projects match your search</td></tr>
+              )}
+              {filteredProjects.map((p:any)=>{
                 const totalTasks = p.tasks?.length||0;
                 let pct = p.completionPercent || 0;
                 if (totalTasks > 0) {
@@ -188,7 +206,8 @@ export default function ProfitSheetsPage() {
           </table>
           </div>
         </div>
-      )}
+        );
+      })()}
       </>)}
     </div>
   );

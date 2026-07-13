@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   CheckCircle2, Calendar, BarChart2, Landmark,
   FolderOpen, FolderKanban, Receipt, Users2, TrendingUp, TrendingDown,
-  Wallet, ClipboardList, Boxes, Sparkles, AlertTriangle, Wrench,
+  Wallet, ClipboardList, Boxes, Sparkles, AlertTriangle, Wrench, HandCoins,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -109,6 +109,7 @@ function AdminDashboard({ data }: { data: any }) {
           <StatCard label="Cash in Bank" value={pkr(f.cashInBank)} tone="blue" icon={<Landmark className="w-4 h-4" />} href="/finance/accounts" />
           <StatCard label="Accounts Receivable" value={pkr(f.accountsReceivable)} sub="Billed, unpaid" tone="orange" icon={<Receipt className="w-4 h-4" />} href="/billing?status=sent" />
           <StatCard label="Accounts Payable" value={pkr(f.accountsPayable)} sub="Open commitments" tone="purple" icon={<Receipt className="w-4 h-4" />} />
+          <StatCard label="Outstanding Loans" value={pkr(f.outstandingLoans)} sub="Given to staff/others" tone={f.outstandingLoans > 0 ? "orange" : "gray"} icon={<HandCoins className="w-4 h-4" />} href="/finance/loans" />
         </div>
         <ChartCard title="Revenue vs Expense (Last 6 Months)">
           {hasTrend ? (
@@ -372,10 +373,11 @@ function AccountantDashboard({ data }: { data: any }) {
         <StatCard label="Total Expense" value={pkr(data?.totalExpense || 0)} tone="red" icon={<TrendingDown className="w-4 h-4" />} href="/finance/profit-sheets" />
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Accounts Receivable" value={pkr(data?.accountsReceivable || 0)} sub="Billed, unpaid" tone="orange" icon={<Receipt className="w-4 h-4" />} href="/billing?status=sent" />
         <StatCard label="Accounts Payable" value={pkr(data?.accountsPayable || 0)} sub="Open commitments" tone="purple" icon={<Receipt className="w-4 h-4" />} />
         <StatCard label="Asset Book Value" value={pkr(data?.assetBookValue || 0)} sub="After depreciation" tone="blue" icon={<Boxes className="w-4 h-4" />} href="/assets" />
+        <StatCard label="Outstanding Loans" value={pkr(data?.outstandingLoans || 0)} sub="Given to staff/others" tone={data?.outstandingLoans > 0 ? "orange" : "gray"} icon={<HandCoins className="w-4 h-4" />} href="/finance/loans" />
       </div>
 
       <ChartCard title="Monthly Cash Flow (This Year)">

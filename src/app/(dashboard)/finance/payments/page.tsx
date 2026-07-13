@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { StatsSkeleton, TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, Lock, TrendingUp, TrendingDown, Scale } from "lucide-react";
+import { CreditCard, Lock, TrendingUp, TrendingDown, Scale, Search } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 
@@ -20,6 +20,7 @@ export default function PaymentsPage() {
   const { data: bankAccounts } = useSWR("/api/bank-accounts", fetcher);
   const [showForm, setShowForm] = useState(false);
   const [typeFilter, setTypeFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [form, setForm] = useState<any>({ type:"expense", category:"vendor_payment" });
   const [loading, setLoading] = useState(false);
 
@@ -34,7 +35,15 @@ export default function PaymentsPage() {
 
   const canManage = ["admin","ceo","accountant"].includes(session?.user?.role||"");
   const list: any[] = Array.isArray(payments) ? payments : [];
-  const filtered = list.filter((p:any)=>!typeFilter||p.type===typeFilter);
+  const filtered = list.filter((p:any) => {
+    if (typeFilter && p.type !== typeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const haystack = [p.partyName, p.vendor?.name, p.project?.name, p.description, p.referenceNumber].filter(Boolean).join(" ").toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault(); setLoading(true);
@@ -64,6 +73,11 @@ export default function PaymentsPage() {
       )}
 
       <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by party, project, description, reference..."
+            className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+        </div>
         <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full sm:w-auto focus:outline-none focus:ring-2 focus:ring-blue-500/40">
           <option value="">All Payments</option>
           <option value="income">Received</option>

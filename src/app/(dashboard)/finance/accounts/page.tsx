@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { CardGridSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { Landmark, Pencil, Trash2, X, Lock } from "lucide-react";
+import { Landmark, Pencil, Trash2, X, Lock, Search } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
@@ -34,6 +34,7 @@ export default function BankAccountsPage() {
   const [editForm, setEditForm] = useState<any>({});
   const [editLoading, setEditLoading] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [statementSearch, setStatementSearch] = useState("");
 
   if (session && !["admin","ceo","accountant"].includes(session.user?.role||"")) {
     return (
@@ -222,7 +223,15 @@ export default function BankAccountsPage() {
             <span className="text-red-500 font-medium">Expense: PKR {statement.summary?.totalExpense?.toLocaleString() || 0}</span>
             <span className="font-bold text-gray-900">Net: PKR {statement.summary?.net?.toLocaleString() || 0}</span>
           </div>
-          
+
+          <div className="p-4 pb-0 bg-white">
+            <div className="relative w-full sm:w-80">
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input value={statementSearch} onChange={e => setStatementSearch(e.target.value)} placeholder="Search transactions by description, category..."
+                className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            </div>
+          </div>
+
           <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b border-gray-200 bg-gray-50">
@@ -237,7 +246,12 @@ export default function BankAccountsPage() {
                 // whenever a date filter or pagination was active, since
                 // "current balance minus this page's net" isn't the balance
                 // as of that historical entry.
-                const entries: any[] = statement.entries || [];
+                const entries: any[] = (statement.entries || []).filter((e: any) =>
+                  !statementSearch ||
+                  e.description?.toLowerCase().includes(statementSearch.toLowerCase()) ||
+                  e.category?.toLowerCase().includes(statementSearch.toLowerCase()) ||
+                  e.partyName?.toLowerCase().includes(statementSearch.toLowerCase())
+                );
                 return entries.map((e:any)=>{
                   const snap = e.runningBalance ?? 0;
                   return (
@@ -259,7 +273,12 @@ export default function BankAccountsPage() {
           {/* Mobile statement cards */}
           <div className="md:hidden p-3 space-y-3">
             {(()=>{
-              const entries: any[] = statement.entries || [];
+              const entries: any[] = (statement.entries || []).filter((e: any) =>
+                  !statementSearch ||
+                  e.description?.toLowerCase().includes(statementSearch.toLowerCase()) ||
+                  e.category?.toLowerCase().includes(statementSearch.toLowerCase()) ||
+                  e.partyName?.toLowerCase().includes(statementSearch.toLowerCase())
+                );
               return entries.map((e:any)=>{
                 const snap = e.runningBalance ?? 0;
                 return (

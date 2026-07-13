@@ -87,6 +87,10 @@ export function getStatusColor(status: string): string {
     pending: "bg-gray-100 text-gray-800",
     approved: "bg-green-100 text-green-800",
     rejected: "bg-red-100 text-red-800",
+    // Loan statuses
+    partially_repaid: "bg-yellow-100 text-yellow-800",
+    repaid: "bg-green-100 text-green-800",
+    written_off: "bg-red-100 text-red-800",
     available: "bg-green-100 text-green-800",
     in_use: "bg-blue-100 text-blue-800",
     maintenance: "bg-orange-100 text-orange-800",

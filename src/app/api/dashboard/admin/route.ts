@@ -10,6 +10,8 @@ import BankAccount from "@/models/BankAccount";
 import Equipment from "@/models/Equipment";
 import Subcontract from "@/models/Subcontract";
 import Asset from "@/models/Asset";
+import Loan from "@/models/Loan";
+import LoanRepayment from "@/models/LoanRepayment";
 
 // Effective CA value expression: use caValue when set, else fall back to budget.
 const CA_VALUE_EXPR = { $cond: [{ $gt: ["$caValue", 0] }, "$caValue", "$budget"] };
@@ -28,7 +30,7 @@ export async function GET() {
     const [
       projectStatusAgg, ledgerTotalsAgg, contractValueAgg,
       bankAgg, arAgg, openSubcontractsRaw,
-      staffAgg, equipmentAgg, assetsRaw,
+      staffAgg, equipmentAgg, assetsRaw, loanAgg, loanRepaidAgg,
       trendAgg, recentActivity, overdueTasks, overdueInvoices,
     ] = await Promise.all([
       // Projects grouped by status → count + Σ effective CA value
@@ -66,6 +68,20 @@ export async function GET() {
       ]),
       // Assets: fetched lean; book value (straight-line) computed in JS
       Asset.find({}, { purchaseCost: 1, salvageValue: 1, usefulLifeYears: 1, purchaseDate: 1, status: 1, nextMaintenanceDate: 1 }).lean(),
+      // Outstanding loans given out (not written off) — repayments are
+      // joined and scoped to the same non-written-off set, otherwise a
+      // repayment made before a loan was written off would incorrectly
+      // reduce the outstanding total for the *other*, still-active loans.
+      Loan.aggregate([
+        { $match: { status: { $ne: "written_off" } } },
+        { $group: { _id: null, total: { $sum: "$principalAmount" } } },
+      ]),
+      LoanRepayment.aggregate([
+        { $lookup: { from: "loans", localField: "loanId", foreignField: "_id", as: "loan" } },
+        { $unwind: "$loan" },
+        { $match: { "loan.status": { $ne: "written_off" } } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]),
       LedgerEntry.aggregate([
         { $match: { date: { $gte: sixMonthsAgo } } },
         { $group: { _id: { year: { $year: "$date" }, month: { $month: "$date" }, type: "$type" }, total: { $sum: "$amount" } } },
@@ -93,7 +109,10 @@ export async function GET() {
       sick: statusMap.sick,
       planning: statusMap.planning,
       cancelled: statusMap.cancelled,
-      byStatusChart: PROJECT_STATUSES.map((s) => ({ name: s.replace(/_/g, " "), count: statusMap[s].count, cost: statusMap[s].cost })),
+      byStatusChart: [
+        { name: "Total", count: totalCount, cost: totalCost },
+        ...PROJECT_STATUSES.map((s) => ({ name: s.replace(/_/g, " "), count: statusMap[s].count, cost: statusMap[s].cost })),
+      ],
     };
 
     // ── Finances section ────────────────────────────────────────────────────
@@ -123,10 +142,11 @@ export async function GET() {
       ]))[0]?.total || 0
     );
     const accountsPayable = Math.max(0, openSubcontracts - subcontractorPaid);
+    const outstandingLoans = Math.max(0, ((loanAgg as any[])[0]?.total || 0) - ((loanRepaidAgg as any[])[0]?.total || 0));
     const finances = {
       totalContractValue, totalRevenue, totalExpense,
       grossProfit: totalRevenue - totalExpense,
-      cashInBank, accountsReceivable, accountsPayable,
+      cashInBank, accountsReceivable, accountsPayable, outstandingLoans,
     };
 
     // ── Staff / Equipment / Assets ──────────────────────────────────────────

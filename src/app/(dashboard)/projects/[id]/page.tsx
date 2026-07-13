@@ -7,7 +7,7 @@ import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/hooks/use-toast";
-import { Pencil, Trash2, X, Download, FileText, BarChart2, Boxes, Wallet, HardHat, FolderOpen, Users, CheckCircle2, Circle, Upload } from "lucide-react";
+import { Pencil, Trash2, X, Download, FileText, BarChart2, Boxes, Wallet, HardHat, FolderOpen, Users, CheckCircle2, Circle, Upload, HandCoins, Search } from "lucide-react";
 import { TENDER_DOC_CHECKLIST, DOCUMENT_CATEGORY_LABELS } from "@/lib/document-categories";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -79,6 +79,14 @@ export default function ProjectDetailPage() {
   const [showVariationForm, setShowVariationForm] = useState(false);
   const [variationForm, setVariationForm] = useState<any>({});
   const [variationError, setVariationError] = useState("");
+  const [showInvestmentForm, setShowInvestmentForm] = useState(false);
+  const [investmentForm, setInvestmentForm] = useState<any>({});
+  const [investmentError, setInvestmentError] = useState("");
+
+  // Within-project search bars (Materials, Documents, Finance/Ledger tabs)
+  const [materialSearch, setMaterialSearch] = useState("");
+  const [documentSearch, setDocumentSearch] = useState("");
+  const [ledgerSearch, setLedgerSearch] = useState("");
 
   // Tender/contract document checklist upload (which category slot is open)
   const [docUploadCategory, setDocUploadCategory] = useState<string | null>(null);
@@ -97,6 +105,9 @@ export default function ProjectDetailPage() {
     project?.contract?.id ? `/api/contracts/${project.contract.id}/variations` : null,
     fetcher
   );
+  const { data: investments, mutate: mutateInvestments } = useSWR(`/api/investments?projectId=${id}`, fetcher);
+  const canManageFinanceForInvestments = ["admin", "ceo", "accountant"].includes(role);
+  const { data: partnersList } = useSWR(canManageFinanceForInvestments ? "/api/partners" : null, fetcher);
   const { data: vendors } = useSWR("/api/vendors", fetcher);
   const { data: clients } = useSWR(canManage ? "/api/clients" : null, fetcher);
   const { data: managers } = useSWR(canManage ? "/api/users/assignable" : null, fetcher);
@@ -586,6 +597,39 @@ export default function ProjectDetailPage() {
     }
     await mutateVariations();
     toast({ title: `Variation ${status}` });
+  }
+
+  async function createInvestment(e: React.FormEvent) {
+    e.preventDefault();
+    setInvestmentError("");
+    if (!investmentForm.partnerId) { setInvestmentError("Select a partner."); return; }
+    const amount = parseFloat(investmentForm.amount || "0");
+    if (!amount || amount <= 0) { setInvestmentError("Enter an amount greater than 0."); return; }
+    const res = await fetch("/api/investments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...investmentForm, amount, projectId: id }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setInvestmentError(err.error || "Failed to record investment");
+      return;
+    }
+    await mutateInvestments();
+    setShowInvestmentForm(false);
+    setInvestmentForm({});
+    toast({ title: "Investment recorded" });
+  }
+
+  async function deleteInvestment(investmentId: string) {
+    const res = await fetch(`/api/investments/${investmentId}`, { method: "DELETE" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || "Failed to reverse investment", variant: "destructive" });
+      return;
+    }
+    await mutateInvestments();
+    toast({ title: "Investment reversed" });
   }
 
   async function createSubcontract(e: React.FormEvent) {
@@ -1591,7 +1635,14 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-      {tab === "Materials" && (
+      {tab === "Materials" && (() => {
+        const filteredMaterials = (project.materials || []).filter((m: any) =>
+          !materialSearch ||
+          m.itemName?.toLowerCase().includes(materialSearch.toLowerCase()) ||
+          m.category?.toLowerCase().includes(materialSearch.toLowerCase()) ||
+          m.vendor?.name?.toLowerCase().includes(materialSearch.toLowerCase())
+        );
+        return (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="font-semibold text-gray-900">Materials / Stock</h3>
@@ -1602,6 +1653,13 @@ export default function ProjectDetailPage() {
               >+ Add Material</button>
             )}
           </div>
+          {(project.materials || []).length > 0 && (
+            <div className="relative w-full sm:w-80">
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input value={materialSearch} onChange={(e) => setMaterialSearch(e.target.value)} placeholder="Search materials by name, category, vendor..."
+                className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            </div>
+          )}
           {showMaterialForm && (
             <form onSubmit={createMaterial} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
               <h4 className="text-sm font-semibold text-gray-700">New Material</h4>
@@ -1631,6 +1689,10 @@ export default function ProjectDetailPage() {
             <div className="bg-white border border-gray-200 rounded-xl">
               <EmptyState icon={<Boxes className="w-10 h-10" />} title="No materials added yet" hint="Add materials to track inventory, costs, and stock levels for this project." />
             </div>
+          ) : filteredMaterials.length === 0 ? (
+            <div className="bg-white border border-gray-200 rounded-xl">
+              <EmptyState icon={<Search className="w-10 h-10" />} title="No materials match your search" hint="Try a different name, category, or vendor." />
+            </div>
           ) : (
             <>
               {/* Desktop table */}
@@ -1642,7 +1704,7 @@ export default function ProjectDetailPage() {
                     ))}
                   </tr></thead>
                   <tbody>
-                    {(project.materials || []).map((m: any) => (
+                    {filteredMaterials.map((m: any) => (
                       editingMaterialId === m.id ? (
                         <tr key={m.id + "-edit"} className="border-b border-blue-100 bg-blue-50">
                           <td colSpan={10} className="py-3 px-3">
@@ -1711,7 +1773,7 @@ export default function ProjectDetailPage() {
               </div>
               {/* Mobile cards */}
               <div className="md:hidden space-y-3">
-                {(project.materials || []).map((m: any) => (
+                {filteredMaterials.map((m: any) => (
                   <div key={m.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
                     {editingMaterialId === m.id ? (
                       <form onSubmit={(e) => updateMaterial(e, m.id)} className="space-y-2">
@@ -1779,10 +1841,84 @@ export default function ProjectDetailPage() {
             </>
           )}
         </div>
-      )}
+        );
+      })()}
 
-      {tab === "Finance" && (
+      {tab === "Finance" && (() => {
+        const filteredLedgerEntries = (project.ledgerEntries || []).filter((e: any) =>
+          !ledgerSearch ||
+          e.description?.toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+          e.category?.toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+          e.bankAccount?.name?.toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+          e.type?.toLowerCase().includes(ledgerSearch.toLowerCase())
+        );
+        return (
         <div className="space-y-4">
+          {/* Partner Investments — capital funding this project, kept
+              separate from the earned-income ledger below (see /api/investments
+              for why: investments must not count as P&L revenue). */}
+          {canManageFinanceForInvestments && (() => {
+            const investList: any[] = investments || [];
+            const totalInvested = investList.reduce((s, v) => s + (v.amount || 0), 0);
+            return (
+              <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 flex items-center gap-2"><HandCoins className="w-4 h-4 text-purple-500" /> Partner Investments</h3>
+                    {totalInvested > 0 && <p className="text-xs text-gray-400 mt-0.5">PKR {totalInvested.toLocaleString()} invested in this project</p>}
+                  </div>
+                  <button onClick={() => { setShowInvestmentForm(!showInvestmentForm); setInvestmentError(""); }} className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg">
+                    {showInvestmentForm ? "Cancel" : "+ Record Investment"}
+                  </button>
+                </div>
+
+                {showInvestmentForm && (
+                  <form onSubmit={createInvestment} className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                    {investmentError && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-xs">{investmentError}</div>}
+                    <select required value={investmentForm.partnerId || ""} onChange={(e) => setInvestmentForm({ ...investmentForm, partnerId: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                      <option value="">Select Partner *</option>
+                      {(Array.isArray(partnersList) ? partnersList : []).filter((p: any) => p.isActive !== false).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input required type="number" min="0.01" step="0.01" value={investmentForm.amount || ""} onChange={(e) => setInvestmentForm({ ...investmentForm, amount: e.target.value })} placeholder="Amount (PKR) *" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                      <input type="date" value={investmentForm.date || ""} onChange={(e) => setInvestmentForm({ ...investmentForm, date: e.target.value })} className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <select value={investmentForm.bankAccountId || ""} onChange={(e) => setInvestmentForm({ ...investmentForm, bankAccountId: e.target.value || undefined })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                      <option value="">Bank Account (optional — credits the balance)</option>
+                      {(Array.isArray(bankAccounts) ? bankAccounts : []).map((b: any) => <option key={b.id} value={b.id}>{b.name} — PKR {(b.balance || 0).toLocaleString()}</option>)}
+                    </select>
+                    <textarea value={investmentForm.notes || ""} onChange={(e) => setInvestmentForm({ ...investmentForm, notes: e.target.value })} placeholder="Notes (optional)" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    <div className="flex gap-2">
+                      <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Record Investment</button>
+                      <button type="button" onClick={() => { setShowInvestmentForm(false); setInvestmentForm({}); setInvestmentError(""); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
+                    </div>
+                  </form>
+                )}
+
+                {investList.length === 0 ? (
+                  <p className="text-sm text-gray-400">No partner investments recorded for this project yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {investList.map((v: any) => (
+                      <div key={v.id} className="flex items-center justify-between border border-gray-100 rounded-lg p-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900">{v.partner?.name || "Unknown partner"}</p>
+                          <p className="text-xs text-gray-400">{new Date(v.date).toLocaleDateString()}{v.bankAccount?.name ? ` · ${v.bankAccount.name}` : ""}{v.notes ? ` · ${v.notes}` : ""}</p>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-sm font-semibold text-green-600">PKR {(v.amount || 0).toLocaleString()}</span>
+                          {["admin", "ceo"].includes(role) && (
+                            <button onClick={() => deleteInvestment(v.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Reverse"><Trash2 className="w-3.5 h-3.5" /></button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           <div className="flex justify-between items-center">
             <h3 className="font-semibold text-gray-900">Ledger Entries</h3>
             {canManageFinance && (
@@ -1794,6 +1930,14 @@ export default function ProjectDetailPage() {
           </div>
 
           {ledgerError && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{ledgerError}</div>}
+
+          {(project.ledgerEntries || []).length > 0 && (
+            <div className="relative w-full sm:w-80">
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input value={ledgerSearch} onChange={(e) => setLedgerSearch(e.target.value)} placeholder="Search entries by description, category, account..."
+                className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            </div>
+          )}
 
           {showLedgerForm && canManageFinance && (
             <form onSubmit={createLedgerEntry} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
@@ -1832,6 +1976,10 @@ export default function ProjectDetailPage() {
             <div className="bg-white border border-gray-200 rounded-xl">
               <EmptyState icon={<Wallet className="w-10 h-10" />} title="No finance entries yet" hint="Add income and expense entries for this project here." />
             </div>
+          ) : filteredLedgerEntries.length === 0 ? (
+            <div className="bg-white border border-gray-200 rounded-xl">
+              <EmptyState icon={<Search className="w-10 h-10" />} title="No entries match your search" hint="Try a different description, category, or account." />
+            </div>
           ) : (
             <>
               {/* Desktop table */}
@@ -1841,7 +1989,7 @@ export default function ProjectDetailPage() {
                     {["Date", "Type", "Category", "Amount", "Description", "Account", ""].map(h => <th key={h} className="text-left py-3 px-3 text-xs text-gray-500 font-medium whitespace-nowrap">{h}</th>)}
                   </tr></thead>
                   <tbody>
-                    {(project.ledgerEntries || []).map((e: any) => (
+                    {filteredLedgerEntries.map((e: any) => (
                       editingLedgerId === e.id ? (
                         <tr key={e.id + "-edit"} className="border-b border-blue-100 bg-blue-50">
                           <td colSpan={7} className="py-3 px-3">
@@ -1901,7 +2049,7 @@ export default function ProjectDetailPage() {
               </div>
               {/* Mobile cards */}
               <div className="md:hidden space-y-3">
-                {(project.ledgerEntries || []).map((e: any) => (
+                {filteredLedgerEntries.map((e: any) => (
                   <div key={e.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div>
@@ -1953,7 +2101,8 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {tab === "Billing" && (() => {
         const invoiceSubtotal = invoiceItems.reduce((s, it) => s + (it.quantity || 0) * (it.unitPrice || 0), 0);
@@ -2162,7 +2311,15 @@ export default function ProjectDetailPage() {
         const byCategory: Record<string, any[]> = {};
         for (const d of docs) { (byCategory[d.category || "general"] ||= []).push(d); }
         const uploadedCount = TENDER_DOC_CHECKLIST.filter((c) => (byCategory[c] || []).length > 0).length;
-        const generalDocs = byCategory["general"] || [];
+        const generalDocs = (byCategory["general"] || []).filter((doc: any) =>
+          !documentSearch || doc.name?.toLowerCase().includes(documentSearch.toLowerCase())
+        );
+        const visibleChecklist = TENDER_DOC_CHECKLIST.filter((category) => {
+          if (!documentSearch) return true;
+          const q = documentSearch.toLowerCase();
+          if (DOCUMENT_CATEGORY_LABELS[category]?.toLowerCase().includes(q)) return true;
+          return (byCategory[category] || []).some((doc: any) => doc.name?.toLowerCase().includes(q));
+        });
 
         const UploadInline = ({ category }: { category: string }) => (
           docUploadCategory === category ? (
@@ -2186,8 +2343,17 @@ export default function ProjectDetailPage() {
               <span className="text-xs text-gray-500">{uploadedCount}/{TENDER_DOC_CHECKLIST.length} provided</span>
             </div>
 
+            <div className="relative w-full sm:w-80">
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input value={documentSearch} onChange={(e) => setDocumentSearch(e.target.value)} placeholder="Search documents by name or category..."
+                className="w-full border border-gray-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+            </div>
+
             <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
-              {TENDER_DOC_CHECKLIST.map((category) => {
+              {visibleChecklist.length === 0 && (
+                <div className="p-4"><p className="text-sm text-gray-400 text-center">No documents match your search.</p></div>
+              )}
+              {visibleChecklist.map((category) => {
                 const items = byCategory[category] || [];
                 const has = items.length > 0;
                 return (

@@ -7,7 +7,7 @@ type Role = "admin" | "ceo" | "manager" | "accountant";
 import {
   Building2, LayoutDashboard, FolderOpen, Users,
   Wrench, DollarSign, FileStack,
-  Bot, Settings, Boxes,
+  Bot, Settings, Boxes, PackageSearch,
   ChevronDown, ChevronRight, Search, X,
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -38,6 +38,7 @@ const NAV: NavItem[] = [
   { label: "People", href: "/people", icon: Users, roles: ["admin", "ceo", "manager", "accountant"] },
   { label: "Equipment", href: "/equipment", icon: Wrench, roles: ["admin", "ceo", "manager"] },
   { label: "Assets", href: "/assets", icon: Boxes, roles: ["admin", "ceo", "accountant"] },
+  { label: "Store", href: "/store", icon: PackageSearch, roles: ["admin", "ceo", "manager", "accountant"] },
   {
     label: "Finance", icon: DollarSign, roles: ["admin", "ceo", "accountant"],
     children: [
@@ -45,6 +46,7 @@ const NAV: NavItem[] = [
       { label: "Accounts", href: "/finance/accounts" },
       { label: "Invoices", href: "/billing" },
       { label: "Payments", href: "/finance/payments" },
+      { label: "Loans", href: "/finance/loans" },
       { label: "Profit Sheets", href: "/finance/profit-sheets" },
     ],
   },

@@ -2,20 +2,22 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Building2, TruckIcon, UserCheck, Wallet, CalendarCheck } from "lucide-react";
+import { Building2, TruckIcon, UserCheck, Wallet, CalendarCheck, HandCoins } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ClientsPage from "@/app/(dashboard)/clients/page";
 import VendorsPage from "@/app/(dashboard)/vendors/page";
 import EmployeesPage from "@/app/(dashboard)/employees/page";
 import AttendancePage from "@/app/(dashboard)/attendance/page";
+import PartnersPage from "@/app/(dashboard)/partners/page";
 import { SalaryHistory } from "@/components/people/salary-history";
 
-type TabKey = "clients" | "vendors" | "employees" | "attendance" | "salary";
+type TabKey = "clients" | "vendors" | "employees" | "partners" | "attendance" | "salary";
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType; roles?: string[] }[] = [
   { key: "clients", label: "Clients", icon: Building2 },
   { key: "vendors", label: "Vendors", icon: TruckIcon },
   { key: "employees", label: "Employees", icon: UserCheck },
+  { key: "partners", label: "Partners", icon: HandCoins, roles: ["admin", "ceo", "accountant"] },
   { key: "attendance", label: "Attendance", icon: CalendarCheck, roles: ["admin", "ceo", "manager"] },
   { key: "salary", label: "Salary History", icon: Wallet, roles: ["admin", "ceo", "accountant"] },
 ];
@@ -64,6 +66,7 @@ function PeopleContent() {
         {tab === "clients" && <ClientsPage />}
         {tab === "vendors" && <VendorsPage />}
         {tab === "employees" && <EmployeesPage />}
+        {tab === "partners" && ["admin", "ceo", "accountant"].includes(role) && <PartnersPage />}
         {tab === "attendance" && ["admin", "ceo", "manager"].includes(role) && <AttendancePage />}
         {tab === "salary" && canSeeSalary && (
           <div className="p-4 sm:p-6">

@@ -30,7 +30,7 @@ async function seed() {
     "users","bankaccounts","clients","vendors","employees","equipment",
     "projects","projectphases","milestones","tasks","projectemployees",
     "projectequipments","equipmentmaintenances","materials","materialusages",
-    "invoices","ledgerentries","contracts","documents","attendances",
+    "invoices","ledgerentries","contracts","contractvariations","documents","attendances",
     "notifications","auditlogs","counters","subcontracts","assets",
   ];
   for (const c of cols) {
@@ -273,7 +273,7 @@ async function seed() {
       const isDone = proj.pct === 100 || (proj.pct > 50 && i < 3) || (proj.pct > 20 && i < 2);
       await db.collection("milestones").insertOne({
         projectId: proj._id,
-        title: mTitle, description: mDesc,
+        name: mTitle, description: mDesc,
         dueDate: daysFromNow(rand(-60, 120)),
         status: isDone ? "completed" : proj.status === "planning" ? "pending" : i === 2 ? "in_progress" : "pending",
         completedAt: isDone ? daysAgo(rand(5, 30)) : null,
@@ -496,19 +496,56 @@ async function seed() {
   console.log("📋 Seeding contracts...");
   const contractStatuses = ["active", "active", "active", "completed", "on_hold"];
   let contractNum = 1;
+  const contractDocs: any[] = [];
   for (const proj of projectDocs.filter(p => p.status !== "planning").slice(0, 15)) {
-    await db.collection("contracts").insertOne({
-      contractNumber: `LATECH-${2026}-${String(contractNum++).padStart(3, "0")}`,
+    const contractNumber = `LATECH-${2026}-${String(contractNum++).padStart(3, "0")}`;
+    const status = ["physically_closed", "financially_closed"].includes(proj.status) ? "completed" : pick(contractStatuses);
+    const contractResult = await db.collection("contracts").insertOne({
+      contractNumber,
       title: `Construction Contract — ${proj.name}`,
       clientId: proj.client._id,
       scope: `Full construction works for ${proj.name} including civil, structural, MEP, and finishing works as per BOQ and approved drawings.`,
       contractValue: proj.caValue || proj.budget,
       startDate: proj.start, endDate: proj.end,
-      status: ["physically_closed", "financially_closed"].includes(proj.status) ? "completed" : pick(contractStatuses),
+      status,
       paymentTerms: "Monthly progressive billing against certified work. Retention: 5% up to practical completion.",
       notes: `Contract awarded after competitive tendering. All works to comply with NESPAK / consultant specifications.`,
       createdById: admin._id, createdAt: now(), updatedAt: now(),
     });
+    // Link the contract back onto its project — without this, every
+    // project's Contract tab shows "No contract linked" despite a matching
+    // contract existing in the system.
+    await db.collection("projects").updateOne({ _id: proj._id }, { $set: { contractId: contractResult.insertedId } });
+    contractDocs.push({ _id: contractResult.insertedId, contractNumber, status, contractValue: proj.caValue || proj.budget });
+  }
+
+  // ── 15c. CONTRACT VARIATIONS ─────────────────────────────────────────────
+  console.log("📝 Seeding contract variations...");
+  const variationTemplates = [
+    { title: "Additional site clearance and rock excavation", desc: "Unforeseen rock strata encountered at foundation level, beyond original geotechnical estimate.", pctOfValue: 0.015 },
+    { title: "Upgraded facade specification", desc: "Client-requested upgrade to curtain wall glazing system.", pctOfValue: 0.025 },
+    { title: "Scope reduction — external landscaping deferred", desc: "Landscaping works deferred to a separate future phase at client's request.", pctOfValue: -0.01 },
+    { title: "Additional MEP works — backup generator room", desc: "New backup power room added to electrical scope.", pctOfValue: 0.02 },
+  ];
+  for (const c of contractDocs.filter(c => c.status !== "draft")) {
+    const numVariations = c.status === "completed" ? rand(1, 3) : rand(0, 2);
+    const chosen = variationTemplates.sort(() => 0.5 - Math.random()).slice(0, numVariations);
+    for (const vt of chosen) {
+      const valueChange = Math.round((c.contractValue * vt.pctOfValue) / 10000) * 10000;
+      const status = c.status === "completed" ? "approved" : pick(["approved", "approved", "pending"]);
+      await db.collection("contractvariations").insertOne({
+        contractId: c._id,
+        variationNumber: `VAR-${c.contractNumber}-${rand(100, 999)}`,
+        title: vt.title,
+        description: vt.desc,
+        valueChange,
+        status,
+        approvedById: status === "approved" ? admin._id : null,
+        notes: null,
+        approvalDate: daysAgo(rand(5, 60)),
+        createdAt: daysAgo(rand(10, 90)), updatedAt: now(),
+      });
+    }
   }
 
   // ── 15b. SUBCONTRACTS ────────────────────────────────────────────────────

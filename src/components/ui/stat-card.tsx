@@ -44,11 +44,27 @@ export function StatCard({
   className?: string;
   href?: string;
 }) {
+  // Long PKR figures ("PKR 393,350,000") have no natural break point inside
+  // the number itself — break-words/overflow-wrap will force a break
+  // mid-digit ("393,350," / "000") once the card gets narrow (5-col grids).
+  // break-normal only wraps at the space after "PKR", keeping the number
+  // intact; a smaller font for long values keeps that single line fitting
+  // inside typical card widths instead of overflowing.
+  const valueStr = String(value);
+  const isLongValue = valueStr.length > 12;
+
   const body = (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <p className="text-xs font-medium text-gray-500 uppercase tracking-wide truncate" title={label}>{label}</p>
-        <p className={cn("text-lg sm:text-xl lg:text-2xl font-bold mt-1 break-words", TONE_VALUE[tone])} title={String(value)}>
+        <p
+          className={cn(
+            "font-bold mt-1 break-normal",
+            isLongValue ? "text-base sm:text-lg lg:text-xl" : "text-lg sm:text-xl lg:text-2xl",
+            TONE_VALUE[tone]
+          )}
+          title={valueStr}
+        >
           {value}
         </p>
         {sub && <p className="text-xs text-gray-400 mt-1 truncate" title={sub}>{sub}</p>}

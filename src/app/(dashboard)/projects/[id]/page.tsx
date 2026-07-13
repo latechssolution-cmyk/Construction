@@ -76,6 +76,9 @@ export default function ProjectDetailPage() {
   const [invoiceError, setInvoiceError] = useState("");
   const [paidInvoiceModal, setPaidInvoiceModal] = useState<any>(null);
   const [paidInvoiceBankId, setPaidInvoiceBankId] = useState("");
+  const [showVariationForm, setShowVariationForm] = useState(false);
+  const [variationForm, setVariationForm] = useState<any>({});
+  const [variationError, setVariationError] = useState("");
 
   // Tender/contract document checklist upload (which category slot is open)
   const [docUploadCategory, setDocUploadCategory] = useState<string | null>(null);
@@ -90,6 +93,10 @@ export default function ProjectDetailPage() {
 
   const { data: project, mutate } = useSWR(`/api/projects/${id}`, fetcher);
   const { data: summary, mutate: mutateSummary } = useSWR(`/api/projects/${id}/summary`, fetcher);
+  const { data: variations, mutate: mutateVariations } = useSWR(
+    project?.contract?.id ? `/api/contracts/${project.contract.id}/variations` : null,
+    fetcher
+  );
   const { data: vendors } = useSWR("/api/vendors", fetcher);
   const { data: clients } = useSWR(canManage ? "/api/clients" : null, fetcher);
   const { data: managers } = useSWR(canManage ? "/api/users/assignable" : null, fetcher);
@@ -539,6 +546,46 @@ export default function ProjectDetailPage() {
       const err = await res.json().catch(() => ({}));
       toast({ title: "Error", description: err.error || "Failed to change contract status", variant: "destructive" });
     }
+  }
+
+  async function createVariation(e: React.FormEvent) {
+    e.preventDefault();
+    setVariationError("");
+    if (!variationForm.title?.trim()) { setVariationError("Title is required."); return; }
+    const valueChange = parseFloat(variationForm.valueChange || "0");
+    if (variationForm.valueChange !== undefined && variationForm.valueChange !== "" && isNaN(valueChange)) {
+      setVariationError("Value change must be a number.");
+      return;
+    }
+    const res = await fetch(`/api/contracts/${project.contract.id}/variations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...variationForm, valueChange }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setVariationError(err.error || "Failed to create variation");
+      return;
+    }
+    await mutateVariations();
+    setShowVariationForm(false);
+    setVariationForm({});
+    toast({ title: "Variation order logged" });
+  }
+
+  async function setVariationStatus(variationId: string, status: "approved" | "rejected") {
+    const res = await fetch(`/api/contracts/${project.contract.id}/variations`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ variationId, status }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast({ title: "Error", description: err.error || `Failed to ${status === "approved" ? "approve" : "reject"} variation`, variant: "destructive" });
+      return;
+    }
+    await mutateVariations();
+    toast({ title: `Variation ${status}` });
   }
 
   async function createSubcontract(e: React.FormEvent) {
@@ -1063,6 +1110,88 @@ export default function ProjectDetailPage() {
               {project.contract.notes && <div><p className="text-xs text-gray-400 mb-1">Notes</p><p className="text-sm text-gray-700">{project.contract.notes}</p></div>}
             </div>
           )}
+
+          {/* Contract Variations / Change Orders */}
+          {project.contract && !editingContract && (() => {
+            const varList: any[] = variations || [];
+            const approvedSum = varList.filter((v) => v.status === "approved").reduce((s, v) => s + (v.valueChange || 0), 0);
+            const totalValue = (project.contract.contractValue || 0) + approvedSum;
+            const canApproveVariation = ["admin", "ceo"].includes(role);
+            return (
+              <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Contract Variations</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Base PKR {(project.contract.contractValue || 0).toLocaleString()}
+                      {approvedSum !== 0 && <> {approvedSum > 0 ? "+" : "−"} PKR {Math.abs(approvedSum).toLocaleString()} approved = <span className="font-semibold text-gray-600">PKR {totalValue.toLocaleString()}</span></>}
+                    </p>
+                  </div>
+                  {canManage && project.contract.status !== "draft" && (
+                    <button onClick={() => { setShowVariationForm(!showVariationForm); setVariationError(""); }} className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg">
+                      {showVariationForm ? "Cancel" : "+ Log Variation"}
+                    </button>
+                  )}
+                </div>
+
+                {project.contract.status === "draft" && (
+                  <p className="text-xs text-gray-400">Activate the contract first — variations amend a value that&apos;s still editable directly while in draft.</p>
+                )}
+
+                {showVariationForm && (
+                  <form onSubmit={createVariation} className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                    {variationError && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-xs">{variationError}</div>}
+                    <input required value={variationForm.title || ""} onChange={(e) => setVariationForm({ ...variationForm, title: e.target.value })} placeholder="Title (e.g. Additional foundation works) *" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    <div>
+                      <input type="number" step="0.01" value={variationForm.valueChange ?? ""} onChange={(e) => setVariationForm({ ...variationForm, valueChange: e.target.value })} placeholder="Value change (PKR) — negative for a reduction" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                      <p className="text-[11px] text-gray-400 mt-1">Positive adds to the contract value, negative reduces it.</p>
+                    </div>
+                    <textarea value={variationForm.description || ""} onChange={(e) => setVariationForm({ ...variationForm, description: e.target.value })} placeholder="Description (optional)" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                    {canApproveVariation && (
+                      <label className="flex items-center gap-2 text-xs text-gray-600">
+                        <input type="checkbox" checked={variationForm.status === "approved"} onChange={(e) => setVariationForm({ ...variationForm, status: e.target.checked ? "approved" : undefined })} className="accent-blue-600" />
+                        Mark as approved immediately
+                      </label>
+                    )}
+                    <div className="flex gap-2">
+                      <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Log Variation</button>
+                      <button type="button" onClick={() => { setShowVariationForm(false); setVariationForm({}); setVariationError(""); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
+                    </div>
+                  </form>
+                )}
+
+                {varList.length === 0 ? (
+                  <p className="text-sm text-gray-400">No variation orders logged yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {varList.map((v) => (
+                      <div key={v.id} className="border border-gray-100 rounded-lg p-3 flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium text-gray-900">{v.title}</p>
+                            <StatusBadge status={v.status} />
+                          </div>
+                          <p className="text-xs text-gray-400 font-mono mt-0.5">{v.variationNumber}</p>
+                          {v.description && <p className="text-xs text-gray-500 mt-1">{v.description}</p>}
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className={`text-sm font-semibold ${v.valueChange >= 0 ? "text-green-600" : "text-red-600"}`}>
+                            {v.valueChange >= 0 ? "+" : "−"}PKR {Math.abs(v.valueChange).toLocaleString()}
+                          </span>
+                          {v.status === "pending" && canApproveVariation && (
+                            <div className="flex gap-1">
+                              <button onClick={() => setVariationStatus(v.id, "approved")} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Approve"><CheckCircle2 className="w-4 h-4" /></button>
+                              <button onClick={() => setVariationStatus(v.id, "rejected")} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Reject"><X className="w-4 h-4" /></button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           </>)}
 
           {contractSubTab === "subcontractors" && (

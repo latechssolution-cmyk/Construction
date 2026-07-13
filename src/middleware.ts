@@ -65,7 +65,6 @@ const PUBLIC_PATHS = ["/login", "/api/auth", "/api/cron"];
 const ROLE_RESTRICTED_PATHS: { prefix: string; roles: string[] }[] = [
   { prefix: "/api/users", roles: ["admin", "ceo"] },
   { prefix: "/api/audit", roles: ["admin", "ceo"] },
-  { prefix: "/api/audit-log", roles: ["admin", "ceo"] },
 ];
 
 export default auth((req) => {

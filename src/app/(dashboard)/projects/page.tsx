@@ -199,9 +199,10 @@ export default function ProjectsPage() {
                     className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize border-0 cursor-pointer shrink-0 ${getStatusColor(project.status)}`}
                   >
                     <option value="planning">planning</option>
-                    <option value="in_progress">in progress</option>
-                    <option value="on_hold">on hold</option>
-                    <option value="completed">completed</option>
+                    <option value="ongoing">ongoing</option>
+                    <option value="physically_closed">physically closed</option>
+                    <option value="financially_closed">financially closed</option>
+                    <option value="sick">sick</option>
                     <option value="cancelled">cancelled</option>
                   </select>
                 ) : (

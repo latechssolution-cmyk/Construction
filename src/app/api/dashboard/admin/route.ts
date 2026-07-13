@@ -27,7 +27,7 @@ export async function GET() {
 
     const [
       projectStatusAgg, ledgerTotalsAgg, contractValueAgg,
-      bankAgg, arAgg, subcontractAgg, subcontractorPaidAgg,
+      bankAgg, arAgg, openSubcontractsRaw,
       staffAgg, equipmentAgg, assetsRaw,
       trendAgg, recentActivity, overdueTasks, overdueInvoices,
     ] = await Promise.all([
@@ -55,15 +55,7 @@ export async function GET() {
         { $group: { _id: null, total: { $sum: { $subtract: ["$grandTotal", { $ifNull: ["$paidAmount", 0] }] } } } },
       ]),
       // Open subcontract commitments (for AP)
-      Subcontract.aggregate([
-        { $match: { status: "in_progress" } },
-        { $group: { _id: null, total: { $sum: "$contractValue" } } },
-      ]),
-      // Subcontractor payments already made (reduces AP)
-      LedgerEntry.aggregate([
-        { $match: { type: "expense", category: { $in: ["subcontractor", "vendor_payment"] } } },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
-      ]),
+      Subcontract.find({ status: "in_progress" }, { contractValue: 1, projectId: 1, vendorId: 1 }).lean(),
       // Staff: totals + gross salary of active employees
       Employee.aggregate([
         { $group: { _id: null, total: { $sum: 1 }, active: { $sum: { $cond: ["$isActive", 1, 0] } }, grossSalary: { $sum: { $cond: ["$isActive", "$salary", 0] } } } },
@@ -110,8 +102,26 @@ export async function GET() {
     const totalContractValue = (contractValueAgg as any[])[0]?.total || 0;
     const cashInBank = (bankAgg as any[])[0]?.total || 0;
     const accountsReceivable = Math.max(0, (arAgg as any[])[0]?.total || 0);
-    const openSubcontracts = (subcontractAgg as any[])[0]?.total || 0;
-    const subcontractorPaid = (subcontractorPaidAgg as any[])[0]?.total || 0;
+    const openSubcontracts = (openSubcontractsRaw as any[]).reduce((sum, s) => sum + (s.contractValue || 0), 0);
+    // Only net off payments made against the *currently open* subcontracts —
+    // summing every subcontractor/vendor_payment ledger entry ever recorded
+    // (including ones tied to subcontracts that finished long ago) would
+    // make this figure grow without bound while openSubcontracts shrinks as
+    // work completes, eventually flooring AP at 0 even with real payables
+    // outstanding. LedgerEntry doesn't reference a specific subcontract, so
+    // this matches on (project, vendor) pairs — the closest available proxy.
+    const subcontractorPaid = openSubcontractsRaw.length === 0 ? 0 : (
+      (await LedgerEntry.aggregate([
+        {
+          $match: {
+            type: "expense",
+            category: { $in: ["subcontractor", "vendor_payment"] },
+            $or: (openSubcontractsRaw as any[]).map((s) => ({ projectId: s.projectId, vendorId: s.vendorId })),
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]))[0]?.total || 0
+    );
     const accountsPayable = Math.max(0, openSubcontracts - subcontractorPaid);
     const finances = {
       totalContractValue, totalRevenue, totalExpense,
@@ -151,10 +161,15 @@ export async function GET() {
     };
 
     // ── Active Projects table ───────────────────────────────────────────────
-    const activeProjectDocs = await Project.find(
-      { status: { $in: ["ongoing", "physically_closed", "sick"] } },
-      { name: 1, caValue: 1, budget: 1, completionPercent: 1 }
-    ).sort({ caValue: -1, createdAt: -1 }).limit(15).lean();
+    const activeStatusFilter = { status: { $in: ["ongoing", "physically_closed", "sick"] } };
+    const ACTIVE_PROJECTS_LIMIT = 50;
+    const [activeProjectsTotalCount, activeProjectDocs] = await Promise.all([
+      Project.countDocuments(activeStatusFilter),
+      Project.find(
+        activeStatusFilter,
+        { name: 1, caValue: 1, budget: 1, completionPercent: 1 }
+      ).sort({ caValue: -1, createdAt: -1 }).limit(ACTIVE_PROJECTS_LIMIT).lean(),
+    ]);
     const activeIds = activeProjectDocs.map((p: any) => p._id);
     const [workDoneAgg, paymentAgg] = await Promise.all([
       Invoice.aggregate([
@@ -195,6 +210,7 @@ export async function GET() {
 
     return ok({
       projects, finances, staff, equipment, assets, activeProjects,
+      activeProjectsTotalCount,
       revenueTrend, recentActivity, overdueTasks, overdueInvoices,
     });
   } catch (e) {

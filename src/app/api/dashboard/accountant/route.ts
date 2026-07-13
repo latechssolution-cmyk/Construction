@@ -3,6 +3,8 @@ import { connectDB } from "@/lib/mongoose";
 import LedgerEntry from "@/models/LedgerEntry";
 import BankAccount from "@/models/BankAccount";
 import Invoice from "@/models/Invoice";
+import Subcontract from "@/models/Subcontract";
+import Asset from "@/models/Asset";
 
 export async function GET() {
   try {
@@ -15,20 +17,26 @@ export async function GET() {
     const yearStart = new Date(now.getFullYear(), 0, 1);
     const yearEnd = new Date(now.getFullYear() + 1, 0, 1);
 
-    const [totalsAgg, monthTotalsAgg, bankAccounts, pendingInvoices, monthlyAgg] = await Promise.all([
-      // All-time totals — single aggregation
+    const [
+      totalsAgg, monthTotalsAgg, bankAccounts, pendingInvoices, monthlyAgg,
+      arAgg, openSubcontractsRaw, assetsRaw,
+    ] = await Promise.all([
+      // All-time totals — expense excludes inventory_asset (a balance-sheet
+      // move, not a real P&L cost) to match the definition used everywhere
+      // else (admin dashboard, profit sheets) — this used to include it,
+      // making "Total Expense" disagree with the admin dashboard's figure
+      // for the exact same underlying data.
       LedgerEntry.aggregate([
-        { $group: { _id: "$type", total: { $sum: "$amount" } } },
+        { $group: { _id: null, income: { $sum: { $cond: [{ $eq: ["$type", "income"] }, "$amount", 0] } }, expense: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "expense"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } } } },
       ]),
-      // This-month totals — single aggregation
       LedgerEntry.aggregate([
         { $match: { date: { $gte: monthStart } } },
-        { $group: { _id: "$type", total: { $sum: "$amount" } } },
+        { $group: { _id: null, income: { $sum: { $cond: [{ $eq: ["$type", "income"] }, "$amount", 0] } }, expense: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "expense"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } } } },
       ]),
       BankAccount.find({ isActive: true }, { name: 1, bankName: 1, balance: 1, accountType: 1 })
         .sort({ balance: -1 }).lean(),
       Invoice.find(
-        { status: { $in: ["draft", "sent", "overdue"] } },
+        { status: { $in: ["draft", "sent", "overdue"] }, deletedAt: null },
         { invoiceNumber: 1, dueDate: 1, grandTotal: 1, status: 1, clientId: 1 }
       ).populate("client", "name").sort({ dueDate: 1 }).limit(10).lean({ virtuals: true }),
       // Full-year monthly trend — single aggregation replaces 24 separate queries
@@ -41,12 +49,56 @@ export async function GET() {
           },
         },
       ]),
+      // Accounts receivable = billed but unpaid (sent + overdue)
+      Invoice.aggregate([
+        { $match: { status: { $in: ["sent", "overdue"] }, deletedAt: null } },
+        { $group: { _id: null, total: { $sum: { $subtract: ["$grandTotal", { $ifNull: ["$paidAmount", 0] }] } } } },
+      ]),
+      Subcontract.find({ status: "in_progress" }, { contractValue: 1, projectId: 1, vendorId: 1 }).lean(),
+      Asset.find({}, { purchaseCost: 1, salvageValue: 1, usefulLifeYears: 1, purchaseDate: 1 }).lean(),
     ]);
 
-    const totalIncome = totalsAgg.find((r: any) => r._id === "income")?.total || 0;
-    const totalExpense = totalsAgg.find((r: any) => r._id === "expense")?.total || 0;
-    const monthIncome = monthTotalsAgg.find((r: any) => r._id === "income")?.total || 0;
-    const monthExpense = monthTotalsAgg.find((r: any) => r._id === "expense")?.total || 0;
+    const totalRow = (totalsAgg as any[])[0] || {};
+    const monthRow = (monthTotalsAgg as any[])[0] || {};
+    const totalIncome = totalRow.income || 0;
+    const totalExpense = totalRow.expense || 0;
+    const monthIncome = monthRow.income || 0;
+    const monthExpense = monthRow.expense || 0;
+
+    const accountsReceivable = Math.max(0, (arAgg as any[])[0]?.total || 0);
+
+    // Accounts payable = open subcontract commitments, netted against
+    // payments already made against those *specific* (project, vendor)
+    // pairs — same scoping fix as the admin dashboard, so both roles show
+    // the identical, correct AP figure rather than two different numbers.
+    const openSubcontracts = (openSubcontractsRaw as any[]).reduce((sum, s) => sum + (s.contractValue || 0), 0);
+    const subcontractorPaid = openSubcontractsRaw.length === 0 ? 0 : (
+      (await LedgerEntry.aggregate([
+        {
+          $match: {
+            type: "expense",
+            category: { $in: ["subcontractor", "vendor_payment"] },
+            $or: (openSubcontractsRaw as any[]).map((s) => ({ projectId: s.projectId, vendorId: s.vendorId })),
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]))[0]?.total || 0
+    );
+    const accountsPayable = Math.max(0, openSubcontracts - subcontractorPaid);
+
+    let assetBookValue = 0;
+    for (const a of assetsRaw as any[]) {
+      const cost = a.purchaseCost || 0;
+      const salvage = Math.min(a.salvageValue || 0, cost);
+      const life = a.usefulLifeYears || 0;
+      let book = cost;
+      if (life > 0 && a.purchaseDate) {
+        const ageYears = Math.max(0, (Date.now() - new Date(a.purchaseDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+        const dep = Math.min(((cost - salvage) * ageYears) / life, cost - salvage);
+        book = cost - dep;
+      }
+      assetBookValue += book;
+    }
 
     // Reconstruct monthly trend from single aggregation result
     const trendMap: Record<number, { income: number; expense: number }> = {};
@@ -66,9 +118,15 @@ export async function GET() {
       };
     });
 
+    // .lean() skips the schema's toJSON transform, so these come back with
+    // `_id` not `id` — the frontend keys its lists by `.id`, which was
+    // silently undefined for every bank account and pending invoice row.
+    const withId = (rows: any[]) => rows.map((r) => ({ ...r, id: r._id.toString() }));
+
     return ok({
       totalIncome, totalExpense, monthIncome, monthExpense,
-      bankAccounts, pendingInvoices, monthlyTrend,
+      accountsReceivable, accountsPayable, assetBookValue,
+      bankAccounts: withId(bankAccounts), pendingInvoices: withId(pendingInvoices), monthlyTrend,
     });
   } catch (e) {
     return handleApiError(e);

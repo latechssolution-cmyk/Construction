@@ -17,8 +17,10 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status");
     const clientId = searchParams.get("clientId");
     const projectId = searchParams.get("projectId");
-    // Issue #66: Exclude soft-deleted invoices from all list results
-    const filter: any = { deletedAt: null };
+    // Issue #66: Exclude soft-deleted invoices from all list results.
+    // Also exclude liabilities — they are payables, surfaced in their own
+    // Liabilities section, not in the client-receivable billing list.
+    const filter: any = { deletedAt: null, isLiability: { $ne: true } };
     if (status) {
       if (status === "overdue") {
         filter.status = "sent";
@@ -99,6 +101,7 @@ export async function POST(req: NextRequest) {
     const dueDate = data.dueDate ? new Date(data.dueDate) : null;
     if (dueDate && dueDate < issueDate) throw new ApiError(400, "Due date cannot be before the issue date");
     const invoiceNumber = data.invoiceNumber || (await nextInvoiceNumber());
+    const isLiability = data.isLiability === true || data.isLiability === "true";
 
     // The contract-limit check and the invoice insert run inside the same
     // transaction so there's no gap between "read past invoice total" and
@@ -108,12 +111,15 @@ export async function POST(req: NextRequest) {
     // would need a running total counter on Contract, which is a larger
     // schema change than this fix warrants for a soft business limit.
     const invoice = await withTransaction(async (dbSession) => {
-      if (projId) {
+      // Contract invoicing limit only applies to client receivables — a
+      // liability (money we owe) isn't billing against the contract value,
+      // so it neither counts toward the limit nor is checked against it.
+      if (projId && !isLiability) {
         const project = await Project.findById(projId).session(dbSession ?? null);
         if (project && project.contractId) {
           const contract = await Contract.findById(project.contractId).session(dbSession ?? null).populate("variations");
           if (contract) {
-            const pastInvoices = await Invoice.find({ projectId: projId, status: { $ne: "cancelled" }, deletedAt: null }).session(dbSession ?? null);
+            const pastInvoices = await Invoice.find({ projectId: projId, status: { $ne: "cancelled" }, deletedAt: null, isLiability: { $ne: true } }).session(dbSession ?? null);
             const pastSum = pastInvoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
             const contractLimit = (contract as any).totalValue || contract.contractValue || 0;
             if (pastSum + grandTotal > contractLimit) {
@@ -130,6 +136,8 @@ export async function POST(req: NextRequest) {
         issueDate,
         dueDate,
         status: data.status || "draft",
+        isLiability,
+        liabilityPaidAt: null,
         subtotal,
         taxPercent,
         taxAmount,

@@ -38,7 +38,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       ProjectEmployee.find({ projectId: id }).populate("employee"),
       ProjectEquipment.find({ projectId: id, returnedAt: null }).populate("equipment"),
       LedgerEntry.find({ projectId: id }).populate("bankAccount", "id name").populate("vendor", "id name").sort({ date: -1 }).limit(50),
-      Invoice.find({ projectId: id }).populate("client", "name").sort({ createdAt: -1 }),
+      Invoice.find({ projectId: id, isLiability: { $ne: true } }).populate("client", "name").sort({ createdAt: -1 }),
       Doc.find({ projectId: id }).populate("uploadedBy", "name").sort({ createdAt: -1 }),
       Subcontract.find({ projectId: id }).populate("vendor", "id name category contactPerson phone").sort({ createdAt: -1 }),
     ]);
@@ -152,7 +152,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     const [ledgerCount, invoiceCount] = await Promise.all([
       LedgerEntry.countDocuments({ projectId: id }),
-      Invoice.countDocuments({ projectId: id, deletedAt: null }),
+      Invoice.countDocuments({ projectId: id, deletedAt: null, isLiability: { $ne: true } }),
     ]);
     if (ledgerCount > 0 || invoiceCount > 0) {
       throw new ApiError(

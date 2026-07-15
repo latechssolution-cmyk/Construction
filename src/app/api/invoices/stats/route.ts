@@ -11,7 +11,7 @@ export async function GET() {
     requireRole(session, "admin", "ceo", "accountant");
     await connectDB();
     const agg = await Invoice.aggregate([
-      { $match: { deletedAt: null } },
+      { $match: { deletedAt: null, isLiability: { $ne: true } } },
       { $group: { _id: "$status", total: { $sum: "$grandTotal" }, count: { $sum: 1 } } },
     ]);
     const byStatus: Record<string, { total: number; count: number }> = {};

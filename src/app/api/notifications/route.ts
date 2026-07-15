@@ -28,7 +28,7 @@ export async function GET() {
     const [overdueTasks, overdueInvoices, lowStockMaterials, upcomingMilestones, persisted] = await Promise.all([
       isOps ? Task.find({ ...projectFilter, status: { $ne: "completed" }, dueDate: { $lt: now } }, { title: 1, dueDate: 1, projectId: 1 })
         .populate("project", "name").sort({ dueDate: 1 }).limit(10).lean({ virtuals: true }) : Promise.resolve([]),
-      isFinance ? Invoice.find({ status: { $in: ["sent","overdue"] }, dueDate: { $lt: now }, deletedAt: null }, { invoiceNumber: 1, dueDate: 1, grandTotal: 1 })
+      isFinance ? Invoice.find({ status: { $in: ["sent","overdue"] }, dueDate: { $lt: now }, deletedAt: null, isLiability: { $ne: true } }, { invoiceNumber: 1, dueDate: 1, grandTotal: 1 })
         .populate("client", "name").sort({ dueDate: 1 }).limit(10).lean({ virtuals: true }) : Promise.resolve([]),
       isOps ? Material.find({ ...projectFilter, $expr: { $lte: ["$stockQuantity", "$minStockLevel"] } }, { itemName: 1, stockQuantity: 1, minStockLevel: 1, unit: 1 }).limit(10).lean() : Promise.resolve([]),
       isOps ? Milestone.find({ ...projectFilter, completedAt: null, dueDate: { $lte: in7Days, $gte: now } }, { name: 1, dueDate: 1 })

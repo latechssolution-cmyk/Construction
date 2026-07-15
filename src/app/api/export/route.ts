@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     if (exportModule === "invoices") {
       requireRole(session, "admin", "ceo", "accountant");
       
-      const filter: any = { deletedAt: null };
+      const filter: any = { deletedAt: null, isLiability: { $ne: true } };
       if (projectId) filter.projectId = projectId;
       if (hasDateFilter) filter.issueDate = dateFilter;
 

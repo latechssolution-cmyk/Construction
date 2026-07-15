@@ -171,6 +171,13 @@ export default function BillingPage() {
               )}
             </div>
             <div className="sm:col-span-3"><textarea value={form.notes||""} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Notes (optional)" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40" /></div>
+            <label className="sm:col-span-3 flex items-start gap-2.5 rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2.5 cursor-pointer hover:bg-gray-50">
+              <input type="checkbox" checked={!!form.isLiability} onChange={e=>setForm({...form,isLiability:e.target.checked})} className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500/40" />
+              <span className="text-sm">
+                <span className="font-medium text-gray-800">Mark as liability</span>
+                <span className="block text-xs text-gray-500 mt-0.5">Track this as money the company owes. It moves to <span className="font-medium">Finance → Liabilities</span> (not client receivables) where you can mark it paid or unpaid.</span>
+              </span>
+            </label>
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">

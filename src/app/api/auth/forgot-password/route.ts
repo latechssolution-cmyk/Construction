@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { handleApiError, ok, ApiError } from "@/lib/api-helpers";
+import { auditLog } from "@/lib/audit";
 import { rateLimit } from "@/lib/rate-limit";
 import { connectDB } from "@/lib/mongoose";
 import User from "@/models/User";
@@ -83,6 +84,8 @@ export async function PUT(req: NextRequest) {
     user.resetPasswordExpires = null;
     user.passwordChangedAt = new Date();
     await user.save();
+
+    void auditLog(user.id, "UPDATE", "User", user.id, `Password reset completed via recovery link for ${user.email}`);
 
     return ok({
       success: true,

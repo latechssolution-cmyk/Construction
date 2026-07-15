@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     if (!client) throw new ApiError(404, "Client not found");
     const [projects, invoices, contracts] = await Promise.all([
       Project.find({ clientId: id }, { name: 1, status: 1 }),
-      Invoice.find({ clientId: id }, { invoiceNumber: 1, grandTotal: 1, status: 1 }).sort({ createdAt: -1 }),
+      Invoice.find({ clientId: id, isLiability: { $ne: true } }, { invoiceNumber: 1, grandTotal: 1, status: 1 }).sort({ createdAt: -1 }),
       Contract.find({ clientId: id }, { contractNumber: 1, contractValue: 1, status: 1 }),
     ]);
     return ok({ ...client.toJSON(), projects, invoices, contracts });

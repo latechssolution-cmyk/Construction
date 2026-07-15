@@ -20,6 +20,12 @@ export interface IInvoice extends Document {
   paidAmount?: number;
   deletedAt?: Date | null;
   status: "draft" | "sent" | "paid" | "overdue" | "cancelled";
+  // Liability flag: when true this record represents money the company OWES
+  // (a payable) rather than a client receivable. Liabilities are excluded
+  // from every receivable query (billing list, AR, invoice stats) and shown
+  // only in the dedicated Liabilities section. `liabilityPaidAt` set ⇒ paid.
+  isLiability: boolean;
+  liabilityPaidAt?: Date | null;
   subtotal: number;
   taxPercent: number;
   taxAmount: number;
@@ -72,6 +78,8 @@ const invoiceSchema = new Schema<IInvoice>(
       enum: ["draft", "sent", "paid", "overdue", "cancelled"],
       default: "draft",
     },
+    isLiability: { type: Boolean, default: false },
+    liabilityPaidAt: { type: Date, default: null },
     subtotal: { type: Number, default: 0 },
     taxPercent: { type: Number, default: 0 },
     taxAmount: { type: Number, default: 0 },
@@ -121,6 +129,9 @@ invoiceSchema.virtual("createdBy", {
 });
 
 invoiceSchema.index({ status: 1, dueDate: 1 });
+// Liabilities are queried as their own bucket (Liabilities section + dashboard
+// unpaid metric); this keeps that split off the receivable indexes.
+invoiceSchema.index({ isLiability: 1, liabilityPaidAt: 1 });
 invoiceSchema.index({ clientId: 1, status: 1 });
 invoiceSchema.index({ projectId: 1 });
 invoiceSchema.index({ createdAt: -1 });

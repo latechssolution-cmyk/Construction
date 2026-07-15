@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, ApiError, toId, assertManagerOwnsProject } from "@/lib/api-helpers";
+import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import { withTransaction } from "@/lib/db-transaction";
 import Material from "@/models/Material";
@@ -72,6 +73,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       );
     });
 
+    void auditLog(session.user.id, "UPDATE", "MaterialUsage", id, `Updated usage of ${material.itemName} to ${newQty} ${material.unit}`);
     return ok(usage);
   } catch (e) {
     return handleApiError(e);
@@ -111,6 +113,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       await MaterialUsage.findByIdAndDelete(id, { session: dbSession });
     });
 
+    void auditLog(session.user.id, "DELETE", "MaterialUsage", id, `Deleted usage log (${usage.quantityUsed} returned to stock)`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

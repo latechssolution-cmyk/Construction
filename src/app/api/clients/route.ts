@@ -14,7 +14,7 @@ export async function GET() {
     const ids = (clients as any[]).map((c: any) => c._id);
     const [projectCounts, invoiceCounts] = await Promise.all([
       Project.aggregate([{ $match: { clientId: { $in: ids } } }, { $group: { _id: "$clientId", count: { $sum: 1 } } }]),
-      Invoice.aggregate([{ $match: { clientId: { $in: ids } } }, { $group: { _id: "$clientId", count: { $sum: 1 } } }]),
+      Invoice.aggregate([{ $match: { clientId: { $in: ids }, isLiability: { $ne: true } } }, { $group: { _id: "$clientId", count: { $sum: 1 } } }]),
     ]);
     const pcMap = Object.fromEntries(projectCounts.map((r: any) => [r._id.toString(), r.count]));
     const icMap = Object.fromEntries(invoiceCounts.map((r: any) => [r._id.toString(), r.count]));

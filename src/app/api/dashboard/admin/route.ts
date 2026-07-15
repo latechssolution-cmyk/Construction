@@ -31,7 +31,7 @@ export async function GET() {
       projectStatusAgg, ledgerTotalsAgg, contractValueAgg,
       bankAgg, arAgg, openSubcontractsRaw,
       staffAgg, equipmentAgg, assetsRaw, loanAgg, loanRepaidAgg,
-      trendAgg, recentActivity, overdueTasks, overdueInvoices,
+      trendAgg, recentActivity, overdueTasks, overdueInvoices, liabilitiesAgg,
     ] = await Promise.all([
       // Projects grouped by status → count + Σ effective CA value
       Project.aggregate([
@@ -51,9 +51,9 @@ export async function GET() {
         { $match: { isActive: true } },
         { $group: { _id: null, total: { $sum: "$balance" } } },
       ]),
-      // Accounts receivable = billed but unpaid (sent + overdue)
+      // Accounts receivable = billed but unpaid (sent + overdue), liabilities excluded
       Invoice.aggregate([
-        { $match: { status: { $in: ["sent", "overdue"] }, deletedAt: null } },
+        { $match: { status: { $in: ["sent", "overdue"] }, deletedAt: null, isLiability: { $ne: true } } },
         { $group: { _id: null, total: { $sum: { $subtract: ["$grandTotal", { $ifNull: ["$paidAmount", 0] }] } } } },
       ]),
       // Open subcontract commitments (for AP)
@@ -89,7 +89,12 @@ export async function GET() {
       AuditLog.find({}, { action: 1, module: 1, recordId: 1, details: 1, createdAt: 1 })
         .populate("user", "name").sort({ createdAt: -1 }).limit(8).lean({ virtuals: true }),
       Task.countDocuments({ status: { $ne: "completed" }, dueDate: { $lt: now } }),
-      Invoice.countDocuments({ status: { $in: ["sent", "overdue"] }, dueDate: { $lt: now }, deletedAt: null }),
+      Invoice.countDocuments({ status: { $in: ["sent", "overdue"] }, dueDate: { $lt: now }, deletedAt: null, isLiability: { $ne: true } }),
+      // Liabilities (money owed) split by paid/unpaid — `liabilityPaidAt` set ⇒ paid.
+      Invoice.aggregate([
+        { $match: { isLiability: true, deletedAt: null } },
+        { $group: { _id: { $cond: [{ $ifNull: ["$liabilityPaidAt", false] }, "paid", "unpaid"] }, total: { $sum: "$grandTotal" }, count: { $sum: 1 } } },
+      ]),
     ]);
 
     // ── Projects section ────────────────────────────────────────────────────
@@ -143,10 +148,19 @@ export async function GET() {
     );
     const accountsPayable = Math.max(0, openSubcontracts - subcontractorPaid);
     const outstandingLoans = Math.max(0, ((loanAgg as any[])[0]?.total || 0) - ((loanRepaidAgg as any[])[0]?.total || 0));
+    // Liabilities (money owed) — unpaid drives the dashboard metric; paid
+    // amounts already flow through the ledger as expenses when settled.
+    let liabilitiesUnpaid = 0, liabilitiesPaid = 0, liabilitiesUnpaidCount = 0;
+    for (const r of liabilitiesAgg as any[]) {
+      if (r._id === "unpaid") { liabilitiesUnpaid = r.total || 0; liabilitiesUnpaidCount = r.count || 0; }
+      else if (r._id === "paid") { liabilitiesPaid = r.total || 0; }
+    }
     const finances = {
       totalContractValue, totalRevenue, totalExpense,
       grossProfit: totalRevenue - totalExpense,
       cashInBank, accountsReceivable, accountsPayable, outstandingLoans,
+      liabilitiesUnpaid, liabilitiesPaid, liabilitiesUnpaidCount,
+      liabilitiesTotal: liabilitiesUnpaid + liabilitiesPaid,
     };
 
     // ── Staff / Equipment / Assets ──────────────────────────────────────────
@@ -193,7 +207,7 @@ export async function GET() {
     const activeIds = activeProjectDocs.map((p: any) => p._id);
     const [workDoneAgg, paymentAgg] = await Promise.all([
       Invoice.aggregate([
-        { $match: { projectId: { $in: activeIds }, status: { $in: ["sent", "paid", "overdue"] }, deletedAt: null } },
+        { $match: { projectId: { $in: activeIds }, status: { $in: ["sent", "paid", "overdue"] }, deletedAt: null, isLiability: { $ne: true } } },
         { $group: { _id: "$projectId", total: { $sum: "$subtotal" } } },
       ]),
       LedgerEntry.aggregate([

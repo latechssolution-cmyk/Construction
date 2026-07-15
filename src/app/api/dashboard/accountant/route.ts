@@ -21,7 +21,7 @@ export async function GET() {
 
     const [
       totalsAgg, monthTotalsAgg, bankAccounts, pendingInvoices, monthlyAgg,
-      arAgg, openSubcontractsRaw, assetsRaw, loanAgg, loanRepaidAgg,
+      arAgg, openSubcontractsRaw, assetsRaw, loanAgg, loanRepaidAgg, liabilitiesAgg,
     ] = await Promise.all([
       // All-time totals — expense excludes inventory_asset (a balance-sheet
       // move, not a real P&L cost) to match the definition used everywhere
@@ -38,7 +38,7 @@ export async function GET() {
       BankAccount.find({ isActive: true }, { name: 1, bankName: 1, balance: 1, accountType: 1 })
         .sort({ balance: -1 }).lean(),
       Invoice.find(
-        { status: { $in: ["draft", "sent", "overdue"] }, deletedAt: null },
+        { status: { $in: ["draft", "sent", "overdue"] }, deletedAt: null, isLiability: { $ne: true } },
         { invoiceNumber: 1, dueDate: 1, grandTotal: 1, status: 1, clientId: 1 }
       ).populate("client", "name").sort({ dueDate: 1 }).limit(10).lean({ virtuals: true }),
       // Full-year monthly trend — single aggregation replaces 24 separate queries
@@ -51,9 +51,9 @@ export async function GET() {
           },
         },
       ]),
-      // Accounts receivable = billed but unpaid (sent + overdue)
+      // Accounts receivable = billed but unpaid (sent + overdue), liabilities excluded
       Invoice.aggregate([
-        { $match: { status: { $in: ["sent", "overdue"] }, deletedAt: null } },
+        { $match: { status: { $in: ["sent", "overdue"] }, deletedAt: null, isLiability: { $ne: true } } },
         { $group: { _id: null, total: { $sum: { $subtract: ["$grandTotal", { $ifNull: ["$paidAmount", 0] }] } } } },
       ]),
       Subcontract.find({ status: "in_progress" }, { contractValue: 1, projectId: 1, vendorId: 1 }).lean(),
@@ -68,7 +68,18 @@ export async function GET() {
         { $match: { "loan.status": { $ne: "written_off" } } },
         { $group: { _id: null, total: { $sum: "$amount" } } },
       ]),
+      // Liabilities (money owed) split by paid/unpaid — `liabilityPaidAt` set ⇒ paid.
+      Invoice.aggregate([
+        { $match: { isLiability: true, deletedAt: null } },
+        { $group: { _id: { $cond: [{ $ifNull: ["$liabilityPaidAt", false] }, "paid", "unpaid"] }, total: { $sum: "$grandTotal" }, count: { $sum: 1 } } },
+      ]),
     ]);
+
+    let liabilitiesUnpaid = 0, liabilitiesPaid = 0, liabilitiesUnpaidCount = 0;
+    for (const r of liabilitiesAgg as any[]) {
+      if (r._id === "unpaid") { liabilitiesUnpaid = r.total || 0; liabilitiesUnpaidCount = r.count || 0; }
+      else if (r._id === "paid") { liabilitiesPaid = r.total || 0; }
+    }
 
     const totalRow = (totalsAgg as any[])[0] || {};
     const monthRow = (monthTotalsAgg as any[])[0] || {};
@@ -140,6 +151,8 @@ export async function GET() {
     return ok({
       totalIncome, totalExpense, monthIncome, monthExpense,
       accountsReceivable, accountsPayable, assetBookValue, outstandingLoans,
+      liabilitiesUnpaid, liabilitiesPaid, liabilitiesUnpaidCount,
+      liabilitiesTotal: liabilitiesUnpaid + liabilitiesPaid,
       bankAccounts: withId(bankAccounts), pendingInvoices: withId(pendingInvoices), monthlyTrend,
     });
   } catch (e) {

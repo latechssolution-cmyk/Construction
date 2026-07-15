@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, created, toId, ApiError } from "@/lib/api-helpers";
+import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import Attendance from "@/models/Attendance";
 import Employee from "@/models/Employee";
@@ -111,6 +112,7 @@ export async function POST(req: NextRequest) {
       } finally {
         await dbSession.endSession();
       }
+      void auditLog(session.user.id, "CREATE", "Attendance", null, `Marked attendance for ${results.length} employee(s)`);
       return ok({ success: true, count: results.length });
     }
 
@@ -143,6 +145,7 @@ export async function POST(req: NextRequest) {
       if (data.projectId !== undefined) existing.projectId = toId(data.projectId) as any;
       await existing.save();
       await existing.populate("employee", "id name");
+      void auditLog(session.user.id, "UPDATE", "Attendance", existing.id, `Updated attendance for ${emp.name} (${status})`);
       return ok(existing);
     }
     const record = await Attendance.create({
@@ -154,6 +157,7 @@ export async function POST(req: NextRequest) {
       projectId: toId(data.projectId),
     });
     await record.populate("employee", "id name");
+    void auditLog(session.user.id, "CREATE", "Attendance", record.id, `Recorded attendance for ${emp.name} (${status})`);
     return created(record);
   } catch (e) {
     return handleApiError(e);

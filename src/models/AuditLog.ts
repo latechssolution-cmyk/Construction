@@ -41,6 +41,11 @@ auditLogSchema.virtual("user", {
 
 auditLogSchema.index({ module: 1, createdAt: -1 });
 auditLogSchema.index({ userId: 1, createdAt: -1 });
+// The audit browser's default view is an unfiltered newest-first feed —
+// without this index that's a full collection scan + in-memory sort.
+auditLogSchema.index({ createdAt: -1 });
+// Entity-specific trail lookups (AuditTrail widget) filter by recordId.
+auditLogSchema.index({ recordId: 1, createdAt: -1 });
 
 const AuditLog: Model<IAuditLog> =
   mongoose.models.AuditLog || mongoose.model<IAuditLog>("AuditLog", auditLogSchema);

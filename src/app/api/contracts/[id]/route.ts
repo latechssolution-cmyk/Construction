@@ -108,6 +108,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
         projectId: { $in: projectIds },
         status: { $in: ["draft", "sent", "overdue", "partially_paid"] },
         deletedAt: null,
+        isLiability: { $ne: true },
       });
       if (openInvoiceCount > 0) {
         throw new ApiError(400, `Cannot terminate contract: ${openInvoiceCount} open invoice(s) are linked to projects under this contract. Resolve all invoices first.`);

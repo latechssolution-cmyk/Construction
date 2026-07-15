@@ -25,6 +25,12 @@ export async function withTransaction<T>(fn: (session: mongoose.ClientSession | 
     const unsupported =
       msg.includes("Transaction numbers are only allowed on a replica set member or mongos") ||
       msg.includes("IllegalOperation") ||
+      // Next.js dev HMR can rebind models to a fresh MongoClient while the
+      // session came from the stale one ("ClientSession must be from the
+      // same MongoClient") — a dev-only module-reload artifact, so fall
+      // back to sessionless like the cases above rather than 500ing until
+      // the dev server restarts.
+      msg.includes("ClientSession must be from the same MongoClient") ||
       err?.code === 20 || // IllegalOperation
       err?.codeName === "IllegalOperation";
     if (unsupported) {

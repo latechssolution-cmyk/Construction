@@ -8,7 +8,7 @@ import {
   Building2, LayoutDashboard, FolderOpen, Users,
   Wrench, DollarSign, FileStack,
   Bot, Settings, Boxes, PackageSearch,
-  ChevronDown, ChevronRight, Search, X,
+  ChevronDown, ChevronRight, Search, X, ScrollText,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { SearchModal } from "@/components/search-modal";
@@ -45,6 +45,7 @@ const NAV: NavItem[] = [
       { label: "Ledger", href: "/finance/ledger" },
       { label: "Accounts", href: "/finance/accounts" },
       { label: "Invoices", href: "/billing" },
+      { label: "Liabilities", href: "/finance/liabilities" },
       { label: "Payments", href: "/finance/payments" },
       { label: "Loans", href: "/finance/loans" },
       { label: "Profit Sheets", href: "/finance/profit-sheets" },
@@ -53,6 +54,7 @@ const NAV: NavItem[] = [
   { label: "Documents", href: "/documents", icon: FileStack, roles: ["admin", "ceo", "manager", "accountant"] },
   { label: "AI Assistant", href: "/ai-assistant", icon: Bot, roles: ["admin", "ceo", "manager"] },
   { label: "Users", href: "/admin/users", icon: Settings, roles: ["admin", "ceo"] },
+  { label: "Audit Log", href: "/admin/audit", icon: ScrollText, roles: ["admin", "ceo"] },
 ];
 
 export function Sidebar({ role, mobileOpen = false, onClose }: { role: Role; mobileOpen?: boolean; onClose?: () => void }) {

@@ -62,9 +62,14 @@ const { auth } = NextAuth({
 const PUBLIC_PATHS = ["/login", "/api/auth", "/api/cron"];
 
 // Issue #57: Role-based route protection — defense-in-depth (API routes are also individually guarded)
-const ROLE_RESTRICTED_PATHS: { prefix: string; roles: string[] }[] = [
+// /api/audit is only admin/ceo for the *full* log dump; entity-specific
+// lookups (?entityId=…) power the "Last updated by" widget on pages every
+// role can see, and the route handler applies its own per-module role rules
+// (sensitive/finance modules stay gated there). A blanket middleware block
+// broke that widget for managers and accountants.
+const ROLE_RESTRICTED_PATHS: { prefix: string; roles: string[]; unless?: (url: URL) => boolean }[] = [
   { prefix: "/api/users", roles: ["admin", "ceo"] },
-  { prefix: "/api/audit", roles: ["admin", "ceo"] },
+  { prefix: "/api/audit", roles: ["admin", "ceo"], unless: (url) => !!url.searchParams.get("entityId") },
 ];
 
 export default auth((req) => {
@@ -111,7 +116,9 @@ export default auth((req) => {
 
   // Issue #57: Enforce role-based page/API access
   const userRole = user?.role as string | undefined;
-  const restricted = ROLE_RESTRICTED_PATHS.find((r) => pathname.startsWith(r.prefix));
+  const restricted = ROLE_RESTRICTED_PATHS.find(
+    (r) => pathname.startsWith(r.prefix) && !(r.unless && r.unless(req.nextUrl))
+  );
   if (restricted && (!userRole || !restricted.roles.includes(userRole))) {
     if (pathname.startsWith("/api/")) {
       return new NextResponse(

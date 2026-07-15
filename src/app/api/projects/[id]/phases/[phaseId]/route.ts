@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireAuth, requireRole, handleApiError, ok, ApiError, assertManagerOwnsProject } from "@/lib/api-helpers";
+import { auditLog } from "@/lib/audit";
 import { connectDB } from "@/lib/mongoose";
 import ProjectPhase from "@/models/ProjectPhase";
 import Task from "@/models/Task";
@@ -30,6 +31,7 @@ export async function PUT(
     if (data.endDate !== undefined) phase.endDate = data.endDate ? new Date(data.endDate) : null;
 
     await phase.save();
+    void auditLog(session.user.id, "UPDATE", "ProjectPhase", phaseId, `Updated phase ${phase.name}`);
     return ok(phase);
   } catch (e) {
     return handleApiError(e);
@@ -57,6 +59,7 @@ export async function DELETE(
     await Task.updateMany({ phaseId }, { $set: { phaseId: null } });
 
     await ProjectPhase.findByIdAndDelete(phaseId);
+    void auditLog(session.user.id, "DELETE", "ProjectPhase", phaseId, `Deleted phase ${phase.name}`);
     return ok({ success: true });
   } catch (e) {
     return handleApiError(e);

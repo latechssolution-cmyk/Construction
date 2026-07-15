@@ -83,6 +83,7 @@ export function getStatusColor(status: string): string {
     draft: "bg-gray-100 text-gray-800",
     sent: "bg-blue-100 text-blue-800",
     paid: "bg-green-100 text-green-800",
+    unpaid: "bg-orange-100 text-orange-800",
     overdue: "bg-red-100 text-red-800",
     pending: "bg-gray-100 text-gray-800",
     approved: "bg-green-100 text-green-800",

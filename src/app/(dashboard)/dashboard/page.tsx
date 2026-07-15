@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   CheckCircle2, Calendar, BarChart2, Landmark,
   FolderOpen, FolderKanban, Receipt, Users2, TrendingUp, TrendingDown,
-  Wallet, ClipboardList, Boxes, Sparkles, AlertTriangle, Wrench, HandCoins,
+  Wallet, ClipboardList, Boxes, Sparkles, AlertTriangle, Wrench, HandCoins, Scale,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -110,6 +110,7 @@ function AdminDashboard({ data }: { data: any }) {
           <StatCard label="Accounts Receivable" value={pkr(f.accountsReceivable)} sub="Billed, unpaid" tone="orange" icon={<Receipt className="w-4 h-4" />} href="/billing?status=sent" />
           <StatCard label="Accounts Payable" value={pkr(f.accountsPayable)} sub="Open commitments" tone="purple" icon={<Receipt className="w-4 h-4" />} />
           <StatCard label="Outstanding Loans" value={pkr(f.outstandingLoans)} sub="Given to staff/others" tone={f.outstandingLoans > 0 ? "orange" : "gray"} icon={<HandCoins className="w-4 h-4" />} href="/finance/loans" />
+          <StatCard label="Unpaid Liabilities" value={pkr(f.liabilitiesUnpaid)} sub={f.liabilitiesUnpaidCount > 0 ? `${f.liabilitiesUnpaidCount} owed` : "Money we owe"} tone={f.liabilitiesUnpaid > 0 ? "red" : "gray"} urgent={f.liabilitiesUnpaid > 0} icon={<Scale className="w-4 h-4" />} href="/finance/liabilities" />
         </div>
         <ChartCard title="Revenue vs Expense (Last 6 Months)">
           {hasTrend ? (
@@ -207,17 +208,29 @@ function AdminDashboard({ data }: { data: any }) {
 
       {/* ── RECENT ACTIVITY ── */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
-        <h2 className="font-semibold mb-4 text-gray-900">Recent Activity</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-gray-900">Recent Activity</h2>
+          <Link href="/admin/audit" className="text-xs text-blue-600 hover:underline">View full audit log</Link>
+        </div>
         <div className="space-y-2">
-          {recentActivity.slice(0, 8).map((a: any, i: number) => (
-            <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-50">
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xs font-bold shrink-0">{a.user?.name?.[0] || "?"}</div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-800"><span className="font-medium">{a.user?.name || "System"}</span> {a.action?.toLowerCase()} {a.module}</p>
-                <p className="text-xs text-gray-400">{new Date(a.createdAt).toLocaleString()}</p>
+          {recentActivity.slice(0, 8).map((a: any, i: number) => {
+            const verb = { CREATE: "created", UPDATE: "updated", DELETE: "deleted" }[a.action as string] || a.action?.toLowerCase();
+            const moduleName = (a.module || "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+            return (
+              <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-50">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xs font-bold shrink-0">{a.user?.name?.[0] || "?"}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-800 truncate">
+                    <span className="font-medium">{a.user?.name || "System"}</span>{" "}
+                    {a.details
+                      ? <span className="text-gray-600">{a.details.charAt(0).toLowerCase() + a.details.slice(1)}</span>
+                      : `${verb} a ${moduleName}`}
+                  </p>
+                  <p className="text-xs text-gray-400">{new Date(a.createdAt).toLocaleString()} · {moduleName}</p>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {recentActivity.length === 0 && <p className="text-sm text-gray-400">No recent activity yet. Actions you take will appear here.</p>}
         </div>
       </div>
@@ -378,6 +391,11 @@ function AccountantDashboard({ data }: { data: any }) {
         <StatCard label="Accounts Payable" value={pkr(data?.accountsPayable || 0)} sub="Open commitments" tone="purple" icon={<Receipt className="w-4 h-4" />} />
         <StatCard label="Asset Book Value" value={pkr(data?.assetBookValue || 0)} sub="After depreciation" tone="blue" icon={<Boxes className="w-4 h-4" />} href="/assets" />
         <StatCard label="Outstanding Loans" value={pkr(data?.outstandingLoans || 0)} sub="Given to staff/others" tone={data?.outstandingLoans > 0 ? "orange" : "gray"} icon={<HandCoins className="w-4 h-4" />} href="/finance/loans" />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Unpaid Liabilities" value={pkr(data?.liabilitiesUnpaid || 0)} sub={data?.liabilitiesUnpaidCount > 0 ? `${data.liabilitiesUnpaidCount} owed` : "Money we owe"} tone={data?.liabilitiesUnpaid > 0 ? "red" : "gray"} urgent={data?.liabilitiesUnpaid > 0} icon={<Scale className="w-4 h-4" />} href="/finance/liabilities" />
+        <StatCard label="Paid Liabilities" value={pkr(data?.liabilitiesPaid || 0)} sub="Settled" tone="green" icon={<Scale className="w-4 h-4" />} href="/finance/liabilities" />
       </div>
 
       <ChartCard title="Monthly Cash Flow (This Year)">

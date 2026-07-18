@@ -2,7 +2,7 @@
 import useSWR from "swr";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -29,6 +29,9 @@ export default function ProjectDetailPage() {
   const role = session?.user?.role || "";
   const canManage = ["admin", "ceo", "manager"].includes(role);
 
+  // Single in-flight lock shared by all money-mutating handlers on this page.
+  const inFlightRef = useRef(false);
+  const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState("Overview");
   const [taskForm, setTaskForm] = useState<any>({});
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -350,6 +353,12 @@ export default function ProjectDetailPage() {
   }
 
   async function createMaterial(e: React.FormEvent) {
+    // Ignore repeat submissions while a request is in flight — on a slow
+    // connection every extra click was creating another material/ledger/
+    // invoice record (each with its own ledger + bank mutation).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true; setBusy(true);
+    try {
     e.preventDefault();
     if (parseFloat(materialForm.unitPrice) <= 0) { toast({ title: "Error", description: "Unit price must be greater than 0", variant: "destructive" }); return; }
     if (parseFloat(materialForm.quantity) < 0) { toast({ title: "Error", description: "Quantity cannot be negative", variant: "destructive" }); return; }
@@ -368,9 +377,16 @@ export default function ProjectDetailPage() {
     setShowMaterialForm(false);
     setMaterialForm({});
     toast({ title: "Material added" });
+  } finally { inFlightRef.current = false; setBusy(false); }
   }
 
   async function deleteMaterial(materialId: string) {
+    // Ignore repeat submissions while a request is in flight — on a slow
+    // connection every extra click was creating another material/ledger/
+    // invoice record (each with its own ledger + bank mutation).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true; setBusy(true);
+    try {
     const res = await fetch(`/api/materials/${materialId}`, { method: "DELETE" });
     if (res.ok) {
       mutate();
@@ -380,9 +396,16 @@ export default function ProjectDetailPage() {
       const err = await res.json().catch(() => ({}));
       toast({ title: "Error", description: err.error || "Failed to delete material", variant: "destructive" });
     }
+  } finally { inFlightRef.current = false; setBusy(false); }
   }
 
   async function updateMaterial(e: React.FormEvent, materialId: string) {
+    // Ignore repeat submissions while a request is in flight — on a slow
+    // connection every extra click was creating another material/ledger/
+    // invoice record (each with its own ledger + bank mutation).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true; setBusy(true);
+    try {
     e.preventDefault();
     if (editMaterialForm.unitPrice !== undefined && parseFloat(editMaterialForm.unitPrice) <= 0) { toast({ title: "Error", description: "Unit price must be greater than 0", variant: "destructive" }); return; }
     if (editMaterialForm.quantity !== undefined && parseFloat(editMaterialForm.quantity) < 0) { toast({ title: "Error", description: "Quantity cannot be negative", variant: "destructive" }); return; }
@@ -402,11 +425,18 @@ export default function ProjectDetailPage() {
       const err = await res.json().catch(() => ({}));
       toast({ title: "Error", description: err.error || "Failed to update material", variant: "destructive" });
     }
+  } finally { inFlightRef.current = false; setBusy(false); }
   }
 
   const LEDGER_CATEGORIES = ["material_purchase", "salary", "maintenance", "invoice_payment", "client_payment", "vendor_payment", "utility", "overhead", "advance", "other"];
 
   async function createLedgerEntry(e: React.FormEvent) {
+    // Ignore repeat submissions while a request is in flight — on a slow
+    // connection every extra click was creating another material/ledger/
+    // invoice record (each with its own ledger + bank mutation).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true; setBusy(true);
+    try {
     e.preventDefault();
     setLedgerError("");
     if (!ledgerForm.description?.trim()) { setLedgerError("Description is required."); return; }
@@ -428,6 +458,7 @@ export default function ProjectDetailPage() {
     setShowLedgerForm(false);
     setLedgerForm({ type: "expense", category: "" });
     toast({ title: "Ledger entry added" });
+  } finally { inFlightRef.current = false; setBusy(false); }
   }
 
   function startEditLedger(entry: any) {
@@ -446,6 +477,12 @@ export default function ProjectDetailPage() {
   }
 
   async function updateLedgerEntry(e: React.FormEvent, entryId: string) {
+    // Ignore repeat submissions while a request is in flight — on a slow
+    // connection every extra click was creating another material/ledger/
+    // invoice record (each with its own ledger + bank mutation).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true; setBusy(true);
+    try {
     e.preventDefault();
     if (editLedgerForm.amount !== undefined && parseFloat(editLedgerForm.amount) <= 0) { toast({ title: "Error", description: "Amount must be greater than 0", variant: "destructive" }); return; }
     const res = await fetch(`/api/ledger/${entryId}`, {
@@ -463,9 +500,16 @@ export default function ProjectDetailPage() {
       const err = await res.json().catch(() => ({}));
       toast({ title: "Error", description: err.error || "Failed to update entry", variant: "destructive" });
     }
+  } finally { inFlightRef.current = false; setBusy(false); }
   }
 
   async function deleteLedgerEntry(entryId: string) {
+    // Ignore repeat submissions while a request is in flight — on a slow
+    // connection every extra click was creating another material/ledger/
+    // invoice record (each with its own ledger + bank mutation).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true; setBusy(true);
+    try {
     // Uses the reversal endpoint (creates a balancing compensating entry
     // instead of hard-deleting) so the audit trail and bank balance history
     // stay intact — same mechanism the general Payments page relies on.
@@ -479,6 +523,7 @@ export default function ProjectDetailPage() {
       const err = await res.json().catch(() => ({}));
       toast({ title: "Error", description: err.error || "Failed to reverse entry", variant: "destructive" });
     }
+  } finally { inFlightRef.current = false; setBusy(false); }
   }
 
   async function linkNewContract(e: React.FormEvent) {
@@ -560,6 +605,12 @@ export default function ProjectDetailPage() {
   }
 
   async function createVariation(e: React.FormEvent) {
+    // Ignore repeat submissions while a request is in flight — on a slow
+    // connection every extra click was creating another material/ledger/
+    // invoice record (each with its own ledger + bank mutation).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true; setBusy(true);
+    try {
     e.preventDefault();
     setVariationError("");
     if (!variationForm.title?.trim()) { setVariationError("Title is required."); return; }
@@ -582,6 +633,7 @@ export default function ProjectDetailPage() {
     setShowVariationForm(false);
     setVariationForm({});
     toast({ title: "Variation order logged" });
+  } finally { inFlightRef.current = false; setBusy(false); }
   }
 
   async function setVariationStatus(variationId: string, status: "approved" | "rejected") {
@@ -600,6 +652,12 @@ export default function ProjectDetailPage() {
   }
 
   async function createInvestment(e: React.FormEvent) {
+    // Ignore repeat submissions while a request is in flight — on a slow
+    // connection every extra click was creating another material/ledger/
+    // invoice record (each with its own ledger + bank mutation).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true; setBusy(true);
+    try {
     e.preventDefault();
     setInvestmentError("");
     if (!investmentForm.partnerId) { setInvestmentError("Select a partner."); return; }
@@ -619,9 +677,16 @@ export default function ProjectDetailPage() {
     setShowInvestmentForm(false);
     setInvestmentForm({});
     toast({ title: "Investment recorded" });
+  } finally { inFlightRef.current = false; setBusy(false); }
   }
 
   async function deleteInvestment(investmentId: string) {
+    // Ignore repeat submissions while a request is in flight — on a slow
+    // connection every extra click was creating another material/ledger/
+    // invoice record (each with its own ledger + bank mutation).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true; setBusy(true);
+    try {
     const res = await fetch(`/api/investments/${investmentId}`, { method: "DELETE" });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -630,9 +695,16 @@ export default function ProjectDetailPage() {
     }
     await mutateInvestments();
     toast({ title: "Investment reversed" });
+  } finally { inFlightRef.current = false; setBusy(false); }
   }
 
   async function createSubcontract(e: React.FormEvent) {
+    // Ignore repeat submissions while a request is in flight — on a slow
+    // connection every extra click was creating another material/ledger/
+    // invoice record (each with its own ledger + bank mutation).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true; setBusy(true);
+    try {
     e.preventDefault();
     setSubcontractError("");
     if (!subcontractForm.vendorId) { setSubcontractError("Select the vendor/subcontractor being outsourced to."); return; }
@@ -651,6 +723,7 @@ export default function ProjectDetailPage() {
     setShowSubcontractForm(false);
     setSubcontractForm({});
     toast({ title: "Subcontractor added" });
+  } finally { inFlightRef.current = false; setBusy(false); }
   }
 
   function startEditSubcontract(sc: any) {
@@ -665,6 +738,12 @@ export default function ProjectDetailPage() {
   }
 
   async function updateSubcontract(e: React.FormEvent, scId: string) {
+    // Ignore repeat submissions while a request is in flight — on a slow
+    // connection every extra click was creating another material/ledger/
+    // invoice record (each with its own ledger + bank mutation).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true; setBusy(true);
+    try {
     e.preventDefault();
     if (editSubcontractForm.contractValue !== undefined && parseFloat(editSubcontractForm.contractValue) <= 0) { toast({ title: "Error", description: "Contract value must be greater than 0", variant: "destructive" }); return; }
     const res = await fetch(`/api/subcontracts/${scId}`, {
@@ -681,6 +760,7 @@ export default function ProjectDetailPage() {
       const err = await res.json().catch(() => ({}));
       toast({ title: "Error", description: err.error || "Failed to update subcontractor", variant: "destructive" });
     }
+  } finally { inFlightRef.current = false; setBusy(false); }
   }
 
   async function toggleSubcontractStatus(sc: any) {
@@ -709,6 +789,12 @@ export default function ProjectDetailPage() {
   }
 
   async function deleteSubcontract(scId: string) {
+    // Ignore repeat submissions while a request is in flight — on a slow
+    // connection every extra click was creating another material/ledger/
+    // invoice record (each with its own ledger + bank mutation).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true; setBusy(true);
+    try {
     const res = await fetch(`/api/subcontracts/${scId}`, { method: "DELETE" });
     if (res.ok) {
       mutate();
@@ -718,6 +804,7 @@ export default function ProjectDetailPage() {
       const err = await res.json().catch(() => ({}));
       toast({ title: "Error", description: err.error || "Failed to remove subcontractor", variant: "destructive" });
     }
+  } finally { inFlightRef.current = false; setBusy(false); }
   }
 
   function addInvoiceItem() { setInvoiceItems([...invoiceItems, { description: "", quantity: 1, unitPrice: 0 }]); }
@@ -725,6 +812,12 @@ export default function ProjectDetailPage() {
   function removeInvoiceItem(idx: number) { setInvoiceItems(invoiceItems.filter((_, i) => i !== idx)); }
 
   async function createInvoice(e: React.FormEvent) {
+    // Ignore repeat submissions while a request is in flight — on a slow
+    // connection every extra click was creating another material/ledger/
+    // invoice record (each with its own ledger + bank mutation).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true; setBusy(true);
+    try {
     e.preventDefault();
     setInvoiceError("");
     if (!project.clientId) { setInvoiceError("This project has no client set. Set a client on the Overview tab first."); return; }
@@ -745,6 +838,7 @@ export default function ProjectDetailPage() {
     setInvoiceForm({ status: "draft", taxPercent: 0 });
     setInvoiceItems([{ description: "", quantity: 1, unitPrice: 0 }]);
     toast({ title: "Invoice created" });
+  } finally { inFlightRef.current = false; setBusy(false); }
   }
 
   async function markInvoiceSent(invoiceId: string) {
@@ -754,6 +848,12 @@ export default function ProjectDetailPage() {
   }
 
   async function confirmInvoicePaid() {
+    // Ignore repeat submissions while a request is in flight — on a slow
+    // connection every extra click was creating another material/ledger/
+    // invoice record (each with its own ledger + bank mutation).
+    if (inFlightRef.current) return;
+    inFlightRef.current = true; setBusy(true);
+    try {
     if (!paidInvoiceModal) return;
     const res = await fetch(`/api/invoices/${paidInvoiceModal.id}`, {
       method: "PUT",
@@ -770,6 +870,7 @@ export default function ProjectDetailPage() {
       const err = await res.json().catch(() => ({}));
       toast({ title: "Error", description: err.error || "Failed", variant: "destructive" });
     }
+  } finally { inFlightRef.current = false; setBusy(false); }
   }
 
   async function cancelInvoice(invoiceId: string) {
@@ -960,7 +1061,7 @@ export default function ProjectDetailPage() {
                     <label className="block text-xs font-medium text-gray-500 mb-1">Client</label>
                     <select value={edit.clientId} onChange={(e) => setEdit({ ...edit, clientId: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
                       <option value="">— None —</option>
-                      {(Array.isArray(clients) ? clients : []).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {(Array.isArray(clients) ? clients : []).filter((c: any) => c.isActive !== false).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
                   <div>
@@ -1079,7 +1180,7 @@ export default function ProjectDetailPage() {
                     <textarea value={linkContractForm.scope || ""} onChange={(e) => setLinkContractForm({ ...linkContractForm, scope: e.target.value })} placeholder="Scope of work (optional)" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                     <input value={linkContractForm.paymentTerms || ""} onChange={(e) => setLinkContractForm({ ...linkContractForm, paymentTerms: e.target.value })} placeholder="Payment terms (optional)" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                     <div className="flex gap-2">
-                      <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Create & Link</button>
+                      <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Create & Link</button>
                       <button type="button" onClick={() => { setShowLinkContractForm(false); setLinkContractForm({}); setContractError(""); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
                     </div>
                   </form>
@@ -1109,7 +1210,7 @@ export default function ProjectDetailPage() {
               <input value={editContractForm.paymentTerms || ""} onChange={(e) => setEditContractForm({ ...editContractForm, paymentTerms: e.target.value })} placeholder="Payment terms" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
               <textarea value={editContractForm.notes || ""} onChange={(e) => setEditContractForm({ ...editContractForm, notes: e.target.value })} placeholder="Notes" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
               <div className="flex gap-2">
-                <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Save</button>
+                <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Save</button>
                 <button type="button" onClick={() => setEditingContract(false)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
               </div>
             </form>
@@ -1198,7 +1299,7 @@ export default function ProjectDetailPage() {
                       </label>
                     )}
                     <div className="flex gap-2">
-                      <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Log Variation</button>
+                      <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Log Variation</button>
                       <button type="button" onClick={() => { setShowVariationForm(false); setVariationForm({}); setVariationError(""); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
                     </div>
                   </form>
@@ -1269,7 +1370,7 @@ export default function ProjectDetailPage() {
                     <textarea value={subcontractForm.notes || ""} onChange={(e) => setSubcontractForm({ ...subcontractForm, notes: e.target.value })} placeholder="Notes (optional)" rows={2} className="col-span-2 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                   </div>
                   <div className="flex gap-2">
-                    <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Add Subcontractor</button>
+                    <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Add Subcontractor</button>
                     <button type="button" onClick={() => { setShowSubcontractForm(false); setSubcontractForm({}); setSubcontractError(""); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
                   </div>
                 </form>
@@ -1295,7 +1396,7 @@ export default function ProjectDetailPage() {
                             <textarea value={editSubcontractForm.notes || ""} onChange={(e) => setEditSubcontractForm({ ...editSubcontractForm, notes: e.target.value })} placeholder="Notes" rows={2} className="col-span-2 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                           </div>
                           <div className="flex gap-2">
-                            <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium">Save</button>
+                            <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium">Save</button>
                             <button type="button" onClick={() => { setEditingSubcontractId(null); setEditSubcontractForm({}); }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs">Cancel</button>
                           </div>
                         </form>
@@ -1383,7 +1484,7 @@ export default function ProjectDetailPage() {
             {showPhaseForm && canManage && (
               <form onSubmit={createPhase} className="bg-white border border-gray-200 rounded-xl p-4 flex gap-2">
                 <input required value={phaseForm.name || ""} onChange={(e) => setPhaseForm({ name: e.target.value })} placeholder="Phase name (e.g. Foundation, Framing) *" className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-                <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Add</button>
+                <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Add</button>
                 <button type="button" onClick={() => setShowPhaseForm(false)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
               </form>
             )}
@@ -1407,7 +1508,7 @@ export default function ProjectDetailPage() {
                   <div className="col-span-2"><textarea value={taskForm.description || ""} onChange={(e) => setTaskForm({...taskForm, description: e.target.value})} placeholder="Description" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" /></div>
                 </div>
                 <div className="flex gap-2">
-                  <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Create</button>
+                  <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Create</button>
                   <button type="button" onClick={() => setShowTaskForm(false)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
                 </div>
               </form>
@@ -1488,7 +1589,7 @@ export default function ProjectDetailPage() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
               />
               <div className="flex gap-2">
-                <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Create</button>
+                <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Create</button>
                 <button type="button" onClick={() => { setShowMilestoneForm(false); setMilestoneForm({}); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
               </div>
             </form>
@@ -1541,7 +1642,7 @@ export default function ProjectDetailPage() {
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                     />
                     <div className="flex gap-2">
-                      <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium">Save Changes</button>
+                      <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium">Save Changes</button>
                       <button type="button" onClick={() => { setEditingMilestoneId(null); setEditMilestoneForm({}); }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">Cancel</button>
                     </div>
                   </form>
@@ -1680,7 +1781,7 @@ export default function ProjectDetailPage() {
                 </select>
               </div>
               <div className="flex gap-2">
-                <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Add Material</button>
+                <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Add Material</button>
                 <button type="button" onClick={() => { setShowMaterialForm(false); setMaterialForm({}); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
               </div>
             </form>
@@ -1725,7 +1826,7 @@ export default function ProjectDetailPage() {
                                 {(vendors || []).map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
                               </select>
                               <div className="col-span-4 flex gap-2 mt-1">
-                                <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium">Save</button>
+                                <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium">Save</button>
                                 <button type="button" onClick={() => { setEditingMaterialId(null); setEditMaterialForm({}); }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs">Cancel</button>
                               </div>
                             </form>
@@ -1889,7 +1990,7 @@ export default function ProjectDetailPage() {
                     </select>
                     <textarea value={investmentForm.notes || ""} onChange={(e) => setInvestmentForm({ ...investmentForm, notes: e.target.value })} placeholder="Notes (optional)" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                     <div className="flex gap-2">
-                      <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Record Investment</button>
+                      <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Record Investment</button>
                       <button type="button" onClick={() => { setShowInvestmentForm(false); setInvestmentForm({}); setInvestmentError(""); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
                     </div>
                   </form>
@@ -1966,7 +2067,7 @@ export default function ProjectDetailPage() {
                 <input value={ledgerForm.referenceNumber || ""} onChange={(e) => setLedgerForm({ ...ledgerForm, referenceNumber: e.target.value })} placeholder="Reference / voucher # (optional)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div className="flex gap-2">
-                <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Add Entry</button>
+                <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Add Entry</button>
                 <button type="button" onClick={() => { setShowLedgerForm(false); setLedgerForm({ type: "expense", category: "" }); setLedgerError(""); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
               </div>
             </form>
@@ -2010,7 +2111,7 @@ export default function ProjectDetailPage() {
                               </select>
                               <input value={editLedgerForm.referenceNumber || ""} onChange={(ev) => setEditLedgerForm({ ...editLedgerForm, referenceNumber: ev.target.value })} placeholder="Reference #" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                               <div className="col-span-4 flex gap-2 mt-1">
-                                <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium">Save</button>
+                                <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium">Save</button>
                                 <button type="button" onClick={() => { setEditingLedgerId(null); setEditLedgerForm({}); }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs">Cancel</button>
                               </div>
                             </form>
@@ -2157,7 +2258,7 @@ export default function ProjectDetailPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Create Invoice</button>
+                  <button type="submit" disabled={busy} className="disabled:opacity-50 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">Create Invoice</button>
                   <button type="button" onClick={() => { setShowInvoiceForm(false); setInvoiceError(""); }} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
                 </div>
               </form>

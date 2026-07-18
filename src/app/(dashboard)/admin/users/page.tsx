@@ -21,7 +21,7 @@ export default function UsersPage() {
   const [resetId, setResetId] = useState<string|null>(null);
   const [newPassword, setNewPassword] = useState("");
 
-  if (!["admin"].includes(session?.user?.role||"")) {
+  if (!["admin","ceo"].includes(session?.user?.role||"")) {
     return (
       <div className="p-6 text-center text-gray-500">
         <Lock className="w-10 h-10 text-gray-300 mx-auto mb-3" />

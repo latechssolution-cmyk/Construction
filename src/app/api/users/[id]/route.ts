@@ -8,7 +8,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const session = await requireAuth();
     const { id } = await params;
-    if (session.user.id !== id && session.user.role !== "admin") {
+    if (session.user.id !== id && !["admin", "ceo"].includes(session.user.role)) {
       throw new ApiError(403, "Forbidden");
     }
     await connectDB();
@@ -25,7 +25,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const session = await requireAuth();
     const { id } = await params;
     const isSelf = session.user.id === id;
-    const isAdmin = session.user.role === "admin";
+    const isAdmin = ["admin", "ceo"].includes(session.user.role);
     if (!isSelf && !isAdmin) throw new ApiError(403, "Forbidden");
 
     const data = await req.json();
@@ -56,7 +56,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAuth();
-    requireRole(session, "admin");
+    requireRole(session, "admin", "ceo");
     const { id } = await params;
     if (id === session.user.id) throw new ApiError(400, "Cannot deactivate your own account");
     await connectDB();

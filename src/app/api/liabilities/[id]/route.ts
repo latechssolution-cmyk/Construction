@@ -40,7 +40,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const updated = await withTransaction(async (dbSession) => {
       if (markPaid) {
-        const inv = await Invoice.findByIdAndUpdate(id, { liabilityPaidAt: new Date() }, { new: true, session: dbSession });
+        // Conditional update: only flips unpaid -> paid. If a concurrent
+        // request already marked it paid, this returns null and we bail
+        // before writing a second ledger entry / bank debit.
+        const inv = await Invoice.findOneAndUpdate(
+          { _id: id, isLiability: true, liabilityPaidAt: null },
+          { liabilityPaidAt: new Date() },
+          { new: true, session: dbSession }
+        );
+        if (!inv) throw new ApiError(409, "This liability was already marked paid.");
         await LedgerEntry.create(
           [{
             date: new Date(),
@@ -61,7 +69,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         }
         return inv;
       } else {
-        const inv = await Invoice.findByIdAndUpdate(id, { liabilityPaidAt: null }, { new: true, session: dbSession });
+        const inv = await Invoice.findOneAndUpdate(
+          { _id: id, isLiability: true, liabilityPaidAt: { $ne: null } },
+          { liabilityPaidAt: null },
+          { new: true, session: dbSession }
+        );
+        if (!inv) throw new ApiError(409, "This liability is already unpaid.");
         const entry = await LedgerEntry.findOneAndDelete(
           { referenceNumber: existing.invoiceNumber, category: LIABILITY_CATEGORY },
           { session: dbSession }

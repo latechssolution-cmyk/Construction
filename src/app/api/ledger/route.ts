@@ -81,6 +81,20 @@ export async function POST(req: NextRequest) {
     }
     await connectDB();
     const bankAccountId = toId(data.bankAccountId);
+
+    // Double-submit guard: identical entry by the same user within the last
+    // 15s is a repeated click on a slow connection, not a second payment —
+    // each duplicate here also duplicates the bank-balance mutation.
+    const recentDuplicate = await LedgerEntry.findOne({
+      type: data.type,
+      amount,
+      category: data.category,
+      createdById: session.user.id,
+      createdAt: { $gte: new Date(Date.now() - 15_000) },
+    });
+    if (recentDuplicate) {
+      throw new ApiError(409, "An identical entry was just recorded - duplicate submission ignored.");
+    }
     const entry = await withTransaction(async (dbSession) => {
       const [createdEntry] = await LedgerEntry.create(
         [{

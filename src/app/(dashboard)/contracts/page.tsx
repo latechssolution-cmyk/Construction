@@ -36,7 +36,7 @@ export default function ContractsPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
-  const canDelete = ["admin"].includes(session?.user?.role || "");
+  const canDelete = ["admin", "ceo"].includes(session?.user?.role || "");
 
   const filtered = (Array.isArray(contracts) ? contracts : []).filter((c: any) =>
     c.title?.toLowerCase().includes(search.toLowerCase()) || c.contractNumber?.toLowerCase().includes(search.toLowerCase())
@@ -200,7 +200,7 @@ export default function ContractsPage() {
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
             >
               <option value="">Select Client *</option>
-              {(clients || []).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {(Array.isArray(clients) ? clients : []).filter((c: any) => c.isActive !== false).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <input
               type="number"
@@ -270,7 +270,7 @@ export default function ContractsPage() {
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
             >
               <option value="">Select Client *</option>
-              {(clients || []).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {(Array.isArray(clients) ? clients : []).filter((c: any) => c.isActive !== false).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <input
               type="number"

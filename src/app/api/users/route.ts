@@ -25,7 +25,7 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const session = await requireAuth();
-    requireRole(session, "admin");
+    requireRole(session, "admin", "ceo");
     const data = await req.json();
     if (!data.id) throw new Error("id is required");
     if (data.id === session.user.id && data.isActive === false) {
@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();
-    requireRole(session, "admin");
+    requireRole(session, "admin", "ceo");
     const data = await req.json();
     if (!data.name || !data.email || !data.password) throw new Error("name, email and password are required");
     if (!EMAIL_RE.test(data.email)) throw new ApiError(400, "Invalid email address");

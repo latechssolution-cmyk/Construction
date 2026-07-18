@@ -98,6 +98,22 @@ export async function POST(req: NextRequest) {
     const vendorId = toId(data.vendorId);
     const projectId = toId(data.projectId);
 
+    // Double-submit guard: on a slow connection, repeated clicks on "Add
+    // Material" fired one POST per click — each creating a material AND a
+    // ledger expense AND a bank debit. An identical item for the same
+    // project within the last 15s is a duplicate submission, not a new
+    // purchase (a real re-purchase arrives later or goes through Restock).
+    const recentDuplicate = await Material.findOne({
+      projectId,
+      itemName: data.itemName,
+      unitPrice: price,
+      quantity: qty,
+      createdAt: { $gte: new Date(Date.now() - 15_000) },
+    });
+    if (recentDuplicate) {
+      throw new ApiError(409, "This material was just added — duplicate submission ignored.");
+    }
+
     const material = await withTransaction(async (dbSession) => {
       const [createdMaterial] = await Material.create(
         [{

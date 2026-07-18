@@ -141,7 +141,7 @@ export default function BillingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <select required value={form.clientId||""} onChange={e=>setForm({...form,clientId:e.target.value})} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
               <option value="">Select Client *</option>
-              {(clients||[]).map((c:any)=><option key={c.id} value={c.id}>{c.name}</option>)}
+              {(Array.isArray(clients)?clients:[]).filter((c:any)=>c.isActive!==false).map((c:any)=><option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <select value={form.projectId||""} onChange={e=>{const pid=e.target.value;const proj=(projects||[]).find((p:any)=>p.id===pid);setForm({...form,projectId:pid,clientId:proj?.clientId||form.clientId||""});}} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40">
               <option value="">Select Project (opt)</option>

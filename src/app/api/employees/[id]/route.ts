@@ -39,7 +39,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     // Activation/deactivation is admin-only — matches the DELETE route's
     // role requirement instead of letting a manager flip it via PUT.
     if (data.isActive !== undefined) {
-      requireRole(session, "admin");
+      requireRole(session, "admin", "ceo");
       employee.isActive = data.isActive;
     }
     if (data.salary !== undefined) {
@@ -61,7 +61,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAuth();
-    requireRole(session, "admin");
+    requireRole(session, "admin", "ceo");
     const { id } = await params;
     await connectDB();
     const dbSession = await mongoose.startSession();

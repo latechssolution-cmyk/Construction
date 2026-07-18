@@ -50,7 +50,7 @@ export default function EquipmentPage() {
   const [maintLoading, setMaintLoading] = useState(false);
 
   const canManage = ["admin", "ceo", "manager"].includes(session?.user?.role || "");
-  const canDelete = ["admin"].includes(session?.user?.role || "");
+  const canDelete = ["admin", "ceo"].includes(session?.user?.role || "");
 
   const filtered = (Array.isArray(equipment) ? equipment : []).filter((e: any) =>
     e.name?.toLowerCase().includes(search.toLowerCase()) || e.type?.toLowerCase().includes(search.toLowerCase())

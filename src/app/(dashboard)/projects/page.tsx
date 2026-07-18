@@ -123,7 +123,10 @@ export default function ProjectsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Client</label>
               <select value={form.clientId || ""} onChange={(e) => setForm({...form, clientId: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
                 <option value="">Select client</option>
-                {(clients || []).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {/* Deleting a client only deactivates it — keep those out of the
+                    picker or the dropdown fills with stale entries. Array.isArray
+                    also protects against an error payload replacing the list. */}
+                {(Array.isArray(clients) ? clients : []).filter((c: any) => c.isActive !== false).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>

@@ -92,7 +92,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAuth();
-    requireRole(session, "admin");
+    requireRole(session, "admin", "ceo");
     const { id } = await params;
     await connectDB();
     const contract = await Contract.findById(id);

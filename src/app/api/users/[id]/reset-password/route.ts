@@ -14,14 +14,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const rl = rateLimit(`pwreset:${id}`, { limit: 5, windowSec: 3600 });
     if (!rl.success) throw new ApiError(429, "Too many password reset attempts. Try again in 1 hour.");
 
-    if (session.user.role !== "admin" && session.user.id !== id) {
+    if (!["admin", "ceo"].includes(session.user.role) && session.user.id !== id) {
       throw new ApiError(403, "Forbidden");
     }
 
     const data = await req.json();
     await connectDB();
 
-    if (session.user.id === id && session.user.role !== "admin") {
+    if (session.user.id === id && !["admin", "ceo"].includes(session.user.role)) {
       if (!data.currentPassword) throw new ApiError(400, "Current password is required");
       const user = await User.findById(id, { passwordHash: 1 });
       if (!user?.passwordHash) throw new ApiError(400, "No password set for this account");

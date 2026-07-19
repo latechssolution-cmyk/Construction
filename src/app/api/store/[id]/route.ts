@@ -72,6 +72,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
               amount: restockCost,
               category: "store_purchase",
               description: `Restock: ${item.itemName} × ${addQty} ${item.unit} @ PKR ${newPrice.toLocaleString()}/unit`,
+              // Link back to the store item so DELETE reverses restocks too —
+              // without a referenceNumber these entries were orphaned in the
+              // ledger after the item was deleted.
+              referenceNumber: id,
               vendorId: toId(data.vendorId) ?? item.vendorId ?? null,
               bankAccountId,
               createdById: session.user.id,
@@ -144,16 +148,21 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const item = await StoreItem.findById(id);
     if (!item) throw new ApiError(404, "Store item not found");
 
-    const relatedEntries = await LedgerEntry.find({ referenceNumber: id, category: "store_purchase" });
-    for (const entry of relatedEntries) {
-      if (entry.bankAccountId) {
-        await BankAccount.findByIdAndUpdate(entry.bankAccountId, { $inc: { balance: entry.amount } });
+    await withTransaction(async (dbSession) => {
+      const relatedEntries = await LedgerEntry.find({ referenceNumber: id, category: "store_purchase" }).session(dbSession ?? null);
+      for (const entry of relatedEntries) {
+        if (entry.bankAccountId) {
+          // Undo the entry's original balance effect (expense debited the
+          // bank -> refund; income credited it -> take it back).
+          const delta = entry.type === "expense" ? entry.amount : -entry.amount;
+          await BankAccount.findByIdAndUpdate(entry.bankAccountId, { $inc: { balance: delta } }, { session: dbSession });
+        }
+        await LedgerEntry.findByIdAndDelete(entry._id, { session: dbSession });
       }
-      await LedgerEntry.findByIdAndDelete(entry._id);
-    }
 
-    await StoreItemUsage.deleteMany({ storeItemId: id });
-    await StoreItem.findByIdAndDelete(id);
+      await StoreItemUsage.deleteMany({ storeItemId: id }, { session: dbSession });
+      await StoreItem.findByIdAndDelete(id, { session: dbSession });
+    });
     void auditLog(session.user.id, "DELETE", "StoreItem", id, `Deleted store item: ${item.itemName}`);
     return ok({ success: true });
   } catch (e) {

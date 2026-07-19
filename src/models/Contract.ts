@@ -23,7 +23,7 @@ const contractSchema = new Schema<IContract>(
     title: { type: String, required: true },
     clientId: { type: Schema.Types.ObjectId, ref: "Client", required: true },
     scope: { type: String },
-    contractValue: { type: Number, default: 0 },
+    contractValue: { type: Number, default: 0, min: 0 },
     startDate: { type: Date },
     endDate: { type: Date },
     status: {

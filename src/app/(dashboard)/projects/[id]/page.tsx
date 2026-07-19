@@ -356,10 +356,10 @@ export default function ProjectDetailPage() {
     // Ignore repeat submissions while a request is in flight — on a slow
     // connection every extra click was creating another material/ledger/
     // invoice record (each with its own ledger + bank mutation).
+    e.preventDefault();
     if (inFlightRef.current) return;
     inFlightRef.current = true; setBusy(true);
     try {
-    e.preventDefault();
     if (parseFloat(materialForm.unitPrice) <= 0) { toast({ title: "Error", description: "Unit price must be greater than 0", variant: "destructive" }); return; }
     if (parseFloat(materialForm.quantity) < 0) { toast({ title: "Error", description: "Quantity cannot be negative", variant: "destructive" }); return; }
     if (materialForm.minStockLevel !== undefined && materialForm.minStockLevel !== "" && parseFloat(materialForm.minStockLevel) < 0) { toast({ title: "Error", description: "Min stock level cannot be negative", variant: "destructive" }); return; }
@@ -403,10 +403,10 @@ export default function ProjectDetailPage() {
     // Ignore repeat submissions while a request is in flight — on a slow
     // connection every extra click was creating another material/ledger/
     // invoice record (each with its own ledger + bank mutation).
+    e.preventDefault();
     if (inFlightRef.current) return;
     inFlightRef.current = true; setBusy(true);
     try {
-    e.preventDefault();
     if (editMaterialForm.unitPrice !== undefined && parseFloat(editMaterialForm.unitPrice) <= 0) { toast({ title: "Error", description: "Unit price must be greater than 0", variant: "destructive" }); return; }
     if (editMaterialForm.quantity !== undefined && parseFloat(editMaterialForm.quantity) < 0) { toast({ title: "Error", description: "Quantity cannot be negative", variant: "destructive" }); return; }
     if (editMaterialForm.stockQuantity !== undefined && editMaterialForm.stockQuantity !== "" && parseFloat(editMaterialForm.stockQuantity) < 0) { toast({ title: "Error", description: "Stock quantity cannot be negative", variant: "destructive" }); return; }
@@ -434,10 +434,10 @@ export default function ProjectDetailPage() {
     // Ignore repeat submissions while a request is in flight — on a slow
     // connection every extra click was creating another material/ledger/
     // invoice record (each with its own ledger + bank mutation).
+    e.preventDefault();
     if (inFlightRef.current) return;
     inFlightRef.current = true; setBusy(true);
     try {
-    e.preventDefault();
     setLedgerError("");
     if (!ledgerForm.description?.trim()) { setLedgerError("Description is required."); return; }
     if (!ledgerForm.amount || parseFloat(ledgerForm.amount) <= 0) { setLedgerError("Enter a valid positive amount."); return; }
@@ -480,10 +480,10 @@ export default function ProjectDetailPage() {
     // Ignore repeat submissions while a request is in flight — on a slow
     // connection every extra click was creating another material/ledger/
     // invoice record (each with its own ledger + bank mutation).
+    e.preventDefault();
     if (inFlightRef.current) return;
     inFlightRef.current = true; setBusy(true);
     try {
-    e.preventDefault();
     if (editLedgerForm.amount !== undefined && parseFloat(editLedgerForm.amount) <= 0) { toast({ title: "Error", description: "Amount must be greater than 0", variant: "destructive" }); return; }
     const res = await fetch(`/api/ledger/${entryId}`, {
       method: "PUT",
@@ -510,18 +510,21 @@ export default function ProjectDetailPage() {
     if (inFlightRef.current) return;
     inFlightRef.current = true; setBusy(true);
     try {
-    // Uses the reversal endpoint (creates a balancing compensating entry
-    // instead of hard-deleting) so the audit trail and bank balance history
-    // stay intact — same mechanism the general Payments page relies on.
-    const res = await fetch(`/api/payments/${entryId}`, { method: "DELETE" });
+    // Hard delete (admin/ceo only — the button is gated by canReverseFinance).
+    // The ledger DELETE endpoint rolls back the entry's bank-balance impact
+    // in a transaction and writes an audit-log record of who deleted what.
+    // The previous reversal-endpoint approach doubled the clutter (original
+    // + REVERSAL row) and made REVERSAL rows permanently undeletable
+    // ("Cannot reverse a reversal entry").
+    const res = await fetch(`/api/ledger/${entryId}`, { method: "DELETE" });
     if (res.ok) {
       mutate();
       mutateSummary();
       setDeletingLedgerId(null);
-      toast({ title: "Ledger entry reversed" });
+      toast({ title: "Ledger entry deleted" });
     } else {
       const err = await res.json().catch(() => ({}));
-      toast({ title: "Error", description: err.error || "Failed to reverse entry", variant: "destructive" });
+      toast({ title: "Error", description: err.error || "Failed to delete entry", variant: "destructive" });
     }
   } finally { inFlightRef.current = false; setBusy(false); }
   }
@@ -608,10 +611,10 @@ export default function ProjectDetailPage() {
     // Ignore repeat submissions while a request is in flight — on a slow
     // connection every extra click was creating another material/ledger/
     // invoice record (each with its own ledger + bank mutation).
+    e.preventDefault();
     if (inFlightRef.current) return;
     inFlightRef.current = true; setBusy(true);
     try {
-    e.preventDefault();
     setVariationError("");
     if (!variationForm.title?.trim()) { setVariationError("Title is required."); return; }
     const valueChange = parseFloat(variationForm.valueChange || "0");
@@ -655,10 +658,10 @@ export default function ProjectDetailPage() {
     // Ignore repeat submissions while a request is in flight — on a slow
     // connection every extra click was creating another material/ledger/
     // invoice record (each with its own ledger + bank mutation).
+    e.preventDefault();
     if (inFlightRef.current) return;
     inFlightRef.current = true; setBusy(true);
     try {
-    e.preventDefault();
     setInvestmentError("");
     if (!investmentForm.partnerId) { setInvestmentError("Select a partner."); return; }
     const amount = parseFloat(investmentForm.amount || "0");
@@ -702,10 +705,10 @@ export default function ProjectDetailPage() {
     // Ignore repeat submissions while a request is in flight — on a slow
     // connection every extra click was creating another material/ledger/
     // invoice record (each with its own ledger + bank mutation).
+    e.preventDefault();
     if (inFlightRef.current) return;
     inFlightRef.current = true; setBusy(true);
     try {
-    e.preventDefault();
     setSubcontractError("");
     if (!subcontractForm.vendorId) { setSubcontractError("Select the vendor/subcontractor being outsourced to."); return; }
     if (!subcontractForm.contractValue || parseFloat(subcontractForm.contractValue) <= 0) { setSubcontractError("Enter a contract value greater than 0."); return; }
@@ -741,10 +744,10 @@ export default function ProjectDetailPage() {
     // Ignore repeat submissions while a request is in flight — on a slow
     // connection every extra click was creating another material/ledger/
     // invoice record (each with its own ledger + bank mutation).
+    e.preventDefault();
     if (inFlightRef.current) return;
     inFlightRef.current = true; setBusy(true);
     try {
-    e.preventDefault();
     if (editSubcontractForm.contractValue !== undefined && parseFloat(editSubcontractForm.contractValue) <= 0) { toast({ title: "Error", description: "Contract value must be greater than 0", variant: "destructive" }); return; }
     const res = await fetch(`/api/subcontracts/${scId}`, {
       method: "PUT",
@@ -815,10 +818,10 @@ export default function ProjectDetailPage() {
     // Ignore repeat submissions while a request is in flight — on a slow
     // connection every extra click was creating another material/ledger/
     // invoice record (each with its own ledger + bank mutation).
+    e.preventDefault();
     if (inFlightRef.current) return;
     inFlightRef.current = true; setBusy(true);
     try {
-    e.preventDefault();
     setInvoiceError("");
     if (!project.clientId) { setInvoiceError("This project has no client set. Set a client on the Overview tab first."); return; }
     if (invoiceForm.dueDate && invoiceForm.issueDate && new Date(invoiceForm.dueDate) < new Date(invoiceForm.issueDate)) { setInvoiceError("Due date must be after issue date."); return; }

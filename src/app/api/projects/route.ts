@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
         {
           $group: {
             _id: "$projectId",
-            income: { $sum: { $cond: [{ $eq: ["$type", "income"] }, "$amount", 0] } },
+            income: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "income"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } },
             expense: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "expense"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } }
           }
         }

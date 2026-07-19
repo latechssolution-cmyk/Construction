@@ -29,7 +29,7 @@ const employeeSchema = new Schema<IEmployee>(
     cnic: { type: String },
     address: { type: String },
     joiningDate: { type: Date },
-    salary: { type: Number, default: 0 },
+    salary: { type: Number, default: 0, min: 0 },
     salaryType: { type: String, enum: ["monthly", "daily", "hourly"], default: "monthly" },
     bankAccount: { type: String },
     emergencyContact: { type: String },

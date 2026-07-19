@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       Task.find({ projectId: id }, { status: 1, weight: 1 }),
       Milestone.find({ projectId: id }, { completedAt: 1 }),
       Material.find({ projectId: id }, { stockQuantity: 1, minStockLevel: 1 }),
-      LedgerEntry.aggregate([{ $match: { projectId: project._id, type: "income" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      LedgerEntry.aggregate([{ $match: { projectId: project._id, type: "income", category: { $ne: "inventory_asset" } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       LedgerEntry.aggregate([{ $match: { projectId: project._id, type: "expense", category: { $ne: "inventory_asset" } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       Subcontract.find({ projectId: id }, { contractValue: 1, status: 1 }),
     ]);

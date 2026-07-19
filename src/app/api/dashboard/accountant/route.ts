@@ -29,11 +29,11 @@ export async function GET() {
       // making "Total Expense" disagree with the admin dashboard's figure
       // for the exact same underlying data.
       LedgerEntry.aggregate([
-        { $group: { _id: null, income: { $sum: { $cond: [{ $eq: ["$type", "income"] }, "$amount", 0] } }, expense: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "expense"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } } } },
+        { $group: { _id: null, income: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "income"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } }, expense: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "expense"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } } } },
       ]),
       LedgerEntry.aggregate([
         { $match: { date: { $gte: monthStart } } },
-        { $group: { _id: null, income: { $sum: { $cond: [{ $eq: ["$type", "income"] }, "$amount", 0] } }, expense: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "expense"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } } } },
+        { $group: { _id: null, income: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "income"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } }, expense: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "expense"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } } } },
       ]),
       BankAccount.find({ isActive: true }, { name: 1, bankName: 1, balance: 1, accountType: 1 })
         .sort({ balance: -1 }).lean(),
@@ -43,7 +43,7 @@ export async function GET() {
       ).populate("client", "name").sort({ dueDate: 1 }).limit(10).lean({ virtuals: true }),
       // Full-year monthly trend — single aggregation replaces 24 separate queries
       LedgerEntry.aggregate([
-        { $match: { date: { $gte: yearStart, $lt: yearEnd } } },
+        { $match: { date: { $gte: yearStart, $lt: yearEnd }, category: { $ne: "inventory_asset" } } },
         {
           $group: {
             _id: { month: { $month: "$date" }, type: "$type" },

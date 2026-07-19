@@ -28,7 +28,7 @@ const ledgerEntrySchema = new Schema<ILedgerEntry>(
     bankAccountId: { type: Schema.Types.ObjectId, ref: "BankAccount" },
     vendorId: { type: Schema.Types.ObjectId, ref: "Vendor" },
     employeeId: { type: Schema.Types.ObjectId, ref: "Employee" },
-    amount: { type: Number, required: true },
+    amount: { type: Number, required: true, min: 0 },
     description: { type: String },
     partyName: { type: String },
     partyType: {

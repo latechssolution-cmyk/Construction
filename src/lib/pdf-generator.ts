@@ -181,7 +181,7 @@ export async function generateProjectReportPDF(projectId: string): Promise<Buffe
   if (!project) throw new Error("Project not found");
 
   const p = project.toJSON() as any;
-  const totalIncome = (p.ledgerEntries || []).filter((e: any) => e.type === "income").reduce((s: number, e: any) => s + e.amount, 0);
+  const totalIncome = (p.ledgerEntries || []).filter((e: any) => e.type === "income" && e.category !== "inventory_asset").reduce((s: number, e: any) => s + e.amount, 0);
   const totalExpense = (p.ledgerEntries || []).filter((e: any) => e.type === "expense" && e.category !== "inventory_asset").reduce((s: number, e: any) => s + e.amount, 0);
   const completedTasks = (p.tasks || []).filter((t: any) => t.status === "completed").length;
   const completedMilestones = (p.milestones || []).filter((m: any) => m.completedAt).length;

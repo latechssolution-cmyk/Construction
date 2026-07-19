@@ -17,14 +17,13 @@ export async function GET(req: NextRequest) {
     const baseMatch = { date: { $gte: yearStart, $lt: yearEnd } };
     const plMatch = {
       date: { $gte: yearStart, $lt: yearEnd },
-      $or: [
-        { type: "income" },
-        { type: "expense", category: { $ne: "inventory_asset" } },
-      ],
+      // inventory_asset entries are balance-sheet moves (stock offsets), not
+      // P&L activity — excluded from BOTH sides, matching the totals above.
+      category: { $ne: "inventory_asset" },
     };
 
     const [totalIncomeAgg, totalExpenseAgg, byCategoryAgg, monthlyAgg] = await Promise.all([
-      LedgerEntry.aggregate([{ $match: { ...baseMatch, type: "income" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      LedgerEntry.aggregate([{ $match: { ...baseMatch, type: "income", category: { $ne: "inventory_asset" } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       LedgerEntry.aggregate([{ $match: { ...baseMatch, type: "expense", category: { $ne: "inventory_asset" } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       LedgerEntry.aggregate([
         { $match: plMatch },

@@ -33,7 +33,7 @@ const projectSchema = new Schema<IProject>(
     clientId: { type: Schema.Types.ObjectId, ref: "Client" },
     assignedManagerId: { type: Schema.Types.ObjectId, ref: "User" },
     contractId: { type: Schema.Types.ObjectId, ref: "Contract" },
-    budget: { type: Number, default: 0 },
+    budget: { type: Number, default: 0, min: 0 },
     // Contract Agreement (awarded) value — the client's "CA Value". Distinct
     // from `budget` (our internal cost budget). Falls back to budget when 0.
     caValue: { type: Number, default: 0 },

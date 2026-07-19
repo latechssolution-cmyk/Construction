@@ -87,6 +87,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
               amount: restockCost,
               category: "material_purchase",
               description: `Restock: ${material.itemName} × ${addQty} ${material.unit} @ PKR ${newPrice.toLocaleString()}/unit`,
+              // Link back to the material so DELETE finds and reverses this
+              // entry too — restocks without a referenceNumber were orphaned
+              // in the ledger after the material was deleted.
+              referenceNumber: id,
               projectId: material.projectId,
               vendorId: toId(data.vendorId) ?? material.vendorId ?? null,
               bankAccountId,
@@ -157,30 +161,39 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const newTotalPrice = material.quantity * material.unitPrice;
     const diff = newTotalPrice - oldTotalPrice;
-    if (diff !== 0) {
-      const entry = await LedgerEntry.findOne({ referenceNumber: id, category: "inventory_asset" }).sort({ createdAt: 1 });
-      if (entry) {
-        if (entry.bankAccountId) {
-          const bankAccount = await BankAccount.findById(entry.bankAccountId);
-          if (bankAccount) {
-            if (diff > 0 && bankAccount.balance < diff) {
-              throw new ApiError(400, `Insufficient funds: bank account balance is PKR ${bankAccount.balance.toLocaleString()}, but price increase requires PKR ${diff.toLocaleString()}`);
-            }
-            bankAccount.balance -= diff;
-            await bankAccount.save();
-          }
-        }
-        entry.amount += diff;
-        if (entry.description) {
-          entry.description = `${material.itemName} × ${material.quantity} ${material.unit}`;
-        }
-        await entry.save();
-      }
-    }
 
     if (data.vendorId !== undefined) material.vendorId = toId(data.vendorId) as any;
     if (data.notes !== undefined) material.notes = data.notes;
-    await material.save();
+
+    // Reconcile the purchase ledger entry + bank balance with the value
+    // change, atomically with the material save. The lookup previously used
+    // category "inventory_asset" — a category the material POST never writes
+    // (purchases are "material_purchase"), so this reconciliation silently
+    // never ran; and the bank mutation sat outside any transaction.
+    await withTransaction(async (dbSession) => {
+      if (diff !== 0) {
+        const entry = await LedgerEntry.findOne({ referenceNumber: id, category: "material_purchase" })
+          .sort({ createdAt: 1 }).session(dbSession ?? null);
+        if (entry) {
+          if (entry.bankAccountId) {
+            const bankAccount = await BankAccount.findById(entry.bankAccountId).session(dbSession ?? null);
+            if (bankAccount) {
+              if (diff > 0 && bankAccount.balance < diff) {
+                throw new ApiError(400, `Insufficient funds: bank account balance is PKR ${bankAccount.balance.toLocaleString()}, but price increase requires PKR ${diff.toLocaleString()}`);
+              }
+              bankAccount.balance -= diff;
+              await bankAccount.save({ session: dbSession });
+            }
+          }
+          entry.amount += diff;
+          if (entry.description) {
+            entry.description = `${material.itemName} × ${material.quantity} ${material.unit}`;
+          }
+          await entry.save({ session: dbSession });
+        }
+      }
+      await material.save({ session: dbSession });
+    });
 
     void auditLog(session.user.id, "UPDATE", "Material", id, `Updated: ${material.itemName}`);
     return ok(material);
@@ -205,16 +218,21 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const usages = await MaterialUsage.find({ materialId: id });
     const usageIds = usages.map(u => u._id.toString());
 
-    const relatedEntries = await LedgerEntry.find({ referenceNumber: { $in: [id, ...usageIds] } });
-    for (const entry of relatedEntries) {
-      if (entry.bankAccountId && (entry.category === "material_purchase" || entry.category === "inventory_asset")) {
-        await BankAccount.findByIdAndUpdate(entry.bankAccountId, { $inc: { balance: entry.amount } });
+    await withTransaction(async (dbSession) => {
+      const relatedEntries = await LedgerEntry.find({ referenceNumber: { $in: [id, ...usageIds] } }).session(dbSession ?? null);
+      for (const entry of relatedEntries) {
+        if (entry.bankAccountId) {
+          // Undo the entry's original balance effect: an expense debited the
+          // bank (so refund it), an income credited it (so take it back).
+          const delta = entry.type === "expense" ? entry.amount : -entry.amount;
+          await BankAccount.findByIdAndUpdate(entry.bankAccountId, { $inc: { balance: delta } }, { session: dbSession });
+        }
+        await LedgerEntry.findByIdAndDelete(entry._id, { session: dbSession });
       }
-      await LedgerEntry.findByIdAndDelete(entry._id);
-    }
 
-    await MaterialUsage.deleteMany({ materialId: id });
-    await Material.findByIdAndDelete(id);
+      await MaterialUsage.deleteMany({ materialId: id }, { session: dbSession });
+      await Material.findByIdAndDelete(id, { session: dbSession });
+    });
     void auditLog(session.user.id, "DELETE", "Material", id, `Deleted material: ${material.itemName}`);
     return ok({ success: true });
   } catch (e) {

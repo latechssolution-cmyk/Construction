@@ -39,7 +39,7 @@ export async function GET() {
       ]),
       // All-time income + expense (expense excludes inventory_asset balance moves)
       LedgerEntry.aggregate([
-        { $group: { _id: null, income: { $sum: { $cond: [{ $eq: ["$type", "income"] }, "$amount", 0] } }, expenseExclAsset: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "expense"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } } } },
+        { $group: { _id: null, income: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "income"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } }, expenseExclAsset: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "expense"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } } } },
       ]),
       // Total contract value across non-cancelled projects
       Project.aggregate([
@@ -83,7 +83,7 @@ export async function GET() {
         { $group: { _id: null, total: { $sum: "$amount" } } },
       ]),
       LedgerEntry.aggregate([
-        { $match: { date: { $gte: sixMonthsAgo } } },
+        { $match: { date: { $gte: sixMonthsAgo }, category: { $ne: "inventory_asset" } } },
         { $group: { _id: { year: { $year: "$date" }, month: { $month: "$date" }, type: "$type" }, total: { $sum: "$amount" } } },
       ]),
       AuditLog.find({}, { action: 1, module: 1, recordId: 1, details: 1, createdAt: 1 })
@@ -211,7 +211,7 @@ export async function GET() {
         { $group: { _id: "$projectId", total: { $sum: "$subtotal" } } },
       ]),
       LedgerEntry.aggregate([
-        { $match: { projectId: { $in: activeIds }, type: "income" } },
+        { $match: { projectId: { $in: activeIds }, type: "income", category: { $ne: "inventory_asset" } } },
         { $group: { _id: "$projectId", total: { $sum: "$amount" } } },
       ]),
     ]);

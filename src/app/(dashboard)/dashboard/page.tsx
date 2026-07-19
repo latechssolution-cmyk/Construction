@@ -55,7 +55,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 function AdminDashboard({ data }: { data: any }) {
-  const recentActivity = data?.recentActivity || [];
+  const recentActivity = Array.isArray(data?.recentActivity) ? data.recentActivity : [];
   const revenueTrend = data?.revenueTrend || [];
   const p = data?.projects || {};
   const f = data?.finances || {};

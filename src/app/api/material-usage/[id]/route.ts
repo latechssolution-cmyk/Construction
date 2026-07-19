@@ -71,6 +71,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         },
         { session: dbSession }
       );
+      // Usage creation writes a paired inventory_asset income offset with the
+      // same referenceNumber — keep its amount in sync or the offset drifts
+      // from the expense it cancels.
+      await LedgerEntry.findOneAndUpdate(
+        { referenceNumber: id, category: "inventory_asset" },
+        {
+          amount: cost,
+          date: usage.date,
+          description: `Inventory offset: Consumption of ${newQty} ${material.unit} of ${material.itemName}`,
+        },
+        { session: dbSession }
+      );
     });
 
     void auditLog(session.user.id, "UPDATE", "MaterialUsage", id, `Updated usage of ${material.itemName} to ${newQty} ${material.unit}`);
@@ -103,9 +115,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
         { session: dbSession }
       );
 
-      // Delete associated ledger entry
-      await LedgerEntry.findOneAndDelete(
-        { referenceNumber: id, category: "material_usage" },
+      // Delete BOTH associated ledger entries — the material_usage expense
+      // and its paired inventory_asset income offset share this usage's id
+      // as referenceNumber. Deleting only the expense left the offset behind
+      // as phantom income.
+      await LedgerEntry.deleteMany(
+        { referenceNumber: id, category: { $in: ["material_usage", "inventory_asset"] } },
         { session: dbSession }
       );
 

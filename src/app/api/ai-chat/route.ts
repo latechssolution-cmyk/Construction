@@ -213,6 +213,11 @@ export async function POST(req: NextRequest) {
     const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [{ text: message }];
 
     if (imageFile) {
+      // Cap before buffering — base64-encoding an arbitrarily large upload
+      // in memory is an easy way to OOM the server process.
+      if (imageFile.size > 10 * 1024 * 1024) {
+        return NextResponse.json({ error: "Image too large (max 10 MB)" }, { status: 413 });
+      }
       const bytes = await imageFile.arrayBuffer();
       const base64 = Buffer.from(bytes).toString("base64");
       parts.push({ inlineData: { mimeType: imageFile.type, data: base64 } });

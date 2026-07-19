@@ -111,7 +111,7 @@ export default function ProfitSheetsPage() {
                 <tr key={c.category} className="border-b border-gray-100">
                   <td className="py-2 px-4 capitalize text-gray-700">{c.category?.replace("_"," ")}</td>
                   <td className="py-2 px-4 text-right text-green-600 font-medium">PKR {c._sum?.amount?.toLocaleString()}</td>
-                  <td className="py-2 px-4 text-right text-gray-400">{totals.totalIncome>0?((c._sum?.amount/totals.totalIncome)*100).toFixed(1):0}%</td>
+                  <td className="py-2 px-4 text-right text-gray-400">{totals.totalIncome>0?(((c._sum?.amount||0)/totals.totalIncome)*100).toFixed(1):0}%</td>
                 </tr>
               ))}
               {incomeCategories.length===0&&<tr><td colSpan={3} className="py-6 text-center text-gray-400 text-sm">No income data</td></tr>}
@@ -130,7 +130,7 @@ export default function ProfitSheetsPage() {
                 <tr key={c.category} className="border-b border-gray-100">
                   <td className="py-2 px-4 capitalize text-gray-700">{c.category?.replace("_"," ")}</td>
                   <td className="py-2 px-4 text-right text-red-500 font-medium">PKR {c._sum?.amount?.toLocaleString()}</td>
-                  <td className="py-2 px-4 text-right text-gray-400">{totals.totalExpense>0?((c._sum?.amount/totals.totalExpense)*100).toFixed(1):0}%</td>
+                  <td className="py-2 px-4 text-right text-gray-400">{totals.totalExpense>0?(((c._sum?.amount||0)/totals.totalExpense)*100).toFixed(1):0}%</td>
                 </tr>
               ))}
               {expenseCategories.length===0&&<tr><td colSpan={3} className="py-6 text-center text-gray-400 text-sm">No expense data</td></tr>}

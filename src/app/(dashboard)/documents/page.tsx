@@ -66,7 +66,6 @@ export default function DocumentsPage() {
         fd.append("api_key", apiKey);
         fd.append("timestamp", timestamp);
         fd.append("folder", folder);
-        fd.append("max_file_size", String(maxFileSize));
         fd.append("signature", signature);
 
         const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: fd });

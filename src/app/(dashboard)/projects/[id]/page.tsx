@@ -199,7 +199,7 @@ export default function ProjectDetailPage() {
         if (maxFileSize && docFile.size > maxFileSize) { toast({ title: "Error", description: `File too large (max ${Math.round(maxFileSize / 1024 / 1024)}MB)`, variant: "destructive" }); return; }
         const fd = new FormData();
         fd.append("file", docFile); fd.append("api_key", apiKey); fd.append("timestamp", timestamp);
-        fd.append("folder", folder); fd.append("max_file_size", String(maxFileSize)); fd.append("signature", signature);
+        fd.append("folder", folder); fd.append("signature", signature);
         const upRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: fd });
         if (!upRes.ok) { toast({ title: "Error", description: "File upload failed", variant: "destructive" }); return; }
         const json = await upRes.json();

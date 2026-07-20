@@ -52,7 +52,7 @@ export default function DocumentsPage() {
       if (file) {
         // Get signature from server (fast — no file data sent)
         const signRes = await fetch("/api/upload");
-        if (!signRes.ok) { toast({ title: "Error", description: "Could not get upload token", variant: "destructive" }); return; }
+        if (!signRes.ok) { const e = await signRes.json().catch(() => ({})); toast({ title: "Upload unavailable", description: e.error || "Could not get upload token", variant: "destructive" }); return; }
         const { signature, timestamp, apiKey, cloudName, folder, maxFileSize } = await signRes.json();
 
         if (maxFileSize && file.size > maxFileSize) {

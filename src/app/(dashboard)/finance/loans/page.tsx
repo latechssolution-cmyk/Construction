@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { useToast } from "@/hooks/use-toast";
-import { HandCoins, Lock, Search, X, TrendingDown, CheckCircle2, Ban } from "lucide-react";
+import { HandCoins, Lock, Search, X, TrendingDown, CheckCircle2, Ban, Pencil, Trash2 } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 const pkr = (n: number) => `PKR ${Math.round(n || 0).toLocaleString()}`;
@@ -28,6 +28,11 @@ export default function LoansPage() {
   const [repayModal, setRepayModal] = useState<any>(null);
   const [repayForm, setRepayForm] = useState<any>({});
   const [repayLoading, setRepayLoading] = useState(false);
+  const [editModal, setEditModal] = useState<any>(null);
+  const [editForm, setEditForm] = useState<any>({});
+  const [editLoading, setEditLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [delBusy, setDelBusy] = useState(false);
 
   if (session && !["admin", "ceo", "accountant"].includes(session.user?.role || "")) {
     return (
@@ -77,6 +82,32 @@ export default function LoansPage() {
   }
 
   const canWriteOff = ["admin", "ceo"].includes(session?.user?.role || "");
+  // Edit/delete mirror the API gates: PUT is open to finance roles, DELETE
+  // (which restores bank balances) is admin/ceo only.
+  const canDelete = canWriteOff;
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (editLoading) return;
+    setEditLoading(true);
+    try {
+      const res = await fetch(`/api/loans/${editModal.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editForm) });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to update loan", variant: "destructive" }); return; }
+      toast({ title: "Loan updated" });
+      mutate(); setEditModal(null); setEditForm({});
+    } finally { setEditLoading(false); }
+  }
+
+  async function deleteLoan(id: string) {
+    if (delBusy) return;
+    setDelBusy(true);
+    try {
+      const res = await fetch(`/api/loans/${id}`, { method: "DELETE" });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); toast({ title: "Error", description: err.error || "Failed to delete loan", variant: "destructive" }); return; }
+      toast({ title: "Loan deleted", description: "Bank balances restored." });
+      mutate(); setDeletingId(null);
+    } finally { setDelBusy(false); }
+  }
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -162,12 +193,50 @@ export default function LoansPage() {
                       {canWriteOff && ["active", "partially_repaid"].includes(l.status) && (
                         <button onClick={() => writeOff(l)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Write off"><Ban className="w-3.5 h-3.5" /></button>
                       )}
+                      <button onClick={() => { setEditModal(l); setEditForm({ borrowerName: l.borrowerName, borrowerType: l.borrowerType, expectedReturnDate: l.expectedReturnDate ? String(l.expectedReturnDate).slice(0, 10) : "", notes: l.notes || "" }); }} className="p-1.5 text-blue-400 hover:bg-blue-50 rounded-lg" title="Edit loan"><Pencil className="w-3.5 h-3.5" /></button>
+                      {canDelete && (
+                        deletingId === l.id ? (
+                          <span className="flex items-center gap-1.5">
+                            <button onClick={() => deleteLoan(l.id)} disabled={delBusy} className="px-2 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 disabled:opacity-50">{delBusy ? "…" : "Confirm"}</button>
+                            <button onClick={() => setDeletingId(null)} className="px-2 py-1 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-50">✕</button>
+                          </span>
+                        ) : (
+                          <button onClick={() => setDeletingId(l.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Delete loan (restores bank balances)"><Trash2 className="w-3.5 h-3.5" /></button>
+                        )
+                      )}
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {editModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditModal(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h2 className="font-semibold text-gray-900">Edit Loan — {editModal.borrowerName}</h2>
+              <button onClick={() => setEditModal(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleEdit} className="p-4 space-y-3">
+              <p className="text-xs text-gray-400">Principal {pkr(editModal.principalAmount)} is fixed — delete and re-issue the loan if the amount is wrong.</p>
+              <input required value={editForm.borrowerName || ""} onChange={e => setEditForm({ ...editForm, borrowerName: e.target.value })} placeholder="Borrower Name *" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              <select value={editForm.borrowerType || "employee"} onChange={e => setEditForm({ ...editForm, borrowerType: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm capitalize">
+                {BORROWER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Expected Return Date</label>
+                <input type="date" value={editForm.expectedReturnDate || ""} onChange={e => setEditForm({ ...editForm, expectedReturnDate: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <textarea value={editForm.notes || ""} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} placeholder="Notes (optional)" rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              <div className="flex gap-2 pt-1">
+                <button type="submit" disabled={editLoading} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50">{editLoading ? "Saving..." : "Save Changes"}</button>
+                <button type="button" onClick={() => setEditModal(null)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">Cancel</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

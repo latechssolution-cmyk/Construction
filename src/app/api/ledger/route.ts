@@ -39,19 +39,45 @@ export async function GET(req: NextRequest) {
     const limit = Math.max(1, parseInt(searchParams.get("limit") || "50"));
     const skip = (page - 1) * limit;
 
-    const total = await LedgerEntry.countDocuments(filter);
-    const entries = await LedgerEntry.find(filter)
-      .populate("project", "id name")
-      .populate("bankAccount", "id name")
-      .populate("vendor", "id name")
-      .populate("employee", "id name role")
-      .populate("createdBy", "id name")
-      .sort({ date: -1 })
-      .skip(skip)
-      .limit(limit);
+    // Aggregate $match doesn't cast string ids the way find() does — build a
+    // casted copy of the filter for the totals pipeline.
+    const aggMatch: any = { ...filter };
+    for (const key of ["projectId", "bankAccountId", "employeeId"]) {
+      if (aggMatch[key]) aggMatch[key] = new mongoose.Types.ObjectId(String(aggMatch[key]));
+    }
+
+    const [total, entries, totalsAgg] = await Promise.all([
+      LedgerEntry.countDocuments(filter),
+      LedgerEntry.find(filter)
+        .populate("project", "id name")
+        .populate("bankAccount", "id name")
+        .populate("vendor", "id name")
+        .populate("employee", "id name role")
+        .populate("createdBy", "id name")
+        .sort({ date: -1 })
+        .skip(skip)
+        .limit(limit),
+      // True totals over ALL matching entries — the page-level cards used to
+      // sum only the 50 visible rows, so any ledger past one page showed a
+      // wrong Total Income / Expense / Net Balance. inventory_asset offsets
+      // are balance-sheet moves and excluded, matching every other P&L figure.
+      LedgerEntry.aggregate([
+        { $match: aggMatch },
+        {
+          $group: {
+            _id: null,
+            income: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "income"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } },
+            expense: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "expense"] }, { $ne: ["$category", "inventory_asset"] }] }, "$amount", 0] } },
+          },
+        },
+      ]),
+    ]);
+
+    const totalsRow = (totalsAgg as any[])[0] || {};
 
     return ok({
       data: entries,
+      totals: { income: totalsRow.income || 0, expense: totalsRow.expense || 0 },
       pagination: {
         total,
         page,
@@ -79,6 +105,13 @@ export async function POST(req: NextRequest) {
     if (!["income", "expense"].includes(data.type)) {
       throw new ApiError(400, "type must be 'income' or 'expense'");
     }
+    const entryDate = new Date(data.date);
+    if (isNaN(entryDate.getTime())) throw new ApiError(400, "Invalid date");
+    // Server-side date sanity — the UI blocks future dates but other entry
+    // points didn't, which is how a typo like year "20206" reached the ledger.
+    const tomorrow = new Date(); tomorrow.setHours(23, 59, 59, 999);
+    if (entryDate > tomorrow) throw new ApiError(400, "Date cannot be in the future");
+    if (entryDate.getFullYear() < 2000) throw new ApiError(400, "Date is unrealistically old — check the year");
     await connectDB();
     const bankAccountId = toId(data.bankAccountId);
 
@@ -98,7 +131,7 @@ export async function POST(req: NextRequest) {
     const entry = await withTransaction(async (dbSession) => {
       const [createdEntry] = await LedgerEntry.create(
         [{
-          date: new Date(data.date),
+          date: entryDate,
           type: data.type,
           amount,
           category: data.category,

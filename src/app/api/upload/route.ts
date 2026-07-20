@@ -12,7 +12,10 @@ export async function GET() {
     const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
     if (!cloudName || !apiKey || !apiSecret) {
-      throw new ApiError(500, "Cloudinary credentials not configured");
+      // Without these three env vars no file can ever upload — surface an
+      // actionable message instead of a generic failure so whoever hits
+      // this knows it's a deployment-configuration problem, not a bug.
+      throw new ApiError(503, "File storage is not configured on the server. An administrator must set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET in the environment (see DEPLOY.md).");
     }
 
     const timestamp = Math.floor(Date.now() / 1000).toString();

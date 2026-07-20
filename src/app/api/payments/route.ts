@@ -51,6 +51,13 @@ export async function POST(req: NextRequest) {
     if (!["income", "expense"].includes(data.type)) throw new ApiError(400, "type must be 'income' or 'expense'");
     const amount = parseFloat(data.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new ApiError(400, "amount must be a positive number");
+    const entryDate = new Date(data.date);
+    if (isNaN(entryDate.getTime())) throw new ApiError(400, "Invalid date");
+    // Server-side date sanity — the UI blocks future dates but this entry
+    // point didn't, which is how a typo like year "20206" reached the ledger.
+    const tomorrow = new Date(); tomorrow.setHours(23, 59, 59, 999);
+    if (entryDate > tomorrow) throw new ApiError(400, "Date cannot be in the future");
+    if (entryDate.getFullYear() < 2000) throw new ApiError(400, "Date is unrealistically old — check the year");
     await connectDB();
 
 
@@ -71,7 +78,7 @@ export async function POST(req: NextRequest) {
     const entry = await withTransaction(async (dbSession) => {
       const [createdEntry] = await LedgerEntry.create(
         [{
-          date: new Date(data.date),
+          date: entryDate,
           type: data.type,
           amount,
           category: data.category || (data.type === "income" ? "client_payment" : "vendor_payment"),

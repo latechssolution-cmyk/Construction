@@ -8,7 +8,8 @@ import { StatsSkeleton, TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
-import { BookOpen, Lock, TrendingUp, TrendingDown, Scale } from "lucide-react";
+import { BookOpen, Lock, TrendingUp, TrendingDown, Scale, Trash2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 const TYPE_COLORS: Record<string,string> = { income:"bg-green-100 text-green-700", expense:"bg-red-100 text-red-700" };
@@ -16,6 +17,7 @@ const CATEGORIES = ["material_purchase","salary","maintenance","invoice_payment"
 
 export default function LedgerPage() {
   const { data: session } = useSession();
+  const { toast } = useToast();
   const searchParams = useSearchParams();
   const [page, setPage] = useState(1);
   const { data: entries, mutate, isLoading } = useSWR(`/api/ledger?page=${page}&limit=50`, fetcher);
@@ -28,6 +30,8 @@ export default function LedgerPage() {
   const [error, setError] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [delBusy, setDelBusy] = useState(false);
 
   useEffect(() => {
     const q = searchParams.get("q");
@@ -46,6 +50,11 @@ export default function LedgerPage() {
   }
 
   const canManage = ["admin","ceo","accountant"].includes(session?.user?.role||"");
+  // Hard delete matches the API gate on DELETE /api/ledger/[id] — admin/ceo
+  // only. This is the cleanup path for wrong entries (including REVERSAL
+  // rows, which the payments reversal endpoint refuses to touch): it removes
+  // the row and rolls back its bank-balance impact in one transaction.
+  const canDelete = ["admin","ceo"].includes(session?.user?.role||"");
   const list: any[] = entries?.data ? entries.data : (Array.isArray(entries) ? entries : []);
   
   const filtered = list.filter((e: any) => {
@@ -57,8 +66,10 @@ export default function LedgerPage() {
     return matchesType && matchesSearch;
   });
 
-  const totalIncome = list.filter((e:any)=>e.type==="income").reduce((s:number,e:any)=>s+e.amount,0);
-  const totalExpense = list.filter((e:any)=>e.type==="expense").reduce((s:number,e:any)=>s+e.amount,0);
+  // Server-side totals over the FULL ledger (inventory offsets excluded) —
+  // summing the visible page understated everything past the first 50 rows.
+  const totalIncome = entries?.totals?.income ?? list.filter((e:any)=>e.type==="income").reduce((s:number,e:any)=>s+e.amount,0);
+  const totalExpense = entries?.totals?.expense ?? list.filter((e:any)=>e.type==="expense").reduce((s:number,e:any)=>s+e.amount,0);
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
@@ -87,6 +98,22 @@ export default function LedgerPage() {
       if (!res.ok) { const e = await res.json(); setError(e.error||"Failed to save entry"); return; }
       mutate(); setShowForm(false); setForm({ type:"expense", category:"", bankAccountId:"" });
     } finally { setLoading(false); }
+  }
+
+  async function deleteEntry(id: string) {
+    if (delBusy) return;
+    setDelBusy(true);
+    try {
+      const res = await fetch(`/api/ledger/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setDeletingId(null);
+        mutate();
+        toast({ title: "Ledger entry deleted" });
+      } else {
+        const e = await res.json().catch(() => ({}));
+        toast({ title: "Error", description: e.error || "Failed to delete entry", variant: "destructive" });
+      }
+    } finally { setDelBusy(false); }
   }
 
   return (
@@ -175,7 +202,7 @@ export default function LedgerPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  {["Date","Type","Description","Category","Party / Vendor","Project","Reference #","Amount"].map(h=><th key={h} className="text-left py-3 px-3 text-xs text-gray-500 font-medium whitespace-nowrap">{h}</th>)}
+                  {["Date","Type","Description","Category","Party / Vendor","Project","Reference #","Amount",...(canDelete?[""]:[])].map((h,i)=><th key={i} className="text-left py-3 px-3 text-xs text-gray-500 font-medium whitespace-nowrap">{h}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -189,6 +216,18 @@ export default function LedgerPage() {
                     <td className="py-3 px-3 text-gray-500">{e.project?.name||"General"}</td>
                     <td className="py-3 px-3 text-gray-400 text-xs font-mono">{e.referenceNumber||"—"}</td>
                     <td className={"py-3 px-3 font-bold whitespace-nowrap "+(e.type==="income"?"text-green-700":"text-red-700")}>PKR {(e.amount||0).toLocaleString()}</td>
+                    {canDelete && (
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        {deletingId === e.id ? (
+                          <span className="flex items-center gap-1.5">
+                            <button onClick={()=>deleteEntry(e.id)} disabled={delBusy} className="px-2 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 disabled:opacity-50">{delBusy?"…":"Confirm"}</button>
+                            <button onClick={()=>setDeletingId(null)} className="px-2 py-1 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-50">✕</button>
+                          </span>
+                        ) : (
+                          <button onClick={()=>setDeletingId(e.id)} title="Delete entry (reverses bank impact)" className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -212,7 +251,17 @@ export default function LedgerPage() {
                   <div><span className="text-gray-400">Party: </span><span className="text-gray-700">{e.vendor?.name || e.partyName || "—"}</span></div>
                   <div><span className="text-gray-400">Reference: </span><span className="text-gray-700 font-mono">{e.referenceNumber||"—"}</span></div>
                 </div>
-                <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
+                <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+                  {canDelete ? (
+                    deletingId === e.id ? (
+                      <span className="flex items-center gap-1.5">
+                        <button onClick={()=>deleteEntry(e.id)} disabled={delBusy} className="px-2 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 disabled:opacity-50">{delBusy?"…":"Confirm delete"}</button>
+                        <button onClick={()=>setDeletingId(null)} className="px-2 py-1 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-50">✕</button>
+                      </span>
+                    ) : (
+                      <button onClick={()=>setDeletingId(e.id)} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
+                    )
+                  ) : <span />}
                   <span className={"font-bold whitespace-nowrap "+(e.type==="income"?"text-green-700":"text-red-700")}>PKR {(e.amount||0).toLocaleString()}</span>
                 </div>
               </div>

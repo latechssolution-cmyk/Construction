@@ -3,7 +3,7 @@ import useSWR from "swr";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { StatsSkeleton, TableSkeleton } from "@/components/ui/skeleton";
-import { Lock, TrendingUp, TrendingDown, Scale, Search } from "lucide-react";
+import { Lock, TrendingUp, TrendingDown, Scale, Search, PieChart, HandCoins } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 
@@ -14,7 +14,10 @@ export default function ProfitSheetsPage() {
   const year = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(year);
   const [projectSearch, setProjectSearch] = useState("");
+  const [view, setView] = useState<"pnl" | "investors">("pnl");
   const { data: summary, isLoading } = useSWR(`/api/ledger/summary?year=${selectedYear}`, fetcher);
+  const { data: partnersRaw } = useSWR(view === "investors" ? "/api/partners" : null, fetcher);
+  const { data: investmentsRaw } = useSWR(view === "investors" ? "/api/investments" : null, fetcher);
   const { data: projectsRaw } = useSWR("/api/projects", fetcher);
   const projects: any[] = projectsRaw?.data ? projectsRaw.data : (Array.isArray(projectsRaw) ? projectsRaw : []);
 
@@ -47,6 +50,12 @@ export default function ProfitSheetsPage() {
         }
       />
 
+      <div className="flex gap-1.5 bg-gray-100 p-1 rounded-lg w-fit">
+        <button onClick={() => setView("pnl")} className={"flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition-colors " + (view === "pnl" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}><Scale className="w-3.5 h-3.5" /> Profit &amp; Loss</button>
+        <button onClick={() => setView("investors")} className={"flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition-colors " + (view === "investors" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}><PieChart className="w-3.5 h-3.5" /> Investor Shares</button>
+      </div>
+
+      {view === "pnl" && (<>
       {isLoading ? <StatsSkeleton count={3} /> : (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard label="Total Revenue" value={`PKR ${(totals.totalIncome||0).toLocaleString()}`} tone="green" icon={<TrendingUp className="w-4 h-4" />} />
@@ -209,6 +218,90 @@ export default function ProfitSheetsPage() {
         );
       })()}
       </>)}
+      </>)}
+
+      {view === "investors" && (() => {
+        const partners: any[] = (Array.isArray(partnersRaw) ? partnersRaw : []).filter((pt: any) => pt.isActive !== false);
+        const investments: any[] = Array.isArray(investmentsRaw) ? investmentsRaw : [];
+        const investedByPartner: Record<string, number> = {};
+        for (const inv of investments) {
+          const pid = inv.partnerId?.toString?.() || inv.partner?.id || "";
+          if (pid) investedByPartner[pid] = (investedByPartner[pid] || 0) + (inv.amount || 0);
+        }
+        const net = totals.net || 0;
+        const totalEquity = partners.reduce((sum: number, pt: any) => sum + (pt.equityPercent || 0), 0);
+        const totalInvested = investments.reduce((sum: number, inv: any) => sum + (inv.amount || 0), 0);
+        const withEquity = partners.filter((pt: any) => (pt.equityPercent || 0) > 0);
+        return (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <StatCard label={`Net Profit ${selectedYear}`} value={`PKR ${net.toLocaleString()}`} tone={net >= 0 ? "green" : "orange"} icon={<Scale className="w-4 h-4" />} />
+              <StatCard label="Equity Allocated" value={`${totalEquity}%`} sub={totalEquity < 100 ? `${(100 - totalEquity).toFixed(1)}% company-held` : undefined} tone={totalEquity > 100 ? "red" : "purple"} icon={<PieChart className="w-4 h-4" />} />
+              <StatCard label="Total Partner Capital" value={`PKR ${totalInvested.toLocaleString()}`} sub="Invested across projects" tone="blue" icon={<HandCoins className="w-4 h-4" />} />
+            </div>
+
+            {totalEquity > 100 && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                Equity percentages add up to {totalEquity}% (more than 100%). Fix partner equity in People / Partners before relying on these shares.
+              </div>
+            )}
+
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <div className="p-4 border-b border-gray-200 bg-gray-50">
+                <h2 className="font-semibold">Investor Shares — {selectedYear} P&amp;L</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Each share = the partner&apos;s equity % applied to this year&apos;s revenue, expenses, and net profit. Equity is set in People / Partners.</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b border-gray-200 bg-gray-50">
+                    <th className="text-left py-2 px-4 text-xs text-gray-500">Partner</th>
+                    <th className="text-right py-2 px-4 text-xs text-gray-500">Equity %</th>
+                    <th className="text-right py-2 px-4 text-xs text-gray-500">Invested Capital</th>
+                    <th className="text-right py-2 px-4 text-xs text-gray-500">Share of Revenue</th>
+                    <th className="text-right py-2 px-4 text-xs text-gray-500">Share of Expenses</th>
+                    <th className="text-right py-2 px-4 text-xs text-gray-500">Share of Net Profit</th>
+                  </tr></thead>
+                  <tbody>
+                    {withEquity.length === 0 && (
+                      <tr><td colSpan={6} className="py-8 text-center text-gray-400 text-sm">No partners with an equity share yet. Set equity % in People / Partners.</td></tr>
+                    )}
+                    {withEquity.map((pt: any) => {
+                      const eq = (pt.equityPercent || 0) / 100;
+                      const shareNet = net * eq;
+                      return (
+                        <tr key={pt.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-2.5 px-4 font-medium text-gray-900">{pt.name}</td>
+                          <td className="py-2.5 px-4 text-right text-purple-700 font-medium">{pt.equityPercent}%</td>
+                          <td className="py-2.5 px-4 text-right text-gray-700">PKR {(investedByPartner[pt.id] || 0).toLocaleString()}</td>
+                          <td className="py-2.5 px-4 text-right text-green-600">PKR {Math.round((totals.totalIncome || 0) * eq).toLocaleString()}</td>
+                          <td className="py-2.5 px-4 text-right text-red-500">PKR {Math.round((totals.totalExpense || 0) * eq).toLocaleString()}</td>
+                          <td className={`py-2.5 px-4 text-right font-bold ${shareNet >= 0 ? "text-green-600" : "text-red-500"}`}>PKR {Math.round(shareNet).toLocaleString()}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  {withEquity.length > 0 && (
+                    <tfoot><tr className="border-t border-gray-200 bg-gray-50 font-semibold">
+                      <td className="py-2.5 px-4 text-gray-700">Total ({withEquity.length} partner{withEquity.length !== 1 ? "s" : ""})</td>
+                      <td className="py-2.5 px-4 text-right text-purple-700">{totalEquity}%</td>
+                      <td className="py-2.5 px-4 text-right text-gray-700">PKR {totalInvested.toLocaleString()}</td>
+                      <td className="py-2.5 px-4 text-right text-green-600">PKR {Math.round((totals.totalIncome || 0) * totalEquity / 100).toLocaleString()}</td>
+                      <td className="py-2.5 px-4 text-right text-red-500">PKR {Math.round((totals.totalExpense || 0) * totalEquity / 100).toLocaleString()}</td>
+                      <td className="py-2.5 px-4 text-right text-blue-700">PKR {Math.round(net * totalEquity / 100).toLocaleString()}</td>
+                    </tr></tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+
+            {partners.some((pt: any) => !(pt.equityPercent > 0)) && (
+              <p className="text-xs text-gray-400">
+                {partners.filter((pt: any) => !(pt.equityPercent > 0)).length} partner(s) without an equity % are not shown — set their share in People / Partners to include them.
+              </p>
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 }

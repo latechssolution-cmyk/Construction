@@ -149,6 +149,22 @@ export default function LedgerPage() {
         />
       </div>
 
+      {/* Temporary totals for the active search/filter — shows what the
+          matching rows add up to, and disappears when the search clears.
+          Scoped to the rows on this page (the list is server-paginated). */}
+      {(search || typeFilter) && (() => {
+        const inc = filtered.filter((e: any) => e.type === "income").reduce((s: number, e: any) => s + (e.amount || 0), 0);
+        const exp = filtered.filter((e: any) => e.type === "expense").reduce((s: number, e: any) => s + (e.amount || 0), 0);
+        return (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+            <span className="text-blue-800 font-medium">{search ? `"${search}" — ` : ""}{filtered.length} matching entr{filtered.length === 1 ? "y" : "ies"}{(entries?.pagination?.pages || 1) > 1 ? " on this page" : ""}</span>
+            <span className="text-green-700">Income: <strong>PKR {inc.toLocaleString()}</strong></span>
+            <span className="text-red-700">Expense: <strong>PKR {exp.toLocaleString()}</strong></span>
+            <span className={(inc - exp) >= 0 ? "text-blue-800" : "text-orange-700"}>Net: <strong>PKR {(inc - exp).toLocaleString()}</strong></span>
+          </div>
+        );
+      })()}
+
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 space-y-4 shadow-sm">
           <h2 className="font-semibold text-lg">Add Ledger Entry</h2>

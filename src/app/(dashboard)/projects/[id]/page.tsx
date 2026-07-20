@@ -2043,6 +2043,22 @@ export default function ProjectDetailPage() {
             </div>
           )}
 
+          {/* Temporary totals for the current search — appears only while a
+              search term is active, so "cement" instantly shows what those
+              matching entries add up to. */}
+          {ledgerSearch && (() => {
+            const inc = filteredLedgerEntries.filter((e: any) => e.type === "income").reduce((s: number, e: any) => s + (e.amount || 0), 0);
+            const exp = filteredLedgerEntries.filter((e: any) => e.type === "expense").reduce((s: number, e: any) => s + (e.amount || 0), 0);
+            return (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+                <span className="text-blue-800 font-medium">&ldquo;{ledgerSearch}&rdquo; — {filteredLedgerEntries.length} entr{filteredLedgerEntries.length === 1 ? "y" : "ies"}</span>
+                <span className="text-green-700">Income: <strong>PKR {inc.toLocaleString()}</strong></span>
+                <span className="text-red-700">Expense: <strong>PKR {exp.toLocaleString()}</strong></span>
+                <span className={(inc - exp) >= 0 ? "text-blue-800" : "text-orange-700"}>Net: <strong>PKR {(inc - exp).toLocaleString()}</strong></span>
+              </div>
+            );
+          })()}
+
           {showLedgerForm && canManageFinance && (
             <form onSubmit={createLedgerEntry} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
               <h4 className="text-sm font-semibold text-gray-700">New Ledger Entry</h4>

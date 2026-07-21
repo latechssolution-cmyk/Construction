@@ -10,6 +10,8 @@ import { FolderOpen, FileText, Ruler, BarChart2, Receipt, Scale, ImageIcon, File
 import { PageHeader } from "@/components/ui/page-header";
 import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS } from "@/lib/document-categories";
 
+import { prepareFileForUpload } from "@/lib/upload-prep";
+
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
@@ -49,20 +51,30 @@ export default function DocumentsPage() {
       let fileType = file?.type || null;
       let fileSize = file?.size || null;
 
-      if (file) {
+      let uploadFile = file;
+      if (uploadFile) {
+        // Oversized images are re-encoded in the browser to fit the storage
+        // plan's per-file limit; oversized documents get a clear error now
+        // instead of a failed upload later.
+        const prep = await prepareFileForUpload(uploadFile);
+        if (prep.error) { toast({ title: "File too large", description: prep.error, variant: "destructive" }); return; }
+        if (prep.note) toast({ title: "Compressing image", description: prep.note });
+        uploadFile = prep.file;
+        fileType = uploadFile.type || fileType;
+        fileSize = uploadFile.size || fileSize;
         // Get signature from server (fast — no file data sent)
         const signRes = await fetch("/api/upload");
         if (!signRes.ok) { const e = await signRes.json().catch(() => ({})); toast({ title: "Upload unavailable", description: e.error || "Could not get upload token", variant: "destructive" }); return; }
         const { signature, timestamp, apiKey, cloudName, folder, maxFileSize } = await signRes.json();
 
-        if (maxFileSize && file.size > maxFileSize) {
+        if (maxFileSize && uploadFile.size > maxFileSize) {
           toast({ title: "Error", description: `File is too large (max ${Math.round(maxFileSize / 1024 / 1024)}MB)`, variant: "destructive" });
           return;
         }
 
         // Upload directly from browser to Cloudinary (bypasses serverless function timeout/payload limits)
         const fd = new FormData();
-        fd.append("file", file);
+        fd.append("file", uploadFile);
         fd.append("api_key", apiKey);
         fd.append("timestamp", timestamp);
         fd.append("folder", folder);

@@ -9,6 +9,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/hooks/use-toast";
 import { Pencil, Trash2, X, Download, FileText, BarChart2, Boxes, Wallet, HardHat, FolderOpen, Users, CheckCircle2, Circle, Upload, HandCoins, Search } from "lucide-react";
 import { TENDER_DOC_CHECKLIST, DOCUMENT_CATEGORY_LABELS } from "@/lib/document-categories";
+import { prepareFileForUpload } from "@/lib/upload-prep";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -192,13 +193,20 @@ export default function ProjectDetailPage() {
       let fileUrl: string | null = null;
       let fileType: string | null = docFile?.type || null;
       let fileSize: number | null = docFile?.size || null;
-      if (docFile) {
+      let uploadFile = docFile;
+      if (uploadFile) {
+        const prep = await prepareFileForUpload(uploadFile);
+        if (prep.error) { toast({ title: "File too large", description: prep.error, variant: "destructive" }); return; }
+        if (prep.note) toast({ title: "Compressing image", description: prep.note });
+        uploadFile = prep.file;
+        fileType = uploadFile.type || fileType;
+        fileSize = uploadFile.size || fileSize;
         const signRes = await fetch("/api/upload");
         if (!signRes.ok) { const e = await signRes.json().catch(() => ({})); toast({ title: "Upload unavailable", description: e.error || "Could not get upload token", variant: "destructive" }); return; }
         const { signature, timestamp, apiKey, cloudName, folder, maxFileSize } = await signRes.json();
-        if (maxFileSize && docFile.size > maxFileSize) { toast({ title: "Error", description: `File too large (max ${Math.round(maxFileSize / 1024 / 1024)}MB)`, variant: "destructive" }); return; }
+        if (maxFileSize && uploadFile.size > maxFileSize) { toast({ title: "Error", description: `File too large (max ${Math.round(maxFileSize / 1024 / 1024)}MB)`, variant: "destructive" }); return; }
         const fd = new FormData();
-        fd.append("file", docFile); fd.append("api_key", apiKey); fd.append("timestamp", timestamp);
+        fd.append("file", uploadFile); fd.append("api_key", apiKey); fd.append("timestamp", timestamp);
         fd.append("folder", folder); fd.append("signature", signature);
         const upRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: "POST", body: fd });
         if (!upRes.ok) { toast({ title: "Error", description: "File upload failed", variant: "destructive" }); return; }

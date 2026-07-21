@@ -18,7 +18,7 @@ export async function prepareFileForUpload(original: File): Promise<{ file: File
   if (!original.type.startsWith("image/")) {
     return {
       file: original,
-      error: `${original.name} is ${(original.size / 1024 / 1024).toFixed(1)} MB — documents over ${Math.round(PLAN_FILE_LIMIT / 1024 / 1024)} MB can't be compressed in the browser. Reduce the file size (e.g. export the PDF at lower quality) or upgrade the storage plan.`,
+      error: `${original.name} is ${(original.size / 1024 / 1024).toFixed(1)} MB — documents over ${Math.round(PLAN_FILE_LIMIT / 1024 / 1024)} MB can't be compressed in the browser. Compress the PDF first with the free PDF24 app (pdf24.org) and upload the smaller copy.`,
     };
   }
 

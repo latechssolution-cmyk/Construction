@@ -41,17 +41,17 @@ async function seed() {
   // ── 1. USERS ─────────────────────────────────────────────────────────────
   console.log("👥 Seeding users...");
   const usersRaw = [
-    { name: "Super Admin",              email: "admin@constructionlatech.com",     pass: "Admin@1234",   role: "admin" },
-    { name: "Executive Director / CEO", email: "ceo@constructionlatech.com",       pass: "Ceo@1234",     role: "ceo" },
-    { name: "Aamir Khan",               email: "manager@constructionlatech.com",   pass: "Manager@1234", role: "manager" },
-    { name: "Fatima Noor",              email: "accountant@constructionlatech.com",pass: "Account@1234", role: "accountant" },
-    { name: "Bilal Chaudhry",           email: "bilal@constructionlatech.com",     pass: "Manager@1234", role: "manager" },
-    { name: "Sara Ahmed",               email: "sara@constructionlatech.com",      pass: "Manager@1234", role: "manager" },
-    { name: "Hamid Raza",               email: "hamid@constructionlatech.com",     pass: "Account@1234", role: "accountant" },
-    { name: "Admin",                    email: "admin@construction.com",           pass: "Admin@1234",   role: "admin" },
-    { name: "CEO",                      email: "ceo@construction.com",             pass: "Ceo@1234",     role: "ceo" },
-    { name: "Manager",                  email: "manager@construction.com",         pass: "Manager@1234", role: "manager" },
-    { name: "Accountant",               email: "accountant@construction.com",      pass: "Account@1234", role: "accountant" },
+    { name: "Super Admin",              email: "admin@vcc.com",     pass: "Admin@1234",   role: "admin" },
+    { name: "Executive Director / CEO", email: "ceo@vcc.com",       pass: "Ceo@1234",     role: "ceo" },
+    { name: "Aamir Khan",               email: "manager@vcc.com",   pass: "Manager@1234", role: "manager" },
+    { name: "Fatima Noor",              email: "accountant@vcc.com",pass: "Account@1234", role: "accountant" },
+    { name: "Bilal Chaudhry",           email: "bilal@vcc.com",     pass: "Manager@1234", role: "manager" },
+    { name: "Sara Ahmed",               email: "sara@vcc.com",      pass: "Manager@1234", role: "manager" },
+    { name: "Hamid Raza",               email: "hamid@vcc.com",     pass: "Account@1234", role: "accountant" },
+    { name: "Admin",                    email: "admin2@vcc.com",           pass: "Admin@1234",   role: "admin" },
+    { name: "CEO",                      email: "ceo2@vcc.com",             pass: "Ceo@1234",     role: "ceo" },
+    { name: "Manager",                  email: "manager2@vcc.com",         pass: "Manager@1234", role: "manager" },
+    { name: "Accountant",               email: "accountant2@vcc.com",      pass: "Account@1234", role: "accountant" },
   ];
   const userDocs: any[] = [];
   for (const u of usersRaw) {
@@ -131,31 +131,31 @@ async function seed() {
   // ── 5. EMPLOYEES ─────────────────────────────────────────────────────────
   console.log("👷 Seeding employees...");
   const employeesRaw = [
-    { name: "Engr. Hamza Ali",       role: "Senior Structural Engineer",  department: "Engineering",  phone: "+92 300 5551234", email: "hamza.ali@constructionlatech.com",      salary: 280000, salaryType: "monthly", joiningDate: new Date("2022-03-15") },
-    { name: "Usman Ghani",           role: "Site Supervisor",             department: "Operations",   phone: "+92 321 4449876", email: "usman.ghani@constructionlatech.com",    salary: 130000, salaryType: "monthly", joiningDate: new Date("2023-01-10") },
-    { name: "Engr. Sadia Iqbal",     role: "Civil Engineer",              department: "Engineering",  phone: "+92 333 7891234", email: "sadia.iqbal@constructionlatech.com",    salary: 220000, salaryType: "monthly", joiningDate: new Date("2022-08-01") },
-    { name: "Muhammad Asif",         role: "Quantity Surveyor",           department: "Estimation",   phone: "+92 311 2340987", email: "m.asif@constructionlatech.com",         salary: 180000, salaryType: "monthly", joiningDate: new Date("2023-04-20") },
-    { name: "Engr. Tariq Hussain",   role: "MEP Engineer",                department: "Engineering",  phone: "+92 345 8762901", email: "tariq.h@constructionlatech.com",        salary: 240000, salaryType: "monthly", joiningDate: new Date("2021-11-01") },
-    { name: "Rashid Mehmood",        role: "Mason Foreman",               department: "Operations",   phone: "+92 300 1231230", email: "rashid.m@constructionlatech.com",       salary: 90000,  salaryType: "monthly", joiningDate: new Date("2020-06-15") },
-    { name: "Ali Hassan",            role: "Electrician",                 department: "Electrical",   phone: "+92 333 6541234", email: "ali.h@constructionlatech.com",          salary: 75000,  salaryType: "monthly", joiningDate: new Date("2021-09-01") },
-    { name: "Nasreen Bibi",          role: "HR Manager",                  department: "HR",           phone: "+92 311 9871234", email: "nasreen.b@constructionlatech.com",      salary: 160000, salaryType: "monthly", joiningDate: new Date("2022-02-14") },
-    { name: "Khurram Shahzad",       role: "Safety Officer",              department: "HSE",          phone: "+92 345 3210987", email: "khurram.s@constructionlatech.com",      salary: 120000, salaryType: "monthly", joiningDate: new Date("2023-06-01") },
-    { name: "Zara Malik",            role: "Architect",                   department: "Design",       phone: "+92 321 7654321", email: "zara.m@constructionlatech.com",         salary: 200000, salaryType: "monthly", joiningDate: new Date("2022-10-15") },
-    { name: "Engr. Farhan Butt",     role: "Site Engineer",               department: "Engineering",  phone: "+92 300 1122334", email: "farhan.b@constructionlatech.com",       salary: 175000, salaryType: "monthly", joiningDate: new Date("2023-09-01") },
-    { name: "Waheed Anjum",          role: "Plumber Foreman",             department: "Plumbing",     phone: "+92 311 4455667", email: "waheed.a@constructionlatech.com",       salary: 85000,  salaryType: "monthly", joiningDate: new Date("2021-03-20") },
-    { name: "Yasir Latif",           role: "Welder",                      department: "Fabrication",  phone: "+92 333 7788990", email: "yasir.l@constructionlatech.com",        salary: 70000,  salaryType: "monthly", joiningDate: new Date("2022-07-01") },
-    { name: "Bushra Ameen",          role: "Interior Designer",           department: "Design",       phone: "+92 345 1122334", email: "bushra.a@constructionlatech.com",       salary: 170000, salaryType: "monthly", joiningDate: new Date("2024-01-15") },
-    { name: "Adnan Riaz",            role: "Equipment Operator",          department: "Operations",   phone: "+92 300 9988776", email: "adnan.r@constructionlatech.com",        salary: 95000,  salaryType: "monthly", joiningDate: new Date("2021-05-10") },
-    { name: "Hina Shafiq",           role: "Procurement Officer",         department: "Procurement",  phone: "+92 321 6655443", email: "hina.s@constructionlatech.com",         salary: 140000, salaryType: "monthly", joiningDate: new Date("2023-03-01") },
-    { name: "Saad Mehmood",          role: "Laborer Supervisor",          department: "Operations",   phone: "+92 311 3344556", email: "saad.m@constructionlatech.com",         salary: 80000,  salaryType: "monthly", joiningDate: new Date("2020-11-01") },
-    { name: "Aisha Siddiqui",        role: "Document Controller",         department: "Admin",        phone: "+92 333 1122000", email: "aisha.s@constructionlatech.com",        salary: 110000, salaryType: "monthly", joiningDate: new Date("2024-03-10") },
-    { name: "Fahad Mirza",           role: "Crane Operator",              department: "Operations",   phone: "+92 345 8899001", email: "fahad.m@constructionlatech.com",        salary: 100000, salaryType: "monthly", joiningDate: new Date("2022-04-01") },
-    { name: "Engr. Sana Akhtar",     role: "Environmental Engineer",      department: "HSE",          phone: "+92 300 7722334", email: "sana.a@constructionlatech.com",         salary: 190000, salaryType: "monthly", joiningDate: new Date("2023-07-15") },
-    { name: "Imran Zahid",           role: "Carpenter Foreman",           department: "Operations",   phone: "+92 321 5544332", email: "imran.z@constructionlatech.com",        salary: 82000,  salaryType: "monthly", joiningDate: new Date("2021-08-20") },
-    { name: "Rabia Farooq",          role: "Cost Estimator",              department: "Estimation",   phone: "+92 311 2233445", email: "rabia.f@constructionlatech.com",        salary: 155000, salaryType: "monthly", joiningDate: new Date("2023-11-01") },
-    { name: "Shahzaib Khan",         role: "Scaffolding Supervisor",      department: "Operations",   phone: "+92 333 6677889", email: "shahzaib.k@constructionlatech.com",     salary: 88000,  salaryType: "monthly", joiningDate: new Date("2022-01-15") },
-    { name: "Fariha Naz",            role: "Electrical Engineer",         department: "Electrical",   phone: "+92 345 4433221", email: "fariha.n@constructionlatech.com",       salary: 215000, salaryType: "monthly", joiningDate: new Date("2022-06-01") },
-    { name: "Naeem Akhtar",          role: "Senior Mason",                department: "Operations",   phone: "+92 300 8877665", email: "naeem.a@constructionlatech.com",        salary: 78000,  salaryType: "monthly", joiningDate: new Date("2020-03-10") },
+    { name: "Engr. Hamza Ali",       role: "Senior Structural Engineer",  department: "Engineering",  phone: "+92 300 5551234", email: "hamza.ali@vcc.com",      salary: 280000, salaryType: "monthly", joiningDate: new Date("2022-03-15") },
+    { name: "Usman Ghani",           role: "Site Supervisor",             department: "Operations",   phone: "+92 321 4449876", email: "usman.ghani@vcc.com",    salary: 130000, salaryType: "monthly", joiningDate: new Date("2023-01-10") },
+    { name: "Engr. Sadia Iqbal",     role: "Civil Engineer",              department: "Engineering",  phone: "+92 333 7891234", email: "sadia.iqbal@vcc.com",    salary: 220000, salaryType: "monthly", joiningDate: new Date("2022-08-01") },
+    { name: "Muhammad Asif",         role: "Quantity Surveyor",           department: "Estimation",   phone: "+92 311 2340987", email: "m.asif@vcc.com",         salary: 180000, salaryType: "monthly", joiningDate: new Date("2023-04-20") },
+    { name: "Engr. Tariq Hussain",   role: "MEP Engineer",                department: "Engineering",  phone: "+92 345 8762901", email: "tariq.h@vcc.com",        salary: 240000, salaryType: "monthly", joiningDate: new Date("2021-11-01") },
+    { name: "Rashid Mehmood",        role: "Mason Foreman",               department: "Operations",   phone: "+92 300 1231230", email: "rashid.m@vcc.com",       salary: 90000,  salaryType: "monthly", joiningDate: new Date("2020-06-15") },
+    { name: "Ali Hassan",            role: "Electrician",                 department: "Electrical",   phone: "+92 333 6541234", email: "ali.h@vcc.com",          salary: 75000,  salaryType: "monthly", joiningDate: new Date("2021-09-01") },
+    { name: "Nasreen Bibi",          role: "HR Manager",                  department: "HR",           phone: "+92 311 9871234", email: "nasreen.b@vcc.com",      salary: 160000, salaryType: "monthly", joiningDate: new Date("2022-02-14") },
+    { name: "Khurram Shahzad",       role: "Safety Officer",              department: "HSE",          phone: "+92 345 3210987", email: "khurram.s@vcc.com",      salary: 120000, salaryType: "monthly", joiningDate: new Date("2023-06-01") },
+    { name: "Zara Malik",            role: "Architect",                   department: "Design",       phone: "+92 321 7654321", email: "zara.m@vcc.com",         salary: 200000, salaryType: "monthly", joiningDate: new Date("2022-10-15") },
+    { name: "Engr. Farhan Butt",     role: "Site Engineer",               department: "Engineering",  phone: "+92 300 1122334", email: "farhan.b@vcc.com",       salary: 175000, salaryType: "monthly", joiningDate: new Date("2023-09-01") },
+    { name: "Waheed Anjum",          role: "Plumber Foreman",             department: "Plumbing",     phone: "+92 311 4455667", email: "waheed.a@vcc.com",       salary: 85000,  salaryType: "monthly", joiningDate: new Date("2021-03-20") },
+    { name: "Yasir Latif",           role: "Welder",                      department: "Fabrication",  phone: "+92 333 7788990", email: "yasir.l@vcc.com",        salary: 70000,  salaryType: "monthly", joiningDate: new Date("2022-07-01") },
+    { name: "Bushra Ameen",          role: "Interior Designer",           department: "Design",       phone: "+92 345 1122334", email: "bushra.a@vcc.com",       salary: 170000, salaryType: "monthly", joiningDate: new Date("2024-01-15") },
+    { name: "Adnan Riaz",            role: "Equipment Operator",          department: "Operations",   phone: "+92 300 9988776", email: "adnan.r@vcc.com",        salary: 95000,  salaryType: "monthly", joiningDate: new Date("2021-05-10") },
+    { name: "Hina Shafiq",           role: "Procurement Officer",         department: "Procurement",  phone: "+92 321 6655443", email: "hina.s@vcc.com",         salary: 140000, salaryType: "monthly", joiningDate: new Date("2023-03-01") },
+    { name: "Saad Mehmood",          role: "Laborer Supervisor",          department: "Operations",   phone: "+92 311 3344556", email: "saad.m@vcc.com",         salary: 80000,  salaryType: "monthly", joiningDate: new Date("2020-11-01") },
+    { name: "Aisha Siddiqui",        role: "Document Controller",         department: "Admin",        phone: "+92 333 1122000", email: "aisha.s@vcc.com",        salary: 110000, salaryType: "monthly", joiningDate: new Date("2024-03-10") },
+    { name: "Fahad Mirza",           role: "Crane Operator",              department: "Operations",   phone: "+92 345 8899001", email: "fahad.m@vcc.com",        salary: 100000, salaryType: "monthly", joiningDate: new Date("2022-04-01") },
+    { name: "Engr. Sana Akhtar",     role: "Environmental Engineer",      department: "HSE",          phone: "+92 300 7722334", email: "sana.a@vcc.com",         salary: 190000, salaryType: "monthly", joiningDate: new Date("2023-07-15") },
+    { name: "Imran Zahid",           role: "Carpenter Foreman",           department: "Operations",   phone: "+92 321 5544332", email: "imran.z@vcc.com",        salary: 82000,  salaryType: "monthly", joiningDate: new Date("2021-08-20") },
+    { name: "Rabia Farooq",          role: "Cost Estimator",              department: "Estimation",   phone: "+92 311 2233445", email: "rabia.f@vcc.com",        salary: 155000, salaryType: "monthly", joiningDate: new Date("2023-11-01") },
+    { name: "Shahzaib Khan",         role: "Scaffolding Supervisor",      department: "Operations",   phone: "+92 333 6677889", email: "shahzaib.k@vcc.com",     salary: 88000,  salaryType: "monthly", joiningDate: new Date("2022-01-15") },
+    { name: "Fariha Naz",            role: "Electrical Engineer",         department: "Electrical",   phone: "+92 345 4433221", email: "fariha.n@vcc.com",       salary: 215000, salaryType: "monthly", joiningDate: new Date("2022-06-01") },
+    { name: "Naeem Akhtar",          role: "Senior Mason",                department: "Operations",   phone: "+92 300 8877665", email: "naeem.a@vcc.com",        salary: 78000,  salaryType: "monthly", joiningDate: new Date("2020-03-10") },
   ];
   const empDocs: any[] = [];
   for (const e of employeesRaw) {
@@ -833,10 +833,10 @@ async function seed() {
   console.log(`  Store Items: ${storeItemsRaw.length}`);
   console.log("\n  Login credentials:");
   console.log("  ─────────────────────────────────────────────────────");
-  console.log("  Admin:      admin@constructionlatech.com   / Admin@1234");
-  console.log("  CEO:        ceo@constructionlatech.com     / Ceo@1234");
-  console.log("  Manager:    manager@constructionlatech.com / Manager@1234");
-  console.log("  Accountant: accountant@constructionlatech.com / Account@1234");
+  console.log("  Admin:      admin@vcc.com   / Admin@1234");
+  console.log("  CEO:        ceo@vcc.com     / Ceo@1234");
+  console.log("  Manager:    manager@vcc.com / Manager@1234");
+  console.log("  Accountant: accountant@vcc.com / Account@1234");
   console.log("=".repeat(60) + "\n");
 
   await mongoose.disconnect();

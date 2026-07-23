@@ -12,7 +12,7 @@ const loginResp = await fetch(`${BASE}/api/auth/callback/credentials`, {
     "Content-Type": "application/x-www-form-urlencoded",
     Cookie: csrfCookies.map(c => c.split(";")[0]).join("; "),
   },
-  body: `csrfToken=${csrf}&email=admin%40constructionlatech.com&password=Admin%401234&redirect=false&json=true`,
+  body: `csrfToken=${csrf}&email=admin%40vcc.com&password=Admin%401234&redirect=false&json=true`,
 });
 console.log("Login status:", loginResp.status, loginResp.headers.get("location"));
 const loginCookies = loginResp.headers.getSetCookie();

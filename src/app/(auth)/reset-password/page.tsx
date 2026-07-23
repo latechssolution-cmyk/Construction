@@ -140,8 +140,8 @@ function ResetPasswordContent() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg">
             <Building2 className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white">Construction ERP</h1>
-          <p className="text-blue-300 mt-1">LA Tech Solutions</p>
+          <h1 className="text-3xl font-bold text-white">Vibrant Construction Co.</h1>
+          <p className="text-amber-400 mt-1">Precision in every project</p>
         </div>
 
         <Card className="shadow-2xl border-0">

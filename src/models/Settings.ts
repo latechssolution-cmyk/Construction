@@ -15,7 +15,7 @@ export interface ISettings extends Document {
 
 const settingsSchema = new Schema<ISettings>(
   {
-    companyName: { type: String, required: true, default: "Construction ERP Ltd" },
+    companyName: { type: String, required: true, default: "Vibrant Construction Co." },
     address: { type: String, default: "" },
     phone: { type: String, default: "" },
     email: { type: String, default: "" },

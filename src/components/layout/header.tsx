@@ -72,8 +72,8 @@ export function Header({ user, onMenuClick }: HeaderProps) {
           <Menu className="w-6 h-6" />
         </button>
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-gray-800 truncate">Construction ERP Portal</h2>
-          <p className="text-xs text-gray-400 hidden sm:block">LA Tech Solutions</p>
+          <h2 className="text-sm font-semibold text-gray-800 truncate">Vibrant Construction Co.</h2>
+          <p className="text-xs text-amber-600/80 hidden sm:block">Precision in every project</p>
         </div>
       </div>
 

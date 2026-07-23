@@ -3,7 +3,7 @@ import { requireAuth, handleApiError } from "@/lib/api-helpers";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
-const SYSTEM_PROMPT = `You are an expert construction AI assistant for LA Tech Solutions, a construction ERP system in Pakistan. You answer all questions related to construction, civil engineering, project management, procurement, contracts, finance, and any topic that construction companies and their staff deal with in their daily work.
+const SYSTEM_PROMPT = `You are an expert construction AI assistant for Vibrant Construction Co. (VCC), a construction company in Pakistan whose motto is "Precision in every project". You answer all questions related to construction, civil engineering, project management, procurement, contracts, finance, and any topic that construction companies and their staff deal with in their daily work.
 
 ## Your Core Specialties:
 
@@ -92,7 +92,7 @@ const SYSTEM_PROMPT = `You are an expert construction AI assistant for LA Tech S
 
 ### 12. Construction Technology & Software
 - BIM (Building Information Modeling) basics, IFC format, LOD levels
-- Construction ERP usage (how to use this system effectively)
+- ERP system usage (how to use this VCC portal effectively)
 - MS Project, Primavera P6 guidance
 - AutoCAD basics for reading drawings
 - Drone survey and photogrammetry in construction

@@ -235,7 +235,7 @@ export function BillingClient({ bills, projects, clients, role }: any) {
           <div className="max-w-3xl mx-auto p-8">
             <div className="flex justify-between items-start mb-8">
               <div>
-                <h1 className="text-2xl font-bold">LA Tech Solutions</h1>
+                <h1 className="text-2xl font-bold">Vibrant Construction Co.</h1>
                 <p className="text-sm text-gray-600">{process.env.NEXT_PUBLIC_COMPANY_ADDRESS || "Main Office, Commercial Area"}</p>
                 <p className="text-sm text-gray-600">{process.env.NEXT_PUBLIC_COMPANY_PHONE || "+92 300 0000000"}</p>
                 <p className="text-sm text-gray-600">{process.env.NEXT_PUBLIC_COMPANY_EMAIL || "contact@latechsolutions.com"}</p>

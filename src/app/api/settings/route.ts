@@ -13,7 +13,7 @@ export async function GET() {
     let settings = await Settings.findOne();
     if (!settings) {
       settings = await Settings.create({
-        companyName: process.env.NEXT_PUBLIC_APP_NAME || "Construction Management ERP",
+        companyName: process.env.NEXT_PUBLIC_APP_NAME || "Vibrant Construction Co.",
         currency: "PKR",
         taxPercent: 16,
         retentionPercent: 10,

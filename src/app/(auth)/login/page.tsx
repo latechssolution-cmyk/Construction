@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Building2, Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,18 +70,27 @@ function LoginContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
+    <div className="relative min-h-screen bg-[#161513] flex items-center justify-center p-4 overflow-hidden">
+      {/* Brand backdrop — angled amber/charcoal bands echoing the letterhead */}
+      <div aria-hidden className="absolute inset-0">
+        <div className="absolute -top-32 -right-24 w-[520px] h-[520px] rounded-full bg-amber-500/10 blur-3xl" />
+        <div className="absolute -bottom-40 -left-24 w-[460px] h-[460px] rounded-full bg-amber-400/5 blur-3xl" />
+        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-amber-400 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-r from-zinc-900 via-[#4a3a17] to-amber-500/70" />
+      </div>
+
+      <div className="relative w-full max-w-md">
+        {/* Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg">
-            <Building2 className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center bg-white rounded-2xl mb-5 shadow-xl shadow-black/40 px-5 py-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/vcc-logo.png" alt="Vibrant Construction Co." className="h-16 w-auto" />
           </div>
-          <h1 className="text-3xl font-bold text-white">Construction ERP</h1>
-          <p className="text-blue-300 mt-1">LA Tech Solutions</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Vibrant Construction Co.</h1>
+          <p className="text-amber-400 mt-1 text-sm tracking-[0.18em] uppercase">Precision in every project</p>
         </div>
 
-        <Card className="shadow-2xl border-0">
+        <Card className="shadow-2xl border-0 bg-white/[0.98]">
           <CardHeader className="text-center">
             <CardTitle>Welcome back</CardTitle>
             <CardDescription>Sign in to your account to continue</CardDescription>
@@ -153,7 +162,7 @@ function LoginContent() {
                 {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
               </div>
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full bg-amber-500 hover:bg-amber-600 text-zinc-950 font-semibold" disabled={loading}>
                 {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Sign In
               </Button>

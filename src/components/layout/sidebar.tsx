@@ -89,12 +89,13 @@ export function Sidebar({ role, mobileOpen = false, onClose }: { role: Role; mob
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
-        <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm shadow-blue-900/30">
-          <Building2 className="w-5 h-5 text-white" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <div className="w-11 h-9 bg-white rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm p-1">
+          <img src="/vcc-logo.png" alt="VCC" className="max-h-full max-w-full object-contain" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-bold text-sidebar-foreground leading-tight truncate">Construction ERP</p>
-          <p className="text-xs text-sidebar-foreground/50 leading-tight truncate">LA Tech Solutions</p>
+          <p className="text-sm font-bold text-sidebar-foreground leading-tight truncate">Vibrant Construction Co.</p>
+          <p className="text-[10px] text-amber-400/90 leading-tight truncate tracking-wide">Precision in every project</p>
         </div>
         <button onClick={onClose} className="ml-auto lg:hidden text-sidebar-foreground/60 hover:text-sidebar-foreground" aria-label="Close menu">
           <X className="w-5 h-5" />
@@ -127,7 +128,7 @@ export function Sidebar({ role, mobileOpen = false, onClose }: { role: Role; mob
                       : "text-sidebar-foreground/65 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   )}
                 >
-                  <item.icon className={cn("w-4 h-4 flex-shrink-0", isActive ? "text-blue-400" : "text-sidebar-foreground/50")} />
+                  <item.icon className={cn("w-4 h-4 flex-shrink-0", isActive ? "text-amber-400" : "text-sidebar-foreground/50")} />
                   <span className="flex-1 text-left">{item.label}</span>
                   {isOpen ? <ChevronDown className="w-3 h-3 opacity-60" /> : <ChevronRight className="w-3 h-3 opacity-60" />}
                 </button>

@@ -993,6 +993,33 @@ export default function ProjectDetailPage() {
             style={{ width: `${Math.min(project.completionPercent || 0, 100)}%` }}
           />
         </div>
+
+        {/* Budget utilization — spend against budget, alongside physical progress */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h3 className="font-semibold text-gray-900 text-sm">Budget Used</h3>
+              <p className="text-xs text-gray-400">
+                {summary && (summary.budget || 0) > 0
+                  ? `PKR ${(summary.budgetUsed || 0).toLocaleString()} spent of PKR ${(summary.budget || 0).toLocaleString()}`
+                  : "No budget set for this project"}
+              </p>
+            </div>
+            {summary && (summary.budget || 0) > 0 && (
+              <span className={`text-2xl font-bold ${(summary.budgetUsedPct || 0) > 100 ? "text-red-600" : (summary.budgetUsedPct || 0) > 90 ? "text-orange-500" : "text-amber-600"}`}>
+                {summary.budgetUsedPct || 0}%
+              </span>
+            )}
+          </div>
+          {summary && (summary.budget || 0) > 0 && (
+            <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className={`h-3 rounded-full transition-all ${(summary.budgetUsedPct || 0) > 100 ? "bg-red-500" : (summary.budgetUsedPct || 0) > 90 ? "bg-orange-400" : "bg-amber-400"}`}
+                style={{ width: `${Math.min(summary.budgetUsedPct || 0, 100)}%` }}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Summary Cards */}

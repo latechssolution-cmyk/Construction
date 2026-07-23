@@ -1,7 +1,30 @@
 import PDFDocument from "pdfkit";
+import path from "path";
 import { connectDB } from "@/lib/mongoose";
 import Invoice from "@/models/Invoice";
 import Project from "@/models/Project";
+
+// Company letterhead (public/letterhead.png, rendered from the official
+// "M/S Vibrant Construction Co" stationery PDF) is drawn as the full-page
+// background of every PDF page. Content stays inside its clear zone:
+// header stripe ends ~110pt, the printed footer starts ~730pt.
+const LETTERHEAD_PATH = path.join(process.cwd(), "public", "letterhead.png");
+const BRAND_DARK = "#1c1b19";
+const BRAND_AMBER = "#E5A823";
+const COMPANY_NAME = "Vibrant Construction Co.";
+const CONTENT_TOP = 130;
+
+function applyLetterhead(doc: PDFKit.PDFDocument) {
+  const draw = () => {
+    try {
+      doc.image(LETTERHEAD_PATH, 0, 0, { width: doc.page.width, height: doc.page.height });
+    } catch {
+      // Letterhead asset missing — continue with plain pages rather than fail.
+    }
+  };
+  draw();
+  doc.on("pageAdded", draw);
+}
 
 export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
   await connectDB();
@@ -22,47 +45,45 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    // Issue #99: Remove hardcoded brand/company names — resolve dynamically
-    const appName = process.env.NEXT_PUBLIC_APP_NAME || "Construction Management ERP";
-    const primaryColor = "#1d4ed8";
+    applyLetterhead(doc);
+    const appName = COMPANY_NAME;
+    const primaryColor = BRAND_DARK;
     const grayColor = "#6b7280";
     const lightGray = "#f3f4f6";
 
-    // Draw header band on page 1
-    doc.rect(0, 0, doc.page.width, 100).fill(primaryColor);
-    doc.fillColor("white").fontSize(24).font("Helvetica-Bold").text(appName, 50, 30);
-    doc.fontSize(10).font("Helvetica").text("Construction Management Portal", 50, 60);
-    doc.fillColor("white").fontSize(28).font("Helvetica-Bold").text("INVOICE", 400, 30, { align: "right" });
-    doc.fontSize(11).font("Helvetica").text(`# ${inv.invoiceNumber}`, 400, 65, { align: "right" });
+    // Fill the letterhead's own "Date:....." line with the issue date
+    doc.fillColor("#111827").fontSize(9).font("Helvetica")
+      .text(new Date(inv.issueDate).toLocaleDateString("en-PK"), 492, 166, { lineBreak: false });
 
-    doc.fillColor("#111827").fontSize(10).font("Helvetica-Bold").text("BILL TO:", 50, 120);
+    // Document title inside the letterhead's clear zone
+    doc.fillColor(BRAND_DARK).fontSize(24).font("Helvetica-Bold").text("INVOICE", 50, 118);
+    doc.fillColor(BRAND_AMBER).fontSize(12).font("Helvetica-Bold").text(`# ${inv.invoiceNumber}`, 52, 146);
+
+    doc.fillColor("#111827").fontSize(10).font("Helvetica-Bold").text("BILL TO:", 50, 172);
     doc.font("Helvetica").fillColor("#374151");
-    doc.text(inv.client?.name || "—", 50, 135);
-    if (inv.client?.address) doc.text(inv.client.address, 50, 150);
-    if (inv.client?.phone) doc.text(`Tel: ${inv.client.phone}`, 50, 165);
-    if (inv.client?.email) doc.text(`Email: ${inv.client.email}`, 50, 180);
+    doc.text(inv.client?.name || "—", 50, 187);
+    if (inv.client?.address) doc.text(inv.client.address, 50, 202);
+    if (inv.client?.phone) doc.text(`Tel: ${inv.client.phone}`, 50, 217);
+    if (inv.client?.email) doc.text(`Email: ${inv.client.email}`, 50, 232);
 
     const metaX = 350;
-    doc.fillColor("#111827").font("Helvetica-Bold").text("Issue Date:", metaX, 120);
-    doc.font("Helvetica").fillColor("#374151").text(new Date(inv.issueDate).toLocaleDateString("en-PK"), metaX + 80, 120);
-
     if (inv.dueDate) {
-      doc.font("Helvetica-Bold").fillColor("#111827").text("Due Date:", metaX, 140);
-      doc.font("Helvetica").fillColor("#374151").text(new Date(inv.dueDate).toLocaleDateString("en-PK"), metaX + 80, 140);
+      doc.font("Helvetica-Bold").fillColor("#111827").text("Due Date:", metaX, 187);
+      doc.font("Helvetica").fillColor("#374151").text(new Date(inv.dueDate).toLocaleDateString("en-PK"), metaX + 80, 187);
     }
     if (inv.project?.name) {
-      doc.font("Helvetica-Bold").fillColor("#111827").text("Project:", metaX, 160);
+      doc.font("Helvetica-Bold").fillColor("#111827").text("Project:", metaX, 205);
       doc.font("Helvetica").fillColor("#374151").text(
         inv.project.name,
-        metaX + 80, 160,
+        metaX + 80, 205,
         { width: doc.page.width - (metaX + 80) - 30, lineBreak: false, ellipsis: true }
       );
     }
-    doc.font("Helvetica-Bold").fillColor("#111827").text("Status:", metaX, 180);
-    doc.font("Helvetica").fillColor("#374151").text(inv.status.toUpperCase(), metaX + 80, 180, { lineBreak: false });
+    doc.font("Helvetica-Bold").fillColor("#111827").text("Status:", metaX, 223);
+    doc.font("Helvetica").fillColor("#374151").text(inv.status.toUpperCase(), metaX + 80, 223, { lineBreak: false });
 
     // Table settings
-    const tableTop = 220;
+    const tableTop = 262;
     const colWidths = [230, 55, 65, 85, 75];
     const colX = [50, 280, 335, 400, 485];
     const ROW_V_PAD = 6;
@@ -77,7 +98,7 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
 
     drawTableHeaders(tableTop);
     let y = tableTop + 22;
-    const ITEMS_PAGE_BREAK_Y = 680;
+    const ITEMS_PAGE_BREAK_Y = 670;
 
     (inv.items || []).forEach((item: any, idx: number) => {
       doc.font("Helvetica").fontSize(9);
@@ -86,7 +107,7 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
 
       if (y + rowH > ITEMS_PAGE_BREAK_Y) {
         doc.addPage();
-        y = 50;
+        y = CONTENT_TOP;
         drawTableHeaders(y);
         y += 22;
       }
@@ -103,12 +124,13 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
       y += rowH;
     });
 
-    if (y > 680) {
+    // Totals + notes + signature need ~200pt above the letterhead footer.
+    if (y > 520) {
       doc.addPage();
-      y = 50;
+      y = CONTENT_TOP;
     }
 
-    doc.rect(50, y, 510, 1).fill(primaryColor);
+    doc.rect(50, y, 510, 1).fill(BRAND_AMBER);
     y += 10;
 
     const totalsX = 350;
@@ -153,16 +175,7 @@ export async function generateInvoicePDF(invoiceId: string): Promise<Buffer> {
     doc.fillColor("#111827").font("Helvetica").fontSize(9).text("Authorized Signature", 350, y + 5);
     doc.text(appName, 350, y + 18);
 
-    // Footer - pinned to the bottom of the current active page
-    const footerY = doc.page.height - 40;
-    doc.rect(0, footerY, doc.page.width, 40).fill(primaryColor);
-    doc.fillColor("white").fontSize(8).font("Helvetica")
-      .text(
-        `${appName} · Thank you for your business · Generated on ${new Date().toLocaleDateString("en-PK")}`,
-        50, footerY + 16,
-        { align: "center", width: doc.page.width - 100 }
-      );
-
+    // The letterhead's printed footer serves as the page footer.
     doc.end();
   });
 }
@@ -201,15 +214,14 @@ export async function generateProjectReportPDF(projectId: string): Promise<Buffe
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    const appName = process.env.NEXT_PUBLIC_APP_NAME || "Construction Management ERP";
-    const primaryColor = "#1d4ed8";
+    applyLetterhead(doc);
+    const primaryColor = BRAND_DARK;
 
-    doc.rect(0, 0, doc.page.width, 90).fill(primaryColor);
-    doc.fillColor("white").fontSize(22).font("Helvetica-Bold").text(`Project Report`, 50, 20);
-    doc.fontSize(14).font("Helvetica").text(p.name, 50, 48);
-    doc.fontSize(9).text(`Generated: ${new Date().toLocaleDateString("en-PK")}`, 50, 68);
+    doc.fillColor(BRAND_DARK).fontSize(22).font("Helvetica-Bold").text("Project Report", 50, 115);
+    doc.fillColor(BRAND_AMBER).fontSize(14).font("Helvetica-Bold").text(p.name, 50, 142);
+    doc.fillColor("#6b7280").fontSize(9).font("Helvetica").text(`Generated: ${new Date().toLocaleDateString("en-PK")}`, 50, 160);
 
-    let y = 110;
+    let y = 185;
     const infoRows: [string, string][] = [
       ["Client", p.client?.name || "—"],
       ["Location", p.location || "—"],
@@ -227,7 +239,7 @@ export async function generateProjectReportPDF(projectId: string): Promise<Buffe
 
     doc.fillColor("#111827").font("Helvetica-Bold").fontSize(12).text("Project Summary", 50, y);
     y += 18;
-    doc.rect(50, y, 510, 1).fill(primaryColor);
+    doc.rect(50, y, 510, 1).fill(BRAND_AMBER);
     y += 8;
 
     infoRows.forEach(([label, value]) => {
@@ -238,10 +250,9 @@ export async function generateProjectReportPDF(projectId: string): Promise<Buffe
 
     // Materials page
     doc.addPage();
-    doc.rect(0, 0, doc.page.width, 60).fill(primaryColor);
-    doc.fillColor("white").fontSize(16).font("Helvetica-Bold").text("Materials Summary", 50, 20);
-    doc.fontSize(9).font("Helvetica").text(p.name, 50, 42);
-    y = 80;
+    doc.fillColor(BRAND_DARK).fontSize(16).font("Helvetica-Bold").text("Materials Summary", 50, 115);
+    doc.fillColor("#6b7280").fontSize(9).font("Helvetica").text(p.name, 50, 136);
+    y = 155;
 
     doc.rect(50, y, 510, 20).fill(primaryColor);
     const mHeaders = ["Item", "Qty", "Unit", "Unit Price", "Total", "Vendor"];
@@ -254,7 +265,7 @@ export async function generateProjectReportPDF(projectId: string): Promise<Buffe
     y += 20;
 
     (p.materials || []).forEach((m: any, idx: number) => {
-      if (y > 730) { doc.addPage(); y = 50; }
+      if (y > 700) { doc.addPage(); y = CONTENT_TOP; }
       doc.rect(50, y, 510, 18).fill(idx % 2 === 0 ? "white" : "#f9fafb");
       doc.fillColor("#111827").font("Helvetica").fontSize(8);
       doc.text(m.itemName, mColX[0], y + 4, { width: mColW[0] });
@@ -268,9 +279,8 @@ export async function generateProjectReportPDF(projectId: string): Promise<Buffe
 
     // Financials page
     doc.addPage();
-    doc.rect(0, 0, doc.page.width, 60).fill(primaryColor);
-    doc.fillColor("white").fontSize(16).font("Helvetica-Bold").text("Financial Summary", 50, 20);
-    y = 80;
+    doc.fillColor(BRAND_DARK).fontSize(16).font("Helvetica-Bold").text("Financial Summary", 50, 115);
+    y = 155;
 
     doc.rect(50, y, 510, 20).fill(primaryColor);
     const lHeaders = ["Date", "Type", "Category", "Amount", "Description"];
@@ -283,7 +293,7 @@ export async function generateProjectReportPDF(projectId: string): Promise<Buffe
     y += 20;
 
     (p.ledgerEntries || []).forEach((e: any, idx: number) => {
-      if (y > 730) { doc.addPage(); y = 50; }
+      if (y > 700) { doc.addPage(); y = CONTENT_TOP; }
       doc.rect(50, y, 510, 18).fill(idx % 2 === 0 ? "white" : "#f9fafb");
       const color = e.type === "income" ? "#15803d" : "#dc2626";
       doc.fillColor("#111827").font("Helvetica").fontSize(8);
@@ -297,15 +307,14 @@ export async function generateProjectReportPDF(projectId: string): Promise<Buffe
 
     // Tasks & Milestones
     doc.addPage();
-    doc.rect(0, 0, doc.page.width, 60).fill(primaryColor);
-    doc.fillColor("white").fontSize(16).font("Helvetica-Bold").text("Tasks & Milestones", 50, 20);
-    y = 80;
+    doc.fillColor(BRAND_DARK).fontSize(16).font("Helvetica-Bold").text("Tasks & Milestones", 50, 115);
+    y = 155;
 
     doc.fillColor("#111827").font("Helvetica-Bold").fontSize(11).text("Tasks", 50, y);
     y += 15;
     doc.font("Helvetica").fontSize(9);
     (p.tasks || []).forEach((t: any) => {
-      if (y > 730) { doc.addPage(); y = 50; }
+      if (y > 700) { doc.addPage(); y = CONTENT_TOP; }
       const statusColor = t.status === "completed" ? "#15803d" : t.status === "in_progress" ? "#1d4ed8" : "#6b7280";
       // Long titles wrap inside the fixed 380pt column — advance y by the
       // actual rendered height instead of a flat 16px, or a 2-line title
@@ -322,7 +331,7 @@ export async function generateProjectReportPDF(projectId: string): Promise<Buffe
     y += 15;
     doc.font("Helvetica").fontSize(9);
     (p.milestones || []).forEach((m: any) => {
-      if (y > 730) { doc.addPage(); y = 50; }
+      if (y > 700) { doc.addPage(); y = CONTENT_TOP; }
       const done = !!m.completedAt;
       const rowHeight = Math.max(16, doc.heightOfString(m.name || "", { width: 380 }) + 6);
       doc.rect(50, y, 8, 8).fill(done ? "#15803d" : "#6b7280");

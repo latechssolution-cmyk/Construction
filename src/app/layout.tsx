@@ -8,9 +8,9 @@ import { Providers } from "./providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Construction ERP | LA Tech Solutions",
-  description: "Complete construction project management and ERP portal",
-  icons: { icon: "/favicon.ico" },
+  title: "Vibrant Construction Co. | ERP",
+  description: "Vibrant Construction Co. — Precision in every project. Construction management and ERP portal.",
+  icons: { icon: "/icon.png" },
 };
 
 export default function RootLayout({
